@@ -1,23 +1,26 @@
-export type Card = {
+export type Portfolio = {
   id: string;
+  userId: string;
+  cardId: string;
   title: string;
+  condition: string;
+  purchasePrice: number;
+  currentMarketValue: number;
+  dateAdded: string;
+  imageUrl: string;
   year: string;
   brand: string;
   player: string;
   cardNumber: string;
   estimatedGrade: string;
-  purchasePrice: number;
-  currentMarketValue: number;
-  dateAdded: string;
-  imageUrl: string;
-  valueChange24h: number;
-  valueChange24hPercent: number;
-  imageHint: string;
+  valueChange24h?: number;
+  valueChange24hPercent?: number;
+  imageHint?: string;
 };
 
 export type Auction = {
   id: string;
-  card: Card;
+  card: Portfolio;
   currentBid: number;
   bids: number;
   timeLeft: string;

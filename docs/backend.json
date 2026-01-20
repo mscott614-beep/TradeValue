@@ -37,12 +37,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Portfolio",
       "type": "object",
-      "description": "Represents a user's portfolio of hockey cards.",
+      "description": "Represents a user's portfolio of trading cards.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the portfolio."
-        },
         "userId": {
           "type": "string",
           "description": "Reference to User. (Relationship: User 1:N Portfolio)"
@@ -77,10 +73,29 @@
           "type": "string",
           "description": "URL of the card's image stored in Firebase Storage.",
           "format": "uri"
+        },
+        "year": {
+          "type": "string",
+          "description": "The year the card was issued."
+        },
+        "brand": {
+          "type": "string",
+          "description": "The brand of the card (e.g., 'Topps')."
+        },
+        "player": {
+          "type": "string",
+          "description": "The name of the player on the card."
+        },
+        "cardNumber": {
+          "type": "string",
+          "description": "The card number."
+        },
+        "estimatedGrade": {
+          "type": "string",
+          "description": "The estimated grade of the card as determined by AI."
         }
       },
       "required": [
-        "id",
         "userId",
         "cardId",
         "title",
@@ -167,7 +182,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Card",
       "type": "object",
-      "description": "Represents a hockey card identified by the AI.",
+      "description": "Represents a trading card identified by the AI.",
       "properties": {
         "id": {
           "type": "string",
@@ -183,7 +198,7 @@
         },
         "player": {
           "type": "string",
-          "description": "The name of the hockey player on the card."
+          "description": "The name of the player on the card."
         },
         "cardNumber": {
           "type": "string",

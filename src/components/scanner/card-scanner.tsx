@@ -8,9 +8,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, WandSparkles, Loader2, CheckCircle } from "lucide-react";
+import { Upload, X, WandSparkles, Loader2, CheckCircle, PlusCircle } from "lucide-react";
 import Image from "next/image";
 import { Card, CardContent } from "../ui/card";
+import { useFirestore, useUser } from "@/firebase";
+import { collection } from "firebase/firestore";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export function CardScanner() {
   const [file, setFile] = useState<File | null>(null);
@@ -19,6 +22,9 @@ export function CardScanner() {
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const firestore = useFirestore();
+  const { user } = useUser();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -89,6 +95,41 @@ export function CardScanner() {
     };
   };
 
+  const handleAddToCollection = () => {
+    if (!result || !user || !firestore) {
+      toast({
+        title: "Error",
+        description: "Cannot add card to collection. Missing data or user not logged in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const portfoliosCollection = collection(firestore, `users/${user.uid}/portfolios`);
+    
+    const cardDataForDb = {
+        userId: user.uid,
+        cardId: `${result.brand}-${result.cardNumber}-${result.player.replace(/\s+/g, '-')}`,
+        title: `${result.year} ${result.brand} ${result.player} #${result.cardNumber}`,
+        condition: result.estimatedGrade,
+        purchasePrice: 0,
+        currentMarketValue: 0,
+        dateAdded: new Date().toISOString(),
+        imageUrl: preview,
+        ...result
+    };
+
+    addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
+    
+    toast({
+      title: "Card Added",
+      description: `${cardDataForDb.title} has been added to your collection.`,
+      action: <PlusCircle className="text-green-500" />
+    });
+
+    handleRemoveImage();
+  };
+
   return (
     <div className="space-y-6">
       {!preview ? (
@@ -155,7 +196,7 @@ export function CardScanner() {
                 <p className="text-muted-foreground">Est. Grade:</p><p className="font-medium">{result.estimatedGrade}</p>
             </div>
              <div className="flex gap-2 mt-6">
-                <Button className="flex-1">Add to Collection</Button>
+                <Button className="flex-1" onClick={handleAddToCollection}>Add to Collection</Button>
                 <Button variant="outline" className="flex-1" onClick={handleRemoveImage}>Scan Another</Button>
             </div>
           </CardContent>
