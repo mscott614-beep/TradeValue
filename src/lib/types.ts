@@ -16,6 +16,8 @@ export type Portfolio = {
   valueChange24h?: number;
   valueChange24hPercent?: number;
   imageHint?: string;
+  features?: string[];
+  parallel?: string;
 };
 
 export type Auction = {

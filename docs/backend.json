@@ -93,6 +93,17 @@
         "estimatedGrade": {
           "type": "string",
           "description": "The estimated grade of the card as determined by AI."
+        },
+        "features": {
+          "type": "array",
+          "description": "Special features of the card (e.g., 'Rookie', 'Limited Edition').",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parallel": {
+          "type": "string",
+          "description": "The parallel or variety of the card."
         }
       },
       "required": [
