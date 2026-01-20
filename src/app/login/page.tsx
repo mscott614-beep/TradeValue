@@ -23,7 +23,7 @@ function AuthForm() {
             toast({ title: 'Sign In Failed', description: 'Please enter email and password.', variant: 'destructive' });
             return;
         }
-        initiateEmailSignIn(auth, email, password);
+        initiateEmailSignIn(auth, email, password, toast);
     };
 
     const handleSignUp = () => {
@@ -31,11 +31,11 @@ function AuthForm() {
             toast({ title: 'Sign Up Failed', description: 'Please enter email and password.', variant: 'destructive' });
             return;
         }
-        initiateEmailSignUp(auth, email, password);
+        initiateEmailSignUp(auth, email, password, toast);
     };
     
     const handleAnonymousSignIn = () => {
-        initiateAnonymousSignIn(auth);
+        initiateAnonymousSignIn(auth, toast);
     };
 
     return (
