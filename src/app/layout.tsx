@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'TradeValue',
-  description: 'AI-powered hockey card portfolio tracking and valuation.',
+  description: 'AI-powered trading card portfolio tracking and valuation.',
 };
 
 export default function RootLayout({

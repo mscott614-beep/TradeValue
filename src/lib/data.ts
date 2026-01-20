@@ -15,7 +15,7 @@ export const cards: Card[] = [
     imageUrl: 'https://picsum.photos/seed/101/400/560',
     valueChange24h: 150,
     valueChange24hPercent: 2.04,
-    imageHint: 'hockey card'
+    imageHint: 'trading card'
   },
   {
     id: '2',
@@ -31,7 +31,7 @@ export const cards: Card[] = [
     imageUrl: 'https://picsum.photos/seed/102/400/560',
     valueChange24h: 75,
     valueChange24hPercent: 2.40,
-    imageHint: 'hockey card'
+    imageHint: 'trading card'
   },
   {
     id: '3',
@@ -47,7 +47,7 @@ export const cards: Card[] = [
     imageUrl: 'https://picsum.photos/seed/103/400/560',
     valueChange24h: -200,
     valueChange24hPercent: -0.8,
-    imageHint: 'hockey player'
+    imageHint: 'trading card'
   },
   {
     id: '4',
@@ -63,7 +63,7 @@ export const cards: Card[] = [
     imageUrl: 'https://picsum.photos/seed/104/400/560',
     valueChange24h: 50,
     valueChange24hPercent: 3.45,
-    imageHint: 'ice hockey'
+    imageHint: 'trading card'
   },
 ];
 
@@ -92,7 +92,7 @@ export const auctions: Auction[] = [
       title: '2016 UD Young Guns Auston Matthews',
       player: 'Auston Matthews',
       imageUrl: 'https://picsum.photos/seed/105/400/560',
-      imageHint: 'hockey player',
+      imageHint: 'trading card',
     },
     currentBid: 850,
     bids: 31,

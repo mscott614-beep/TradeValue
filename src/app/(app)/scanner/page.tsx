@@ -14,7 +14,7 @@ export default function ScannerPage() {
     <>
       <PageHeader
         title="AI Card Scanner"
-        description="Upload an image of your hockey card. Our AI will identify it and add it to your collection."
+        description="Upload an image of your trading card. Our AI will identify it and add it to your collection."
       />
       <div className="max-w-4xl mx-auto">
         <Card>

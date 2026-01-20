@@ -4,37 +4,37 @@
       "id": "gretzky-rookie",
       "description": "Wayne Gretzky 1979 O-Pee-Chee Rookie Card",
       "imageUrl": "https://images.unsplash.com/photo-1632546450973-35f988ad025a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxob2NrZXklMjBjYXJkfGVufDB8fHx8MTc2ODg3MjQ5NXww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "hockey card"
+      "imageHint": "trading card"
     },
     {
       "id": "mcdavid-young-guns",
       "description": "Connor McDavid 2015 Upper Deck Young Guns",
       "imageUrl": "https://images.unsplash.com/photo-1632546450973-35f988ad025a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxob2NrZXklMjBjYXJkfGVufDB8fHx8MTc2ODg3MjQ5NXww&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "hockey card"
+      "imageHint": "trading card"
     },
     {
       "id": "crosby-rookie",
       "description": "Sidney Crosby 2005 Upper Deck The Cup Rookie Card",
       "imageUrl": "https://images.unsplash.com/photo-1580748185659-ba000777cb96?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxob2NrZXklMjBwbGF5ZXJ8ZW58MHx8fHwxNzY4NzY3NjIxfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "hockey player"
+      "imageHint": "trading card"
     },
     {
       "id": "lemieux-rookie",
       "description": "Mario Lemieux 1985 O-Pee-Chee Rookie Card",
       "imageUrl": "https://images.unsplash.com/photo-1486128105845-91daff43f404?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxpY2UlMjBob2NrZXl8ZW58MHx8fHwxNzY4ODcyNDk1fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "ice hockey"
+      "imageHint": "trading card"
     },
     {
       "id": "matthews-young-guns",
       "description": "Auston Matthews 2016 Upper Deck Young Guns",
       "imageUrl": "https://images.unsplash.com/photo-1580748163493-a61bb4a4071d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxob2NrZXklMjBwbGF5ZXJ8ZW58MHx8fHwxNzY4NzY3NjIxfDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "hockey player"
+      "imageHint": "trading card"
     },
     {
       "id": "ovechkin-rookie",
       "description": "Alex Ovechkin 2005 Upper Deck The Cup Rookie Card",
       "imageUrl": "https://images.unsplash.com/photo-1545471977-94cac22e71ed?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxpY2UlMjBob2NrZXl8ZW58MHx8fHwxNzY4ODcyNDk1fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      "imageHint": "ice hockey"
+      "imageHint": "trading card"
     },
     {
       "id": "user-avatar",
