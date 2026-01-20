@@ -1,3 +1,52 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "gretzky-rookie",
+      "description": "Wayne Gretzky 1979 O-Pee-Chee Rookie Card",
+      "imageUrl": "https://images.unsplash.com/photo-1632546450973-35f988ad025a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxob2NrZXklMjBjYXJkfGVufDB8fHx8MTc2ODg3MjQ5NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "hockey card"
+    },
+    {
+      "id": "mcdavid-young-guns",
+      "description": "Connor McDavid 2015 Upper Deck Young Guns",
+      "imageUrl": "https://images.unsplash.com/photo-1632546450973-35f988ad025a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxob2NrZXklMjBjYXJkfGVufDB8fHx8MTc2ODg3MjQ5NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "hockey card"
+    },
+    {
+      "id": "crosby-rookie",
+      "description": "Sidney Crosby 2005 Upper Deck The Cup Rookie Card",
+      "imageUrl": "https://images.unsplash.com/photo-1580748185659-ba000777cb96?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxob2NrZXklMjBwbGF5ZXJ8ZW58MHx8fHwxNzY4NzY3NjIxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "hockey player"
+    },
+    {
+      "id": "lemieux-rookie",
+      "description": "Mario Lemieux 1985 O-Pee-Chee Rookie Card",
+      "imageUrl": "https://images.unsplash.com/photo-1486128105845-91daff43f404?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxpY2UlMjBob2NrZXl8ZW58MHx8fHwxNzY4ODcyNDk1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "ice hockey"
+    },
+    {
+      "id": "matthews-young-guns",
+      "description": "Auston Matthews 2016 Upper Deck Young Guns",
+      "imageUrl": "https://images.unsplash.com/photo-1580748163493-a61bb4a4071d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxob2NrZXklMjBwbGF5ZXJ8ZW58MHx8fHwxNzY4NzY3NjIxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "hockey player"
+    },
+    {
+      "id": "ovechkin-rookie",
+      "description": "Alex Ovechkin 2005 Upper Deck The Cup Rookie Card",
+      "imageUrl": "https://images.unsplash.com/photo-1545471977-94cac22e71ed?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxpY2UlMjBob2NrZXl8ZW58MHx8fHwxNzY4ODcyNDk1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "ice hockey"
+    },
+    {
+      "id": "user-avatar",
+      "description": "User avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3Njg3NzQ4OTN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "logo-icon",
+      "description": "TradeValue App Logo",
+      "imageUrl": "https://images.unsplash.com/photo-1744390166851-82056c6552d0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxhYnN0cmFjdCUyMGxvZ298ZW58MHx8fHwxNzY4NzcxNzUxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "abstract logo"
+    }
+  ]
 }

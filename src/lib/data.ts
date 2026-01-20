@@ -1,0 +1,139 @@
+import type { Card, Auction, PortfolioHistory, Alert } from './types';
+
+export const cards: Card[] = [
+  {
+    id: '1',
+    title: '1979 Topps Wayne Gretzky RC',
+    year: '1979',
+    brand: 'Topps',
+    player: 'Wayne Gretzky',
+    cardNumber: '18',
+    estimatedGrade: 'PSA 8',
+    purchasePrice: 1200,
+    currentMarketValue: 7500,
+    dateAdded: '2023-01-15',
+    imageUrl: 'https://picsum.photos/seed/101/400/560',
+    valueChange24h: 150,
+    valueChange24hPercent: 2.04,
+    imageHint: 'hockey card'
+  },
+  {
+    id: '2',
+    title: '2015 UD Young Guns Connor McDavid',
+    year: '2015',
+    brand: 'Upper Deck',
+    player: 'Connor McDavid',
+    cardNumber: '201',
+    estimatedGrade: 'PSA 10',
+    purchasePrice: 800,
+    currentMarketValue: 3200,
+    dateAdded: '2022-11-20',
+    imageUrl: 'https://picsum.photos/seed/102/400/560',
+    valueChange24h: 75,
+    valueChange24hPercent: 2.40,
+    imageHint: 'hockey card'
+  },
+  {
+    id: '3',
+    title: '2005 The Cup Sidney Crosby RC',
+    year: '2005',
+    brand: 'Upper Deck',
+    player: 'Sidney Crosby',
+    cardNumber: '180',
+    estimatedGrade: 'BGS 9.5',
+    purchasePrice: 5000,
+    currentMarketValue: 25000,
+    dateAdded: '2021-05-30',
+    imageUrl: 'https://picsum.photos/seed/103/400/560',
+    valueChange24h: -200,
+    valueChange24hPercent: -0.8,
+    imageHint: 'hockey player'
+  },
+  {
+    id: '4',
+    title: '1985 O-Pee-Chee Mario Lemieux RC',
+    year: '1985',
+    brand: 'O-Pee-Chee',
+    player: 'Mario Lemieux',
+    cardNumber: '9',
+    estimatedGrade: 'PSA 9',
+    purchasePrice: 400,
+    currentMarketValue: 1500,
+    dateAdded: '2023-08-10',
+    imageUrl: 'https://picsum.photos/seed/104/400/560',
+    valueChange24h: 50,
+    valueChange24hPercent: 3.45,
+    imageHint: 'ice hockey'
+  },
+];
+
+export const auctions: Auction[] = [
+  {
+    id: 'auc1',
+    card: cards[1],
+    currentBid: 3100,
+    bids: 24,
+    timeLeft: '1h 15m',
+    watchlist: true,
+  },
+  {
+    id: 'auc2',
+    card: cards[3],
+    currentBid: 1450,
+    bids: 18,
+    timeLeft: '3h 45m',
+    watchlist: true,
+  },
+  {
+    id: 'auc3',
+    card: {
+      ...cards[0],
+      id: '5',
+      title: '2016 UD Young Guns Auston Matthews',
+      player: 'Auston Matthews',
+      imageUrl: 'https://picsum.photos/seed/105/400/560',
+      imageHint: 'hockey player',
+    },
+    currentBid: 850,
+    bids: 31,
+    timeLeft: '2d 5h',
+    watchlist: false,
+  },
+];
+
+export const portfolioHistory: PortfolioHistory[] = [
+  { month: 'Jan', value: 25000 },
+  { month: 'Feb', value: 26500 },
+  { month: 'Mar', value: 28000 },
+  { month: 'Apr', value: 27500 },
+  { month: 'May', value: 30000 },
+  { month: 'Jun', value: 32400 },
+  { month: 'Jul', value: 37200 },
+];
+
+export const alerts: Alert[] = [
+  {
+    id: 'alert1',
+    cardId: '1',
+    cardTitle: '1979 Topps Wayne Gretzky RC',
+    targetPrice: 7000,
+    type: 'below',
+    active: true,
+  },
+  {
+    id: 'alert2',
+    cardId: '2',
+    cardTitle: '2015 UD Young Guns Connor McDavid',
+    targetPrice: 3500,
+    type: 'above',
+    active: true,
+  },
+  {
+    id: 'alert3',
+    cardId: '3',
+    cardTitle: '2005 The Cup Sidney Crosby RC',
+    targetPrice: 24000,
+    type: 'below',
+    active: false,
+  },
+];
