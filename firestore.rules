@@ -1,0 +1,181 @@
+/**
+ * # Firestore Security Rules
+ *
+ * ## Core Philosophy
+ * This ruleset enforces a strict user-ownership model. All data directly related
+ * to a user is nested within their personal data tree under `/users/{userId}`.
+ * A user can only access documents within their own tree. Data in top-level
+ * collections like `/market_data` and `/auctions` is considered public and is
+ * read-only for all clients, with writes expected to be handled by a trusted
+ * backend service.
+ *
+ * ## Data Structure
+ * - `/users/{userId}`: Root document for a user's profile and settings.
+ * - `/users/{userId}/portfolios/{portfolioId}`: A subcollection containing the
+ *   user's hockey card portfolios.
+ * - `/market_data/{marketDataId}`: A top-level collection for globally readable
+ *   historical card price data.
+ * - `/auctions/{auctionId}`: A top-level collection for globally readable live
+ *   auction data.
+ *
+ * ## Key Security Decisions
+ * - **No User Listing**: It is impossible for any client to list all documents
+ *   in the `/users` collection, preventing user enumeration attacks.
+ * - **Strict Ownership**: All access to `/users/{userId}` and its subcollections
+ *   is gated by checking if the authenticated user's ID matches the `{userId}`
+ *   wildcard in the path.
+ * - **Read-Only Public Data**: The `/market_data` and `/auctions` collections
+ *   are publicly readable but cannot be modified by any client-side request.
+ *   This is the most secure posture, assuming a backend admin or service is
+ *   responsible for populating this data.
+ *
+ * ## Denormalization for Authorization
+ * The `Portfolio` documents under `/users/{userId}/portfolios/{portfolioId}`
+ * contain a denormalized `userId` field. The rules validate on creation that this
+ * internal `userId` matches the `{userId}` in the path, ensuring a permanent and
+ * unchangeable link between a portfolio and its owner. This avoids costly `get()`
+ * calls and makes the rules faster and more secure.
+ *
+ * ## Structural Segregation
+ * The ruleset leverages the clear separation between private user data
+ * (nested under `/users`) and public data (in top-level collections). This allows
+ * for simple, highly secure, and performant rules for list operations.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary function for verifying document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Ensures an update or delete operation targets an existing document and
+     * that the requester is the owner. Prevents modifying non-existent data.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Validates relational integrity for a new User document.
+     * Ensures the document's internal `id` matches its path `userId`.
+     */
+    function hasValidUserDataOnCreate(userId) {
+      return request.resource.data.id == userId;
+    }
+
+    /**
+     * Enforces immutability of the User's core `id`.
+     * This prevents re-assigning ownership of a user document.
+     */
+    function hasValidUserDataOnUpdate() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * Validates relational integrity for a new Portfolio document.
+     * Ensures the document's internal `userId` matches its owner's path `userId`.
+     */
+    function hasValidPortfolioDataOnCreate(userId) {
+      return request.resource.data.userId == userId;
+    }
+
+    /**
+     * Enforces immutability of the Portfolio's `userId`.
+     * This prevents re-assigning ownership of a portfolio item.
+     */
+    function hasValidPortfolioDataOnUpdate() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Manages user profile documents.
+     * @path        /users/{userId}
+     * @allow       (create) An authenticated user can create their own user document.
+     * @allow       (get) An authenticated user can read their own document.
+     * @deny        (list) No user can list all other users in the system.
+     * @deny        (update) An authenticated user cannot update another user's document.
+     * @principle   Restricts access to a user's own data tree and prevents user enumeration.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && hasValidUserDataOnCreate(userId);
+      allow update: if isExistingOwner(userId) && hasValidUserDataOnUpdate();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages a user's collection of card portfolios.
+     * @path        /users/{userId}/portfolios/{portfolioId}
+     * @allow       (create) An authenticated user can add a portfolio to their own collection.
+     * @allow       (list) An authenticated user can list all portfolios in their own collection.
+     * @deny        (get) A user cannot read a portfolio belonging to another user.
+     * @deny        (create) A user cannot create a portfolio in another user's collection.
+     * @principle   Enforces document ownership for all operations via the path's `{userId}`.
+     */
+    match /users/{userId}/portfolios/{portfolioId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && hasValidPortfolioDataOnCreate(userId);
+      allow update: if isExistingOwner(userId) && hasValidPortfolioDataOnUpdate();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages global market data for cards. This data is intended to be
+     *              publicly viewable but managed by a backend process.
+     * @path        /market_data/{marketDataId}
+     * @allow       (get, list) Any user, including unauthenticated ones, can read market data.
+     * @deny        (create, update, delete) No client can write to the market data collection.
+     * @principle   Provides public read access while securing writes for a trusted environment.
+     */
+    match /market_data/{marketDataId} {
+      allow get: if true;
+      allow list: if true;
+      // CRITICAL: The 'MarketData' entity is missing an 'ownerId' or 'creatorId' field,
+      // so client-side writes cannot be securely authorized. Defaulting to deny all writes.
+      allow create: if false; // TODO: Implement server-side validation (e.g., admin role via custom claims) if client writes are needed.
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Manages global auction data. This data is intended to be
+     *              publicly viewable but managed by a backend process.
+     * @path        /auctions/{auctionId}
+     * @allow       (get, list) Any user, including unauthenticated ones, can read auction data.
+     * @deny        (create, update, delete) No client can write to the auction collection.
+     * @principle   Provides public read access while securing writes for a trusted environment.
+     */
+    match /auctions/{auctionId} {
+      allow get: if true;
+      allow list: if true;
+      // CRITICAL: The 'Auction' entity is missing an 'ownerId' or 'creatorId' field,
+      // so client-side writes cannot be securely authorized. Defaulting to deny all writes.
+      allow create: if false; // TODO: Implement server-side validation (e.g., admin role via custom claims) if client writes are needed.
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,286 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the TradeValue platform.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "subscriptionTier": {
+          "type": "string",
+          "description": "The user's subscription tier (e.g., Free, Premium).",
+          "format": "string"
+        },
+        "settings": {
+          "type": "string",
+          "description": "User-specific settings, stored as a JSON string.",
+          "format": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "subscriptionTier",
+        "settings"
+      ]
+    },
+    "Portfolio": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Portfolio",
+      "type": "object",
+      "description": "Represents a user's portfolio of hockey cards.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the portfolio."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Portfolio)"
+        },
+        "cardId": {
+          "type": "string",
+          "description": "The card's unique identifier, potentially referencing the Card entity or an external card database.",
+          "format": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the card (e.g., '1979 Topps Wayne Gretzky')."
+        },
+        "condition": {
+          "type": "string",
+          "description": "The condition of the card (e.g., 'Raw', 'PSA 10')."
+        },
+        "purchasePrice": {
+          "type": "number",
+          "description": "The price the user paid for the card."
+        },
+        "currentMarketValue": {
+          "type": "number",
+          "description": "The current market value of the card."
+        },
+        "dateAdded": {
+          "type": "string",
+          "description": "The date the card was added to the portfolio (ISO 8601 format).",
+          "format": "date-time"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the card's image stored in Firebase Storage.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "cardId",
+        "title",
+        "condition",
+        "purchasePrice",
+        "currentMarketValue",
+        "dateAdded",
+        "imageUrl"
+      ]
+    },
+    "MarketData": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MarketData",
+      "type": "object",
+      "description": "Stores historical price data for cards.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the market data entry."
+        },
+        "cardId": {
+          "type": "string",
+          "description": "Reference to the Card. (Relationship: Card 1:N MarketData)"
+        },
+        "date": {
+          "type": "string",
+          "description": "The date for which the market data is recorded (ISO 8601 format).",
+          "format": "date-time"
+        },
+        "price": {
+          "type": "number",
+          "description": "The market price of the card on the given date."
+        }
+      },
+      "required": [
+        "id",
+        "cardId",
+        "date",
+        "price"
+      ]
+    },
+    "Auction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Auction",
+      "type": "object",
+      "description": "Tracks live auctions from eBay/Goldin (mocked for now).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the auction."
+        },
+        "cardId": {
+          "type": "string",
+          "description": "Reference to Card. (Relationship: Card 1:N Auction)"
+        },
+        "auctionHouse": {
+          "type": "string",
+          "description": "The name of the auction house (e.g., 'eBay', 'Goldin')."
+        },
+        "currentPrice": {
+          "type": "number",
+          "description": "The current price of the card in the auction."
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The end time of the auction (ISO 8601 format).",
+          "format": "date-time"
+        },
+        "winProbability": {
+          "type": "number",
+          "description": "The predicted win probability of the auction (0-1)."
+        }
+      },
+      "required": [
+        "id",
+        "cardId",
+        "auctionHouse",
+        "currentPrice",
+        "endTime",
+        "winProbability"
+      ]
+    },
+    "Card": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Card",
+      "type": "object",
+      "description": "Represents a hockey card identified by the AI.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the card."
+        },
+        "year": {
+          "type": "number",
+          "description": "The year the card was issued."
+        },
+        "brand": {
+          "type": "string",
+          "description": "The brand of the card (e.g., 'Topps')."
+        },
+        "player": {
+          "type": "string",
+          "description": "The name of the hockey player on the card."
+        },
+        "cardNumber": {
+          "type": "string",
+          "description": "The card number."
+        },
+        "estimatedGrade": {
+          "type": "string",
+          "description": "The estimated grade of the card as determined by AI."
+        }
+      },
+      "required": [
+        "id",
+        "year",
+        "brand",
+        "player",
+        "cardNumber",
+        "estimatedGrade"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information.  Authorization: Only the user (identified by their `uid`) can read/write their own document.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/portfolios/{portfolioId}",
+        "definition": {
+          "entityName": "Portfolio",
+          "schema": {
+            "$ref": "#/backend/entities/Portfolio"
+          },
+          "description": "Stores user portfolios. Includes denormalized 'userId' for authorization independence.  Authorization: Only the user (identified by their `uid` matching the `userId` in the document) can read/write their own portfolio.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the portfolio."
+            },
+            {
+              "name": "portfolioId",
+              "description": "The unique identifier of the portfolio."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/market_data/{marketDataId}",
+        "definition": {
+          "entityName": "MarketData",
+          "schema": {
+            "$ref": "#/backend/entities/MarketData"
+          },
+          "description": "Stores historical market data for cards. Authorization: Public read, restricted write (e.g., only by admin).",
+          "params": [
+            {
+              "name": "marketDataId",
+              "description": "The unique identifier for the market data entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/auctions/{auctionId}",
+        "definition": {
+          "entityName": "Auction",
+          "schema": {
+            "$ref": "#/backend/entities/Auction"
+          },
+          "description": "Stores auction data. Authorization: Public read, restricted write (e.g., only by a data ingestion service).",
+          "params": [
+            {
+              "name": "auctionId",
+              "description": "The unique identifier for the auction."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to optimize security, scalability, and debuggability, adhering to the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. Authorization Independence is achieved through denormalization of user IDs into the `Portfolio` documents, removing the need for `get()` calls in security rules. Structural Segregation ensures all documents within a collection share the same security requirements. Access Modeling follows consistent patterns: path-based ownership for user-owned data (`/users/{userId}/portfolios/{portfolioId}`).\n\n*   `/users/{userId}`: Stores user profile data.\n*   `/users/{userId}/portfolios/{portfolioId}`: Stores individual user portfolios with denormalized `userId` for independent authorization.\n*   `/market_data/{marketDataId}`: Stores global card market data, accessible for reading by all users.\n*   `/auctions/{auctionId}`: Stores auction data. Consider filtering rules for QAPs."
+  }
+}
