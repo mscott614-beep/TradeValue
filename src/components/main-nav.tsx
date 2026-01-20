@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   LayoutGrid,
-  RectangleStack,
+  Layers,
   ScanLine,
   Store,
   Bell,
@@ -17,7 +17,7 @@ import {
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
-  { href: "/collection", label: "Collection", icon: RectangleStack },
+  { href: "/collection", label: "Collection", icon: Layers },
   { href: "/scanner", label: "Scanner", icon: ScanLine },
   { href: "/market", label: "Market", icon: Store },
   { href: "/alerts", label: "Alerts", icon: Bell },
