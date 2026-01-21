@@ -11,10 +11,16 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ScanCardAndAddMetadataInputSchema = z.object({
-  photoDataUri: z
+  frontPhotoDataUri: z
     .string()
     .describe(
-      "A photo of a trading card, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A photo of the front of a trading card, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+    ),
+  backPhotoDataUri: z
+    .string()
+    .optional()
+    .describe(
+      "An optional photo of the back of a trading card, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
 export type ScanCardAndAddMetadataInput = z.infer<typeof ScanCardAndAddMetadataInputSchema>;
@@ -39,7 +45,7 @@ const scanCardPrompt = ai.definePrompt({
   output: {schema: ScanCardAndAddMetadataOutputSchema},
   prompt: `You are an expert trading card authenticator and grader.
 
-You will identify the card from the provided image and return the year, brand, player, card number, and estimated grade.
+You will identify the card from the provided image(s) and return the year, brand, player, card number, and estimated grade. Use both the front and back of the card if provided for the most accurate identification.
 
 Return a JSON object that contains the following keys:
 - year: The year the trading card was produced.
@@ -48,8 +54,14 @@ Return a JSON object that contains the following keys:
 - cardNumber: The card number (if any).
 - estimatedGrade: The estimated grade of the card (e.g., Mint, Near Mint).
 
-Analyze the following card image:
-{{media url=photoDataUri}}
+Analyze the following card image(s):
+Card Front:
+{{media url=frontPhotoDataUri}}
+
+{{#if backPhotoDataUri}}
+Card Back:
+{{media url=backPhotoDataUri}}
+{{/if}}
 `,
 });
 
