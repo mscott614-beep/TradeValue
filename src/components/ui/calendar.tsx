@@ -54,10 +54,11 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
+        // @ts-expect-error react-day-picker v9 migration
+        IconLeft: ({ className, ...props }: any) => (
           <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
         ),
-        IconRight: ({ className, ...props }) => (
+        IconRight: ({ className, ...props }: any) => (
           <ChevronRight className={cn("h-4 w-4", className)} {...props} />
         ),
       }}

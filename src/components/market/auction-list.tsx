@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  predictAuctionWinProbability,
-  type PredictAuctionWinProbabilityOutput,
-} from "@/ai/flows/predict-auction-win-probability";
+import { predictAuctionAction } from "@/app/actions/predict-auction";
+import type { PredictAuctionWinProbabilityOutput } from "@/ai/flows/predict-auction-win-probability";
 import type { Auction } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,23 +40,32 @@ function AuctionItem({ auction }: { auction: Auction }) {
     setIsLoading(true);
     setPrediction(null);
     try {
-      const result = await predictAuctionWinProbability({
+      const response = await predictAuctionAction({
         auctionItemDescription: `Card: ${auction.card.title}, Current Bid: $${auction.currentBid}, Bids: ${auction.bids}, Time Left: ${auction.timeLeft}`,
         userBidAmount: bidAmount,
       });
-      setPrediction(result);
+      if (response.success && response.result) {
+        setPrediction(response.result);
+      } else {
+        console.error("AI Prediction Error:", response.error);
+        toast({
+          title: "Prediction Failed",
+          description: "The AI could not generate a prediction. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
-      console.error("AI Prediction Error:", error);
+      console.error("AI Prediction Unexpected Error:", error);
       toast({
         title: "Prediction Failed",
-        description: "The AI could not generate a prediction. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const getProgressColor = (value: number) => {
     if (value > 75) return "bg-green-500";
     if (value > 40) return "bg-yellow-500";
@@ -79,58 +86,58 @@ function AuctionItem({ auction }: { auction: Auction }) {
           />
         </div>
         <div className="md:col-span-2">
-            <CardHeader>
-                <CardTitle>{auction.card.title}</CardTitle>
-                <CardDescription>From {auction.card.brand} - {auction.card.year}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                    <div className="flex items-center gap-2"><DollarSign className="w-4 h-4 text-primary" /><div><span className="text-muted-foreground">Current Bid:</span><br/><span className="font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(auction.currentBid)}</span></div></div>
-                    <div className="flex items-center gap-2"><BarChartBig className="w-4 h-4 text-primary" /><div><span className="text-muted-foreground">Bids:</span><br/><span className="font-semibold">{auction.bids}</span></div></div>
-                    <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /><div><span className="text-muted-foreground">Time Left:</span><br/><span className="font-semibold">{auction.timeLeft}</span></div></div>
-                </div>
-            
-                <Accordion type="single" collapsible>
-                    <AccordionItem value="item-1">
-                        <AccordionTrigger className="text-sm font-semibold text-primary hover:no-underline [&[data-state=open]>svg]:text-primary">
-                            <WandSparkles className="w-4 h-4 mr-2" /> AI Win Probability
-                        </AccordionTrigger>
-                        <AccordionContent className="pt-4 space-y-4">
-                            <div className="flex gap-2">
-                                <Input
-                                    type="number"
-                                    placeholder="Your max bid ($)"
-                                    value={userBid}
-                                    onChange={(e) => setUserBid(e.target.value)}
-                                    disabled={isLoading}
-                                    className="bg-background"
-                                />
-                                <Button onClick={handlePredict} disabled={isLoading}>
-                                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Predict"}
-                                </Button>
-                            </div>
+          <CardHeader>
+            <CardTitle>{auction.card.title}</CardTitle>
+            <CardDescription>From {auction.card.brand} - {auction.card.year}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+              <div className="flex items-center gap-2"><DollarSign className="w-4 h-4 text-primary" /><div><span className="text-muted-foreground">Current Bid:</span><br /><span className="font-semibold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(auction.currentBid)}</span></div></div>
+              <div className="flex items-center gap-2"><BarChartBig className="w-4 h-4 text-primary" /><div><span className="text-muted-foreground">Bids:</span><br /><span className="font-semibold">{auction.bids}</span></div></div>
+              <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /><div><span className="text-muted-foreground">Time Left:</span><br /><span className="font-semibold">{auction.timeLeft}</span></div></div>
+            </div>
 
-                            {prediction && (
-                                <div className="space-y-3 pt-2">
-                                    <div>
-                                        <div className="flex justify-between mb-1 text-sm">
-                                            <span className="font-medium">Win Probability</span>
-                                            <span className={cn("font-semibold", getProgressColor(prediction.winProbability * 100).replace('bg-','text-'))}>
-                                                {(prediction.winProbability * 100).toFixed(0)}%
-                                            </span>
-                                        </div>
-                                        <Progress value={prediction.winProbability * 100} indicatorClassName={getProgressColor(prediction.winProbability * 100)} />
-                                    </div>
-                                    <div className="text-xs text-muted-foreground p-3 bg-muted rounded-md flex gap-2">
-                                        <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                                        <p><span className="font-semibold text-foreground">AI Reasoning:</span> {prediction.reasoning}</p>
-                                    </div>
-                                </div>
-                            )}
-                        </AccordionContent>
-                    </AccordionItem>
-                </Accordion>
-            </CardContent>
+            <Accordion type="single" collapsible>
+              <AccordionItem value="item-1">
+                <AccordionTrigger className="text-sm font-semibold text-primary hover:no-underline [&[data-state=open]>svg]:text-primary">
+                  <WandSparkles className="w-4 h-4 mr-2" /> AI Win Probability
+                </AccordionTrigger>
+                <AccordionContent className="pt-4 space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Your max bid ($)"
+                      value={userBid}
+                      onChange={(e) => setUserBid(e.target.value)}
+                      disabled={isLoading}
+                      className="bg-background"
+                    />
+                    <Button onClick={handlePredict} disabled={isLoading}>
+                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Predict"}
+                    </Button>
+                  </div>
+
+                  {prediction && (
+                    <div className="space-y-3 pt-2">
+                      <div>
+                        <div className="flex justify-between mb-1 text-sm">
+                          <span className="font-medium">Win Probability</span>
+                          <span className={cn("font-semibold", getProgressColor(prediction.winProbability * 100).replace('bg-', 'text-'))}>
+                            {(prediction.winProbability * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <Progress value={prediction.winProbability * 100} indicatorClassName={getProgressColor(prediction.winProbability * 100)} />
+                      </div>
+                      <div className="text-xs text-muted-foreground p-3 bg-muted rounded-md flex gap-2">
+                        <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                        <p><span className="font-semibold text-foreground">AI Reasoning:</span> {prediction.reasoning}</p>
+                      </div>
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
         </div>
       </div>
     </Card>

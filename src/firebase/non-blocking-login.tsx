@@ -1,19 +1,22 @@
 'use client';
 import {
-  Auth,
-  signInAnonymously,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
+    Auth,
+    signInAnonymously,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    GoogleAuthProvider,
+    signInWithPopup
 } from 'firebase/auth';
 
 type ToastFunction = (options: {
-  title: string;
-  description: string;
-  variant: 'destructive';
+    title: string;
+    description: string;
+    variant: 'destructive';
 }) => void;
 
 
 const getAuthErrorMessage = (error: any): string => {
+    console.error('Firebase Auth Error:', error);
     if (error && typeof error === 'object' && 'code' in error) {
         switch (error.code) {
             case 'auth/invalid-email':
@@ -29,9 +32,11 @@ const getAuthErrorMessage = (error: any): string => {
             case 'auth/weak-password':
                 return 'The password is too weak. Please use at least 6 characters.';
             case 'auth/invalid-credential':
-                 return 'Invalid credentials. Please check your email and password.';
+                return 'Invalid credentials. Please check your email and password.';
+            case 'auth/operation-not-allowed':
+                return 'Email/Password sign-in is not enabled. Please enable it in the Firebase Console.';
             default:
-                return 'An unexpected error occurred. Please try again.';
+                return `An unexpected error occurred (${error.code}). Please try again.`;
         }
     }
     return error.message || 'An unknown error occurred.';
@@ -40,36 +45,49 @@ const getAuthErrorMessage = (error: any): string => {
 
 /** Initiate anonymous sign-in (non-blocking). */
 export function initiateAnonymousSignIn(authInstance: Auth, toast: ToastFunction): void {
-  signInAnonymously(authInstance)
-    .catch(error => {
-        toast({
-            title: 'Anonymous Sign-In Failed',
-            description: getAuthErrorMessage(error),
-            variant: 'destructive'
+    signInAnonymously(authInstance)
+        .catch(error => {
+            toast({
+                title: 'Anonymous Sign-In Failed',
+                description: getAuthErrorMessage(error),
+                variant: 'destructive'
+            });
         });
-    });
 }
 
 /** Initiate email/password sign-up (non-blocking). */
 export function initiateEmailSignUp(authInstance: Auth, email: string, password: string, toast: ToastFunction): void {
-  createUserWithEmailAndPassword(authInstance, email, password)
-    .catch(error => {
-        toast({
-            title: 'Sign Up Failed',
-            description: getAuthErrorMessage(error),
-            variant: 'destructive'
+    createUserWithEmailAndPassword(authInstance, email, password)
+        .catch(error => {
+            toast({
+                title: 'Sign Up Failed',
+                description: getAuthErrorMessage(error),
+                variant: 'destructive'
+            });
         });
-    });
 }
 
 /** Initiate email/password sign-in (non-blocking). */
 export function initiateEmailSignIn(authInstance: Auth, email: string, password: string, toast: ToastFunction): void {
-  signInWithEmailAndPassword(authInstance, email, password)
-    .catch(error => {
-        toast({
-            title: 'Sign In Failed',
-            description: getAuthErrorMessage(error),
-            variant: 'destructive'
+    signInWithEmailAndPassword(authInstance, email, password)
+        .catch(error => {
+            toast({
+                title: 'Sign In Failed',
+                description: getAuthErrorMessage(error),
+                variant: 'destructive'
+            });
         });
-    });
+}
+
+/** Initiate Google sign-in (non-blocking). */
+export function initiateGoogleSignIn(authInstance: Auth, toast: ToastFunction): void {
+    const provider = new GoogleAuthProvider();
+    signInWithPopup(authInstance, provider)
+        .catch(error => {
+            toast({
+                title: 'Google Sign-In Failed',
+                description: getAuthErrorMessage(error),
+                variant: 'destructive'
+            });
+        });
 }

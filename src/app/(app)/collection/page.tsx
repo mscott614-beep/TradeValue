@@ -171,13 +171,19 @@ export default function CollectionPage() {
                   <TableRow key={card.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Image
-                          src={card.imageUrl}
-                          alt={card.title}
-                          width={50}
-                          height={70}
-                          className="rounded-sm object-cover"
-                        />
+                        {card.imageUrl ? (
+                          <Image
+                            src={card.imageUrl}
+                            alt={card.title}
+                            width={50}
+                            height={70}
+                            className="rounded-sm object-cover"
+                          />
+                        ) : (
+                          <div className="w-[50px] h-[70px] bg-muted rounded-sm flex items-center justify-center">
+                            <PlusCircle className="h-5 w-5 text-muted-foreground opacity-50" />
+                          </div>
+                        )}
                         <div className="font-medium">{card.title}</div>
                       </div>
                     </TableCell>
@@ -202,7 +208,7 @@ export default function CollectionPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => router.push(`/collection/${card.id}`)} disabled>
+                          <DropdownMenuItem onClick={() => router.push(`/collection/${card.id}`)}>
                             View Details
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />

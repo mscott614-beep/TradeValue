@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth, useUser, initiateEmailSignUp, initiateEmailSignIn, initiateAnonymousSignIn } from '@/firebase';
+import { useAuth, useUser, initiateEmailSignUp, initiateEmailSignIn, initiateAnonymousSignIn, initiateGoogleSignIn } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,9 +33,13 @@ function AuthForm() {
         }
         initiateEmailSignUp(auth, email, password, toast);
     };
-    
+
     const handleAnonymousSignIn = () => {
         initiateAnonymousSignIn(auth, toast);
+    };
+
+    const handleGoogleSignIn = () => {
+        initiateGoogleSignIn(auth, toast);
     };
 
     return (
@@ -72,7 +76,7 @@ function AuthForm() {
                         <CardDescription>Create a new account to get started.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                         <div className="space-y-1">
+                        <div className="space-y-1">
                             <Label htmlFor="email-signup">Email</Label>
                             <Input id="email-signup" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="m@example.com" />
                         </div>
@@ -91,6 +95,10 @@ function AuthForm() {
                 <span className="mx-4 text-xs uppercase text-muted-foreground">Or</span>
                 <div className="flex-grow border-t border-muted" />
             </div>
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
+                <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+                Sign in with Google
+            </Button>
             <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
                 Continue Anonymously
             </Button>
@@ -100,29 +108,29 @@ function AuthForm() {
 
 
 export default function LoginPage() {
-  const { user, isUserLoading } = useUser();
-  const router = useRouter();
+    const { user, isUserLoading } = useUser();
+    const router = useRouter();
 
-  useEffect(() => {
-    if (!isUserLoading && user) {
-      router.replace('/dashboard');
+    useEffect(() => {
+        if (!isUserLoading && user) {
+            router.replace('/dashboard');
+        }
+    }, [user, isUserLoading, router]);
+
+    if (isUserLoading || (!isUserLoading && user)) {
+        return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
-  }, [user, isUserLoading, router]);
 
-  if (isUserLoading || (!isUserLoading && user)) {
-    return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-  }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="w-full max-w-sm space-y-4">
-            <div className="flex flex-col items-center space-y-2 text-center">
-                 <Logo className="w-12 h-12" />
-                <h1 className="text-2xl font-semibold tracking-tight">Welcome to TradeValue</h1>
-                <p className="text-sm text-muted-foreground">Sign in to manage your trading card portfolio.</p>
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+            <div className="w-full max-w-sm space-y-4">
+                <div className="flex flex-col items-center space-y-2 text-center">
+                    <Logo className="w-12 h-12" />
+                    <h1 className="text-2xl font-semibold tracking-tight">Welcome to TradeValue</h1>
+                    <p className="text-sm text-muted-foreground">Sign in to manage your trading card portfolio.</p>
+                </div>
+                <AuthForm />
             </div>
-            <AuthForm />
         </div>
-    </div>
-  );
+    );
 }

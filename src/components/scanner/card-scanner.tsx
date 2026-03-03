@@ -14,6 +14,7 @@ import { Card, CardContent } from "../ui/card";
 import { useFirestore, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { compressImage } from "@/lib/image-utils";
 
 interface ImageUploaderProps {
   file: File | null;
@@ -82,7 +83,7 @@ export function CardScanner() {
   const [backPreview, setBackPreview] = useState<string | null>(null);
   const [result, setResult] = useState<ScanCardAndAddMetadataOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const frontFileInputRef = useRef<HTMLInputElement>(null);
   const backFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,7 +111,7 @@ export function CardScanner() {
   const createRemoveImageHandler = (
     fileSetter: React.Dispatch<React.SetStateAction<File | null>>,
     previewSetter: React.Dispatch<React.SetStateAction<string | null>>,
-    inputRef: React.RefObject<HTMLInputElement>
+    inputRef: React.RefObject<HTMLInputElement | null>
   ) => () => {
     fileSetter(null);
     previewSetter(null);
@@ -119,63 +120,63 @@ export function CardScanner() {
       inputRef.current.value = "";
     }
   };
-  
+
   const handleRemoveFrontImage = createRemoveImageHandler(setFrontFile, setFrontPreview, frontFileInputRef);
   const handleRemoveBackImage = createRemoveImageHandler(setBackFile, setBackPreview, backFileInputRef);
 
   const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   };
 
   const handleScan = async () => {
     if (!frontFile) {
-        toast({
-            title: "No front image selected",
-            description: "Please select an image of the card front.",
-            variant: "destructive",
-        });
-        return;
+      toast({
+        title: "No front image selected",
+        description: "Please select an image of the card front.",
+        variant: "destructive",
+      });
+      return;
     }
 
     setIsLoading(true);
     setResult(null);
 
     try {
-        const frontPhotoDataUri = await readFileAsDataURL(frontFile);
-        let backPhotoDataUri: string | undefined = undefined;
-        if (backFile) {
-            backPhotoDataUri = await readFileAsDataURL(backFile);
-        }
+      const frontPhotoDataUri = await readFileAsDataURL(frontFile);
+      let backPhotoDataUri: string | undefined = undefined;
+      if (backFile) {
+        backPhotoDataUri = await readFileAsDataURL(backFile);
+      }
 
-        const aiResult = await scanCardAndAddMetadata({
-            frontPhotoDataUri,
-            backPhotoDataUri,
-        });
+      const aiResult = await scanCardAndAddMetadata({
+        frontPhotoDataUri,
+        backPhotoDataUri,
+      });
 
-        setResult(aiResult);
-        toast({
-            title: "Scan Successful",
-            description: "AI has identified your card.",
-            action: <CheckCircle className="text-green-500" />,
-        });
+      setResult(aiResult);
+      toast({
+        title: "Scan Successful",
+        description: "AI has identified your card.",
+        action: <CheckCircle className="text-green-500" />,
+      });
     } catch (error) {
-        console.error("AI Scan or File Read Error:", error);
-        toast({
-            title: "Scan Failed",
-            description: "Could not read the file or the AI failed to identify the card. Please try another image.",
-            variant: "destructive",
-        });
+      console.error("AI Scan or File Read Error:", error);
+      toast({
+        title: "Scan Failed",
+        description: "Could not read the file or the AI failed to identify the card. Please try another image.",
+        variant: "destructive",
+      });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleAddToCollection = () => {
+  const handleAddToCollection = async () => {
     if (!result || !user || !firestore) {
       toast({
         title: "Error",
@@ -185,30 +186,51 @@ export function CardScanner() {
       return;
     }
 
-    const portfoliosCollection = collection(firestore, `users/${user.uid}/portfolios`);
-    
-    const cardDataForDb = {
+    setIsLoading(true);
+
+    try {
+      let compressedImageUrl = null;
+      if (frontFile) {
+        try {
+          // Compress the image to fit under Firestore's 1MB limit
+          compressedImageUrl = await compressImage(frontFile);
+        } catch (error) {
+          console.error("Failed to compress image:", error);
+          toast({
+            title: "Warning",
+            description: "Could not compress the image, it will be skipped. The card will still be saved.",
+            variant: "destructive"
+          })
+        }
+      }
+
+      const portfoliosCollection = collection(firestore, `users/${user.uid}/portfolios`);
+
+      const cardDataForDb = {
         userId: user.uid,
         cardId: `${result.brand}-${result.cardNumber}-${result.player.replace(/\s+/g, '-')}`,
         title: `${result.year} ${result.brand} ${result.player} #${result.cardNumber}`,
         condition: result.estimatedGrade,
         purchasePrice: 0,
-        currentMarketValue: 0,
+        currentMarketValue: result.estimatedMarketValue || 0,
         dateAdded: new Date().toISOString(),
-        imageUrl: frontPreview,
+        ...(compressedImageUrl ? { imageUrl: compressedImageUrl } : {}),
         ...result
-    };
+      };
 
-    addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
-    
-    toast({
-      title: "Card Added",
-      description: `${cardDataForDb.title} has been added to your collection.`,
-      action: <PlusCircle className="text-green-500" />
-    });
+      addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
 
-    handleRemoveFrontImage();
-    handleRemoveBackImage();
+      toast({
+        title: "Card Added",
+        description: `${cardDataForDb.title} has been added to your collection.`,
+        action: <PlusCircle className="text-green-500" />
+      });
+
+      handleRemoveFrontImage();
+      handleRemoveBackImage();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleScanAnother = () => {
@@ -219,21 +241,21 @@ export function CardScanner() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ImageUploader 
+        <ImageUploader
           file={frontFile}
           preview={frontPreview}
           onFileChange={(e) => handleFileChange(e, setFrontFile, setFrontPreview)}
           onRemoveImage={handleRemoveFrontImage}
-          inputRef={frontFileInputRef}
+          inputRef={frontFileInputRef as any}
           title="Card Front"
           description="Upload or drag & drop"
         />
-        <ImageUploader 
+        <ImageUploader
           file={backFile}
           preview={backPreview}
           onFileChange={(e) => handleFileChange(e, setBackFile, setBackPreview)}
           onRemoveImage={handleRemoveBackImage}
-          inputRef={backFileInputRef}
+          inputRef={backFileInputRef as any}
           title="Card Back (Optional)"
           description="For better accuracy"
         />
@@ -260,15 +282,19 @@ export function CardScanner() {
           <CardContent className="p-6">
             <h3 className="text-lg font-semibold mb-4 text-primary">Scan Results</h3>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
-                <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
-                <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
-                <p className="text-muted-foreground">Card #:</p><p className="font-medium">{result.cardNumber}</p>
-                <p className="text-muted-foreground">Est. Grade:</p><p className="font-medium">{result.estimatedGrade}</p>
+              <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
+              <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
+              <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
+              <p className="text-muted-foreground">Card #:</p><p className="font-medium">{result.cardNumber}</p>
+              <p className="text-muted-foreground">Est. Grade:</p><p className="font-medium">{result.estimatedGrade}</p>
+              <p className="text-primary font-bold">Est. Value:</p>
+              <p className="text-primary font-bold">
+                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}
+              </p>
             </div>
-             <div className="flex gap-2 mt-6">
-                <Button className="flex-1" onClick={handleAddToCollection}>Add to Collection</Button>
-                <Button variant="outline" className="flex-1" onClick={handleScanAnother}>Scan Another</Button>
+            <div className="flex gap-2 mt-6">
+              <Button className="flex-1" onClick={handleAddToCollection}>Add to Collection</Button>
+              <Button variant="outline" className="flex-1" onClick={handleScanAnother}>Scan Another</Button>
             </div>
           </CardContent>
         </Card>
