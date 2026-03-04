@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { generateReportAction } from "@/app/actions/generate-report";
 import ReactMarkdown from 'react-markdown';
+import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { AuctionList } from "@/components/market/auction-list";
@@ -11,7 +12,7 @@ import { auctions } from "@/lib/data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Flame, FileText, ArrowUpRight, WandSparkles } from "lucide-react";
+import { TrendingUp, Flame, FileText, ArrowUpRight, WandSparkles, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const mockTrending = [
@@ -34,9 +35,16 @@ export default function MarketPage() {
         setReport(response.result);
       } else {
         console.error("Failed to generate report:", response.error);
+        const errMsg = response.error || "";
+        if (errMsg.includes("429") || errMsg.includes("Quota exceeded") || errMsg.includes("Too Many Requests")) {
+          toast.error("AI Quota Exceeded. Please wait a minute for your limit to reset and try again.");
+        } else {
+          toast.error(`Report generation failed: ${errMsg}`);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to generate report:", error);
+      toast.error(error.message || "An unexpected error occurred.");
     } finally {
       setIsGenerating(false);
     }
@@ -44,10 +52,18 @@ export default function MarketPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Market Hub"
-        description="Track live auctions, analyze trending cards, and generate AI market reports."
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <PageHeader
+          title="Market Hub"
+          description="Track live auctions, analyze trending cards, and generate AI market reports."
+          className="mb-0"
+        />
+        <div className="shrink-0">
+          <Button onClick={() => window.location.href = '/market/compare'} className="bg-primary hover:bg-primary/90 text-primary-foreground hidden md:flex">
+            <Scale className="mr-2 h-4 w-4" /> Compare Cards
+          </Button>
+        </div>
+      </div>
 
       <Tabs defaultValue="auctions" className="w-full">
         <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">

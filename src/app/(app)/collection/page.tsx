@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -33,15 +33,28 @@ import {
   ChevronDown,
   MoreHorizontal,
   PlusCircle,
-  Upload,
   Download,
   Trash2,
   Search,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { downloadCSV } from '@/lib/csv-utils';
+import { writeBatch } from 'firebase/firestore';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 type SortableField = 'player' | 'currentMarketValue' | 'year';
 type SortDirection = 'asc' | 'desc';
+type ViewMode = 'list' | 'grid';
 
 export default function CollectionPage() {
   const router = useRouter();
@@ -49,6 +62,10 @@ export default function CollectionPage() {
   const { user } = useUser();
 
   const [filter, setFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState<string>('all');
+  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const [conditionFilter, setConditionFilter] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortConfig, setSortConfig] = useState<{ key: SortableField; direction: SortDirection }>({
     key: 'player',
     direction: 'asc',
@@ -69,15 +86,30 @@ export default function CollectionPage() {
     setSortConfig({ key, direction });
   };
 
+  const filterOptions = useMemo(() => {
+    if (!cards) return { years: [], brands: [], conditions: [] };
+    const years = Array.from(new Set(cards.map(c => c.year.toString()))).sort((a, b) => b.localeCompare(a));
+    const brands = Array.from(new Set(cards.map(c => c.brand))).sort();
+    const conditions = Array.from(new Set(cards.map(c => c.condition))).sort();
+    return { years, brands, conditions };
+  }, [cards]);
+
   const filteredAndSortedCards = useMemo(() => {
     if (!cards) return [];
 
-    const filtered = cards.filter(card =>
-      card.title.toLowerCase().includes(filter.toLowerCase()) ||
-      card.player.toLowerCase().includes(filter.toLowerCase()) ||
-      card.year.toString().includes(filter.toLowerCase()) ||
-      card.brand.toLowerCase().includes(filter.toLowerCase())
-    );
+    const filtered = cards.filter(card => {
+      const textMatch =
+        card.title.toLowerCase().includes(filter.toLowerCase()) ||
+        card.player.toLowerCase().includes(filter.toLowerCase()) ||
+        card.year.toString().includes(filter.toLowerCase()) ||
+        card.brand.toLowerCase().includes(filter.toLowerCase());
+
+      const yearMatch = yearFilter === 'all' || card.year.toString() === yearFilter;
+      const brandMatch = brandFilter === 'all' || card.brand === brandFilter;
+      const conditionMatch = conditionFilter === 'all' || card.condition === conditionFilter;
+
+      return textMatch && yearMatch && brandMatch && conditionMatch;
+    });
 
     return filtered.sort((a, b) => {
       const aValue = a[sortConfig.key];
@@ -91,7 +123,7 @@ export default function CollectionPage() {
       }
       return 0;
     });
-  }, [cards, filter, sortConfig]);
+  }, [cards, filter, yearFilter, brandFilter, conditionFilter, sortConfig]);
 
   const handleDelete = useCallback((cardId: string) => {
     if (!user || !firestore) return;
@@ -106,18 +138,20 @@ export default function CollectionPage() {
     return sortConfig.direction === 'asc' ? '▲' : '▼';
   };
 
+  const handleExportCSV = useCallback(() => {
+    if (filteredAndSortedCards.length > 0) {
+      downloadCSV(filteredAndSortedCards);
+    }
+  }, [filteredAndSortedCards]);
+
   return (
     <>
       <PageHeader
-        title="My Collection"
-        description="A complete overview of your prized trading card collection."
+        title="Digital Binder"
+        description="A visual, organized gallery of your entire trading card collection."
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" disabled>
-              <Upload className="mr-2 h-4 w-4" />
-              Import CSV
-            </Button>
-            <Button variant="outline" disabled>
+            <Button variant="outline" onClick={handleExportCSV} disabled={filteredAndSortedCards.length === 0}>
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
@@ -130,108 +164,217 @@ export default function CollectionPage() {
           </div>
         }
       />
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 gap-4 flex-wrap">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Filter by player, year, set..."
+            placeholder="Search player, year, set..."
             className="pl-8"
             value={filter}
             onChange={e => setFilter(e.target.value)}
           />
         </div>
+
+        <div className="flex flex-1 items-center gap-2 flex-wrap">
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="All Years" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {filterOptions.years.map(year => (
+                <SelectItem key={year} value={year}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={brandFilter} onValueChange={setBrandFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Brands" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Brands</SelectItem>
+              {filterOptions.brands.map(brand => (
+                <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={conditionFilter} onValueChange={setConditionFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All Conditions" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Conditions</SelectItem>
+              {filterOptions.conditions.map(cond => (
+                <SelectItem key={cond} value={cond}>{cond}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as ViewMode)}>
+          <ToggleGroupItem value="list" aria-label="List View">
+            <List className="h-4 w-4" />
+          </ToggleGroupItem>
+          <ToggleGroupItem value="grid" aria-label="Grid View">
+            <LayoutGrid className="h-4 w-4" />
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead onClick={() => handleSort('player')} className="cursor-pointer">
-                  Card {renderSortArrow('player')}
-                </TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead onClick={() => handleSort('year')} className="cursor-pointer">
-                  Year {renderSortArrow('year')}
-                </TableHead>
-                <TableHead onClick={() => handleSort('currentMarketValue')} className="text-right cursor-pointer">
-                  Value {renderSortArrow('currentMarketValue')}
-                </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+      {viewMode === 'list' ? (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
-                  </TableCell>
+                  <TableHead onClick={() => handleSort('player')} className="cursor-pointer">
+                    Card {renderSortArrow('player')}
+                  </TableHead>
+                  <TableHead>Details</TableHead>
+                  <TableHead onClick={() => handleSort('year')} className="cursor-pointer">
+                    Year {renderSortArrow('year')}
+                  </TableHead>
+                  <TableHead onClick={() => handleSort('currentMarketValue')} className="text-right cursor-pointer">
+                    Value {renderSortArrow('currentMarketValue')}
+                  </TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ) : filteredAndSortedCards.length > 0 ? (
-                filteredAndSortedCards.map(card => (
-                  <TableRow key={card.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {card.imageUrl ? (
-                          <Image
-                            src={card.imageUrl}
-                            alt={card.title}
-                            width={50}
-                            height={70}
-                            className="rounded-sm object-cover"
-                          />
-                        ) : (
-                          <div className="w-[50px] h-[70px] bg-muted rounded-sm flex items-center justify-center">
-                            <PlusCircle className="h-5 w-5 text-muted-foreground opacity-50" />
-                          </div>
-                        )}
-                        <div className="font-medium">{card.title}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        <Badge variant="secondary">{card.condition}</Badge>
-                        {card.features?.map(feature => (
-                          <Badge key={feature} variant="outline">{feature}</Badge>
-                        ))}
-                        {card.parallel && <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>}
-                      </div>
-                    </TableCell>
-                    <TableCell>{card.year}</TableCell>
-                    <TableCell className="text-right">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.currentMarketValue)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => router.push(`/collection/${card.id}`)}>
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleDelete(card.id)} className="text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    No cards in your collection. <Link href="/scanner" className="text-primary hover:underline">Add one now</Link>!
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ) : filteredAndSortedCards.length > 0 ? (
+                  filteredAndSortedCards.map(card => (
+                    <TableRow key={card.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          {card.imageUrl ? (
+                            card.imageUrl.startsWith('data:') ? (
+                              <img src={card.imageUrl} alt={card.title} className="rounded-sm object-cover w-[50px] h-[70px]" />
+                            ) : (
+                              <Image
+                                src={card.imageUrl}
+                                alt={card.title}
+                                width={50}
+                                height={70}
+                                className="rounded-sm object-cover"
+                              />
+                            )
+                          ) : (
+                            <div className="w-[50px] h-[70px] bg-muted rounded-sm flex items-center justify-center">
+                              <PlusCircle className="h-5 w-5 text-muted-foreground opacity-50" />
+                            </div>
+                          )}
+                          <div className="font-medium">{card.title}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="secondary">{card.condition}</Badge>
+                          {card.features?.map(feature => (
+                            <Badge key={feature} variant="outline">{feature}</Badge>
+                          ))}
+                          {card.parallel && <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell>{card.year}</TableCell>
+                      <TableCell className="text-right">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.currentMarketValue)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => router.push(`/collection/${card.id}`)}>
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDelete(card.id)} className="text-destructive">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                      No cards in your collection. <Link href="/scanner" className="text-primary hover:underline">Add one now</Link>!
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {isLoading ? (
+            <div className="col-span-full py-12 flex justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : filteredAndSortedCards.length > 0 ? (
+            filteredAndSortedCards.map((card, index) => (
+              <Link key={card.id || index} href={`/collection/${card.id}`}>
+                <Card className="overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer relative">
+                  <div className="aspect-[2.5/3.5] relative bg-muted w-full">
+                    {card.imageUrl ? (
+                      card.imageUrl.startsWith('data:') ? (
+                        <img
+                          src={card.imageUrl}
+                          alt={card.title}
+                          className="object-cover transition-transform group-hover:scale-105 absolute inset-0 w-full h-full"
+                        />
+                      ) : (
+                        <Image
+                          src={card.imageUrl}
+                          alt={card.title}
+                          fill
+                          className="object-cover transition-transform group-hover:scale-105"
+                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
+                        />
+                      )
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
+                        <PlusCircle className="h-10 w-10 mb-2" />
+                        <span className="text-sm">No Image</span>
+                      </div>
+                    )}
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.currentMarketValue)}
+                      </Badge>
+                    </div>
+                  </div>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground truncate">{card.year} {card.brand}</p>
+                    <p className="font-semibold text-sm truncate" title={card.player}>{card.player}</p>
+                    <div className="flex gap-1 mt-2 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] px-1 py-0">{card.condition}</Badge>
+                      {card.parallel && <Badge variant="secondary" className="text-[10px] px-1 py-0 text-purple-400 bg-purple-400/10 border-purple-400/20">{card.parallel}</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-full py-12 text-center text-muted-foreground border rounded-lg border-dashed">
+              No cards in your collection. <Link href="/scanner" className="text-primary hover:underline">Add one now</Link>!
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

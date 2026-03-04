@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
     Card,
     CardContent,
@@ -9,6 +10,7 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
     Table,
     TableBody,
@@ -17,7 +19,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ArrowUpRight, DollarSign, TrendingUp, Layers, Loader2, Info } from "lucide-react";
+import { ArrowUpRight, DollarSign, TrendingUp, Layers, Loader2, Info, WandSparkles } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import PortfolioChart from "@/components/dashboard/portfolio-chart";
 import { cn } from "@/lib/utils";
@@ -36,9 +38,9 @@ export default function DashboardPage() {
 
     const { data: cards, isLoading } = useCollection<Portfolio>(portfoliosCollection);
 
-    const { totalValue, totalGain, change24h, topGainers, uniqueBrands } = useMemo(() => {
+    const { totalValue, totalGain, change24h, topGainers, uniqueBrands, rawCount, gradedCount } = useMemo(() => {
         if (!cards || cards.length === 0) {
-            return { totalValue: 0, totalGain: 0, change24h: 0, topGainers: [], uniqueBrands: 0 };
+            return { totalValue: 0, totalGain: 0, change24h: 0, topGainers: [], uniqueBrands: 0, rawCount: 0, gradedCount: 0 };
         }
 
         const tValue = cards.reduce((acc, card) => acc + (card.currentMarketValue || 0), 0);
@@ -54,7 +56,17 @@ export default function DashboardPage() {
 
         const uBrands = new Set(cards.map(c => c.brand)).size;
 
-        return { totalValue: tValue, totalGain: tGain, change24h: c24h, topGainers: tGainers, uniqueBrands: uBrands };
+        const isRawCard = (c: Portfolio) => {
+            if (c.grader) {
+                return c.grader.toLowerCase() === 'none';
+            }
+            return !c.condition || c.condition.toLowerCase().includes('raw') || c.condition.toLowerCase() === 'ungraded';
+        };
+
+        const rCount = cards.filter(isRawCard).length;
+        const gCount = cards.length - rCount;
+
+        return { totalValue: tValue, totalGain: tGain, change24h: c24h, topGainers: tGainers, uniqueBrands: uBrands, rawCount: rCount, gradedCount: gCount };
     }, [cards]);
 
     const historyData = useMemo(() => {
@@ -100,8 +112,16 @@ export default function DashboardPage() {
     return (
         <>
             <PageHeader
-                title="Dashboard"
-                description={`Here's your portfolio overview. Total value: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalValue)}`}
+                title="Portfolio Dashboard"
+                description={`Financial overview and performance tracking for your ${cards?.length || 0} cards.`}
+                action={
+                    <Link href="/dashboard/insights">
+                        <Button className="bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg border-0">
+                            <WandSparkles className="mr-2 h-4 w-4" />
+                            View AI Insights
+                        </Button>
+                    </Link>
+                }
             />
             <div className="grid gap-6">
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -138,10 +158,10 @@ export default function DashboardPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">
-                                {cards?.filter(c => c.condition && c.condition.toLowerCase().includes('raw')).length || 0} Raw
+                                {rawCount} Raw
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                                vs {cards?.filter(c => !c.condition || !c.condition.toLowerCase().includes('raw')).length || 0} Graded cards
+                                vs {gradedCount} Graded cards
                             </p>
                         </CardContent>
                     </Card>
@@ -190,13 +210,17 @@ export default function DashboardPage() {
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
                                                         {card.imageUrl ? (
-                                                            <Image
-                                                                src={card.imageUrl}
-                                                                alt={card.title}
-                                                                width={40}
-                                                                height={56}
-                                                                className="rounded-sm object-cover h-[56px]"
-                                                            />
+                                                            card.imageUrl.startsWith('data:') ? (
+                                                                <img src={card.imageUrl} alt={card.title} className="rounded-sm object-cover w-[40px] h-[56px]" />
+                                                            ) : (
+                                                                <Image
+                                                                    src={card.imageUrl}
+                                                                    alt={card.title}
+                                                                    width={40}
+                                                                    height={56}
+                                                                    className="rounded-sm object-cover h-[56px]"
+                                                                />
+                                                            )
                                                         ) : (
                                                             <div className="w-[40px] h-[56px] bg-muted rounded-sm flex items-center justify-center shrink-0">
                                                                 <Info className="h-4 w-4 text-muted-foreground opacity-50" />

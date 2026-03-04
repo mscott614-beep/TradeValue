@@ -30,8 +30,9 @@ const ScanCardAndAddMetadataOutputSchema = z.object({
   brand: z.string().describe('The brand of the trading card (e.g., Topps, Upper Deck).'),
   player: z.string().describe('The name of the player featured on the card.'),
   cardNumber: z.string().describe('The card number (if any).'),
-  estimatedGrade: z.string().describe('The estimated grade of the card (e.g., Mint, Near Mint).'),
-  estimatedMarketValue: z.number().describe('The estimated current market value of the card in USD, based on identity and grade.'),
+  estimatedGrade: z.string().describe('The estimated condition/grade of the card (e.g., Mint, Near Mint).'),
+  grader: z.string().describe('The specific grading company (e.g., PSA, BGS, SGC, GMA) if the card is in a slab. Return "None" if it is raw/ungraded.').default("None"),
+  estimatedMarketValue: z.number().describe('The estimated current market value of the card in USD, based on identity and condition.'),
 });
 
 export type ScanCardAndAddMetadataOutput = z.infer<typeof ScanCardAndAddMetadataOutputSchema>;
@@ -46,15 +47,16 @@ const scanCardPrompt = ai.definePrompt({
   output: { schema: ScanCardAndAddMetadataOutputSchema },
   prompt: `You are an expert trading card authenticator and grader.
 
-You will identify the card from the provided image(s) and return the year, brand, player, card number, and estimated grade. Use both the front and back of the card if provided for the most accurate identification.
+You will identify the card from the provided image(s) and return the year, brand, player, card number, condition, grader, and estimated value.
 
 Return a JSON object that contains the following keys:
 - year: The year the trading card was produced.
 - brand: The brand of the trading card (e.g., Topps, Upper Deck).
 - player: The name of the player featured on the card.
 - cardNumber: The card number (if any).
-- estimatedGrade: The estimated grade of the card (e.g., Mint, Near Mint).
-- estimatedMarketValue: Calculate the current market value by taking the average of the last 5 actual **eBay sold listings** for this exact card in **RAW (ungraded)** state matching the estimated condition. Be aware that many base cards from the 1980s and 1990s sell for $10 or less raw. Provide ONLY the calculated average number in USD.
+- estimatedGrade: The estimated condition/grade of the card (e.g., Mint, Near Mint, 9, 10).
+- grader: Is the card encased in a professional grading slab? If yes, output the company acronym (e.g. "PSA", "BGS", "SGC", "CGC", "GMA"). If it is raw/ungraded, output exactly "None".
+- estimatedMarketValue: Calculate the current market value by taking the average of the last 5 actual **eBay sold listings** for this exact card. If the card is graded, use recent sales of that specific grade. If raw, use raw sales. Provide ONLY the calculated average number in USD.
 
 Analyze the following card image(s):
 Card Front:

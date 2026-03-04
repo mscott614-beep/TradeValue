@@ -6,8 +6,8 @@ export async function generateReportAction(topic?: string) {
     try {
         const result = await generateMarketReport({ topic });
         return { success: true as const, result };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to generate report:", error);
-        return { success: false as const, error: "Failed to generate report" };
+        return { success: false as const, error: error.message || "Failed to generate report" };
     }
 }

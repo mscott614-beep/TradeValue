@@ -18,6 +18,7 @@ export type Portfolio = {
   imageHint?: string;
   features?: string[];
   parallel?: string;
+  grader?: string;
 };
 
 export type Auction = {
@@ -34,11 +35,43 @@ export type PortfolioHistory = {
   value: number;
 };
 
-export type Alert = {
-  id: string;
-  cardId: string;
-  cardTitle: string;
-  targetPrice: number;
-  type: 'above' | 'below';
-  active: boolean;
-};
+export interface AlertConfig {
+  id?: string;
+  targetType: 'portfolio' | 'player' | 'brand' | 'card';
+  targetValue: string; // "Connor McDavid", "Upper Deck", or specific card ID
+  condition: 'above' | 'below' | 'drops_by_percent' | 'rises_by_percent';
+  threshold: number;
+  isActive: boolean;
+}
+
+export interface MarketAlert {
+  id?: string;
+  type: 'rise' | 'drop' | 'optimal_sell' | 'red_flag';
+  title: string;
+  message: string;
+  timestamp: string;
+  relatedCardId?: string;
+  read: boolean;
+}
+
+export interface CardAnalysisResult {
+  gradingRoi: {
+    isRecommended: boolean;
+    estimatedCost: number;
+    potentialValueIncreasePercent: number;
+    reasoning: string;
+  };
+  gradeProbabilities: {
+    psa10_percent: number;
+    psa9_percent: number;
+    psa8_or_lower_percent: number;
+    commonConditionIssues: string;
+  };
+  investmentOutlook: {
+    shortTerm: 'Bearish' | 'Neutral' | 'Bullish';
+    longTerm: 'Bearish' | 'Neutral' | 'Bullish';
+    riskLevel: 'Low' | 'Medium' | 'High';
+  };
+  historicalSignificance: string;
+  comparisonMatchup?: string;
+}

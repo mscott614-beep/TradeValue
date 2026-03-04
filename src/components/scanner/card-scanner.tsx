@@ -37,11 +37,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   if (preview) {
     return (
       <div className="relative w-full max-w-sm mx-auto">
-        <Image
+        <img
           src={preview}
           alt={`${title} preview`}
-          width={400}
-          height={560}
           className="rounded-lg object-contain w-full"
         />
         <Button
@@ -287,6 +285,8 @@ export function CardScanner() {
               <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
               <p className="text-muted-foreground">Card #:</p><p className="font-medium">{result.cardNumber}</p>
               <p className="text-muted-foreground">Est. Grade:</p><p className="font-medium">{result.estimatedGrade}</p>
+              <p className="text-muted-foreground">Grader:</p>
+              <p className="font-medium text-purple-400">{result.grader}</p>
               <p className="text-primary font-bold">Est. Value:</p>
               <p className="text-primary font-bold">
                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}

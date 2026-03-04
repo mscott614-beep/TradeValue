@@ -17,10 +17,10 @@ import {
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
-  { href: "/collection", label: "Collection", icon: Layers },
+  { href: "/collection", label: "Digital Binder", icon: Layers },
   { href: "/scanner", label: "Scanner", icon: ScanLine },
   { href: "/market", label: "Market", icon: Store },
-  { href: "/alerts", label: "Alerts", icon: Bell },
+  { href: "/dashboard/alerts", label: "Alerts", icon: Bell },
 ];
 
 export function MainNav() {

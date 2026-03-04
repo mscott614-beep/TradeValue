@@ -76,14 +76,18 @@ function AuctionItem({ auction }: { auction: Auction }) {
     <Card className="overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-3">
         <div className="p-4 flex flex-col items-center justify-center bg-muted/50">
-          <Image
-            src={auction.card.imageUrl}
-            alt={auction.card.title}
-            width={200}
-            height={280}
-            className="rounded-md object-contain"
-            data-ai-hint={auction.card.imageHint}
-          />
+          {auction.card.imageUrl?.startsWith('data:') ? (
+            <img src={auction.card.imageUrl} alt={auction.card.title} className="rounded-md object-contain w-[200px] h-[280px]" data-ai-hint={auction.card.imageHint} />
+          ) : (
+            <Image
+              src={auction.card.imageUrl || ''}
+              alt={auction.card.title}
+              width={200}
+              height={280}
+              className="rounded-md object-contain"
+              data-ai-hint={auction.card.imageHint}
+            />
+          )}
         </div>
         <div className="md:col-span-2">
           <CardHeader>
