@@ -172,14 +172,20 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
             }
             const searchQuery = `${result.year} ${result.brand} ${result.player} ${result.cardNumber || ""} ${result.parallel || ""} ${conditionStr}`.trim();
             console.log(`Enriching result with eBay data for query: "${searchQuery}"`);
-            const ebayData = await ebay.searchActiveAuctions(searchQuery, 5);
+            const ebayData = await ebay.searchActiveAuctions(searchQuery, 10);
             if (ebayData.itemSummaries && ebayData.itemSummaries.length > 0) {
-                // Calculate an average of the top results or just take the median
-                const prices = ebayData.itemSummaries.map(item => parseFloat(item.price.value)).filter(p => !isNaN(p));
+                // Use MEDIAN price for better outlier rejection
+                const prices = ebayData.itemSummaries
+                    .map(item => parseFloat(item.price.value))
+                    .filter(p => !isNaN(p))
+                    .sort((a, b) => a - b);
                 if (prices.length > 0) {
-                    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
-                    console.log(`eBay enrichment successful. Found ${prices.length} items. Updating price from ${result.estimatedMarketValue} to ${avgPrice.toFixed(2)}`);
-                    result.estimatedMarketValue = parseFloat(avgPrice.toFixed(2));
+                    const mid = Math.floor(prices.length / 2);
+                    const medianPrice = prices.length % 2 !== 0
+                        ? prices[mid]
+                        : (prices[mid - 1] + prices[mid]) / 2;
+                    console.log(`eBay enrichment successful. Found ${prices.length} items. Updating price from ${result.estimatedMarketValue} to Median: ${medianPrice.toFixed(2)}`);
+                    result.estimatedMarketValue = parseFloat(medianPrice.toFixed(2));
                 }
             }
             else {

@@ -93,14 +93,22 @@ const scanCardAndAddMetadataFlow = ai.defineFlow(
         const query = `${output.year} ${output.brand} ${output.player} ${output.cardNumber} ${conditionStr}`.trim();
         console.log(`Searching eBay for: "${query}"`);
         
-        const ebayResults = await ebayService.searchActiveAuctions(query, 3);
+        const ebayResults = await ebayService.searchActiveAuctions(query, 10);
         
         if (ebayResults.itemSummaries && ebayResults.itemSummaries.length > 0) {
-          // Calculate an average of the top results for better stability
-          const prices = ebayResults.itemSummaries.map(item => parseFloat(item.price.value)).filter(p => !isNaN(p));
+          // Use MEDIAN price for better stability (ignores high overpriced outliers)
+          const prices = ebayResults.itemSummaries
+            .map(item => parseFloat(item.price.value))
+            .filter(p => !isNaN(p))
+            .sort((a, b) => a - b);
+
           if (prices.length > 0) {
-            const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
-            output.estimatedMarketValue = parseFloat(avgPrice.toFixed(2));
+            const mid = Math.floor(prices.length / 2);
+            const medianPrice = prices.length % 2 !== 0 
+              ? prices[mid] 
+              : (prices[mid - 1] + prices[mid]) / 2;
+              
+            output.estimatedMarketValue = parseFloat(medianPrice.toFixed(2));
           }
         }
       } catch (error) {

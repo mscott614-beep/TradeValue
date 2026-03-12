@@ -93,8 +93,8 @@ class EbayService {
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '212'); 
-        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
+        url.searchParams.append('category_ids', '261328'); // Trading Card Singles
+        url.searchParams.append('filter', 'buyingOptions:{AUCTION},itemLocation:{CO:US}');
 
         const response = await fetch(url.toString(), {
             headers: {
