@@ -81,14 +81,20 @@ const scanCardAndAddMetadataFlow = ai.defineFlow(
     
     if (output) {
       try {
-        // Build a precise query for eBay
-        const query = `${output.year} ${output.brand} ${output.player} ${output.cardNumber}`;
-        const ebayResults = await ebayService.searchActiveAuctions(query, 1);
+        // Build a precise query for eBay including condition
+        const condition = output.grader !== "None" ? `${output.grader} ${output.estimatedGrade}` : "Raw";
+        const query = `${output.year} ${output.brand} ${output.player} ${output.cardNumber} ${condition}`;
+        console.log(`Searching eBay for: "${query}"`);
+        
+        const ebayResults = await ebayService.searchActiveAuctions(query, 3);
         
         if (ebayResults.itemSummaries && ebayResults.itemSummaries.length > 0) {
-          const topResult = ebayResults.itemSummaries[0];
-          // Update the "estimated" value with a real-time current bid from eBay
-          output.estimatedMarketValue = parseFloat(topResult.price.value);
+          // Calculate an average of the top results for better stability
+          const prices = ebayResults.itemSummaries.map(item => parseFloat(item.price.value)).filter(p => !isNaN(p));
+          if (prices.length > 0) {
+            const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+            output.estimatedMarketValue = parseFloat(avgPrice.toFixed(2));
+          }
         }
       } catch (error) {
         console.error('eBay Preis-Abfrage während Scan fehlgeschlagen:', error);

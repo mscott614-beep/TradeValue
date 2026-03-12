@@ -157,8 +157,9 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
           EBAY_ENV.value()
         );
 
-        // Search eBay using the identified metadata
-        const searchQuery = `${result.year} ${result.brand} ${result.player} ${result.cardNumber || ""} ${result.parallel || ""}`.trim();
+        // Search eBay using the identified metadata including condition
+        const condition = result.grader !== "None" ? `${result.grader} ${result.estimatedGrade}` : "Raw";
+        const searchQuery = `${result.year} ${result.brand} ${result.player} ${result.cardNumber || ""} ${result.parallel || ""} ${condition}`.trim();
         console.log(`Enriching result with eBay data for query: "${searchQuery}"`);
         
         const ebayData = await ebay.searchActiveAuctions(searchQuery, 5);
