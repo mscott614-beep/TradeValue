@@ -43,6 +43,10 @@ const genkit_1 = require("genkit");
 const google_genai_1 = require("@genkit-ai/google-genai");
 admin.initializeApp();
 const GOOGLE_GENAI_API_KEY = (0, params_1.defineSecret)("GOOGLE_GENAI_API_KEY");
+const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
+const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
+const EBAY_ENV = (0, params_1.defineSecret)("EBAY_ENV");
+const ebay_1 = require("./ebay");
 // Initialize Genkit inside the function to use the secret
 const getGenkit = (apiKey) => {
     return (0, genkit_1.genkit)({
@@ -88,7 +92,7 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
         maxConcurrentDispatches: 1,
         maxDispatchesPerSecond: 1,
     },
-    secrets: [GOOGLE_GENAI_API_KEY],
+    secrets: [GOOGLE_GENAI_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
     memory: "1GiB",
     timeoutSeconds: 300,
 }, async (request) => {
@@ -154,6 +158,30 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
         if (!result) {
             throw new Error("AI failed to generate a valid structured output.");
         }
+        // --- Post-AI Enrichment: Fetch Real-Time eBay Data ---
+        try {
+            const ebay = new ebay_1.EbayService(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
+            // Search eBay using the identified metadata
+            const searchQuery = `${result.year} ${result.brand} ${result.player} ${result.cardNumber || ""} ${result.parallel || ""}`.trim();
+            console.log(`Enriching result with eBay data for query: "${searchQuery}"`);
+            const ebayData = await ebay.searchActiveAuctions(searchQuery, 5);
+            if (ebayData.itemSummaries && ebayData.itemSummaries.length > 0) {
+                // Calculate an average of the top results or just take the median
+                const prices = ebayData.itemSummaries.map(item => parseFloat(item.price.value)).filter(p => !isNaN(p));
+                if (prices.length > 0) {
+                    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+                    console.log(`eBay enrichment successful. Found ${prices.length} items. Updating price from ${result.estimatedMarketValue} to ${avgPrice.toFixed(2)}`);
+                    result.estimatedMarketValue = parseFloat(avgPrice.toFixed(2));
+                }
+            }
+            else {
+                console.log(`No active eBay auctions found for "${searchQuery}". Falling back to AI estimation ${result.estimatedMarketValue}`);
+            }
+        }
+        catch (ebayError) {
+            console.error("eBay enrichment failed, proceeding with AI estimate:", ebayError);
+        }
+        // --- End Enrichment ---
         await jobRef.update({
             status: "completed",
             result,
