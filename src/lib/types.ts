@@ -19,6 +19,7 @@ export type Portfolio = {
   features?: string[];
   parallel?: string;
   grader?: string;
+  lastMarketValueUpdate?: string;
 };
 
 export type Auction = {

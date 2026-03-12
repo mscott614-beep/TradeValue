@@ -11,17 +11,19 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ChevronLeft, Calendar, Tag, User, Hash, Info, DollarSign, Wallet, TrendingUp, History, ExternalLink } from 'lucide-react';
+import { Loader2, ChevronLeft, Calendar, Tag, User, Hash, Info, DollarSign, Wallet, TrendingUp, History, ExternalLink, RefreshCw, ShoppingCart } from 'lucide-react';
 import type { Portfolio } from '@/lib/types';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { analyzeCardAction } from "@/app/actions/analyze-card";
+import { refreshCardValueAction } from "@/app/actions/refresh-card-value";
 import type { CardAnalysisResult } from "@/lib/types";
 import { BarChart3, LineChart as LineChartIcon, BrainCircuit, CheckCircle2, TrendingDown, Edit3, X, Check, Upload, Image as ImageIcon } from "lucide-react";
 import { CARD_ATTRIBUTES, CARD_PARALLELS } from "@/lib/constants";
 import { compressImage } from "@/lib/image-utils";
+import { cn } from "@/lib/utils";
 import { useRef } from 'react';
 
 export default function CardDetailsPage() {
@@ -48,6 +50,8 @@ export default function CardDetailsPage() {
     const [selectedParallel, setSelectedParallel] = useState<string>('');
 
     const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [isRefreshingValue, setIsRefreshingValue] = useState(false);
+    const [liveListings, setLiveListings] = useState<any[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Sync local input state with fetched data if we aren't currently editing
     useEffect(() => {
@@ -187,6 +191,36 @@ export default function CardDetailsPage() {
     const mockRecentSales = generateMockRecentSales(card.currentMarketValue || 100);
 
 
+    const handleRefreshValue = async () => {
+        if (!card || !cardDocRef) return;
+        setIsRefreshingValue(true);
+        try {
+            const response = await refreshCardValueAction(user!.uid, card);
+            if (response.success && response.newPrice !== undefined) {
+                updateDocumentNonBlocking(cardDocRef, {
+                    currentMarketValue: response.newPrice,
+                    lastMarketValueUpdate: response.lastUpdated
+                });
+                setLiveListings(response.top5 || []);
+                toast({
+                    title: "Market Value Updated",
+                    description: `New Median: $${response.newPrice.toFixed(2)}`,
+                });
+            } else {
+                toast({
+                    title: "Refresh Failed",
+                    description: response.error,
+                    variant: "destructive"
+                });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Error", description: "Failed to fetch live eBay data", variant: "destructive" });
+        } finally {
+            setIsRefreshingValue(false);
+        }
+    };
+
     const handleRunAnalysis = async () => {
         if (!card) return;
         setIsAnalyzing(true);
@@ -240,10 +274,84 @@ export default function CardDetailsPage() {
             <Tabs defaultValue="overview" className="space-y-6">
                 <TabsList className="bg-muted/50 border">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="market">Live Market</TabsTrigger>
                     <TabsTrigger value="grading" disabled={!analysis}>Grading ROI</TabsTrigger>
                     <TabsTrigger value="history">Price History</TabsTrigger>
                     <TabsTrigger value="insights" disabled={!analysis}>AI Insights</TabsTrigger>
                 </TabsList>
+
+                {/* LIVE MARKET TAB */}
+                <TabsContent value="market" className="space-y-6">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <ShoppingCart className="h-5 w-5 text-primary" />
+                                    Active eBay Listings
+                                </CardTitle>
+                                <CardDescription>Top 5 most relevant live auctions for this card.</CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={handleRefreshValue} disabled={isRefreshingValue}>
+                                {isRefreshingValue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                Sync Data
+                            </Button>
+                        </CardHeader>
+                        <CardContent>
+                            {liveListings.length > 0 ? (
+                                <div className="space-y-4">
+                                    {liveListings.map((listing, i) => (
+                                        <div key={i} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                            <div className="relative h-16 w-12 bg-muted rounded overflow-hidden flex-shrink-0">
+                                                {listing.imageUrl ? (
+                                                    <Image src={listing.imageUrl} alt={listing.title} fill className="object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                        <ImageIcon className="h-6 w-6 opacity-20" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-sm truncate" title={listing.title}>{listing.title}</p>
+                                                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                                    <span className="flex items-center gap-1">
+                                                        <Tag className="h-3 w-3" /> eBay
+                                                    </span>
+                                                    {listing.bidCount !== undefined && (
+                                                        <span className="flex items-center gap-1">
+                                                            <History className="h-3 w-3" /> {listing.bidCount} bids
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <p className="font-bold text-lg">${listing.price.toFixed(2)}</p>
+                                                <Button size="sm" variant="ghost" className="h-7 text-xs text-primary px-0" asChild>
+                                                    <a href={listing.url} target="_blank" rel="noopener noreferrer">
+                                                        View <ExternalLink className="ml-1 h-3 w-3" />
+                                                    </a>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
+                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                                        <ShoppingCart className="h-6 w-6 opacity-40" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium">No live listings synced yet</p>
+                                        <p className="text-sm text-muted-foreground">Click the "Sync Data" button above to fetch live auctions from eBay.</p>
+                                    </div>
+                                    <Button onClick={handleRefreshValue} disabled={isRefreshingValue}>
+                                        {isRefreshingValue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                        Fetch Live Listings
+                                    </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
                 {/* OVERVIEW TAB (Original Content) */}
                 <TabsContent value="overview" className="space-y-6">
@@ -377,7 +485,19 @@ export default function CardDetailsPage() {
                                         <div className="flex items-start gap-3">
                                             <DollarSign className="h-5 w-5 text-green-400 shrink-0 mt-0.5" />
                                             <div>
-                                                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Est. Market Value</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Est. Market Value</p>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
+                                                        onClick={handleRefreshValue}
+                                                        disabled={isRefreshingValue}
+                                                        title="Refresh Market Value"
+                                                    >
+                                                        <RefreshCw className={cn("h-3 w-3", isRefreshingValue && "animate-spin")} />
+                                                    </Button>
+                                                </div>
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-2xl font-bold text-green-400">
                                                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.currentMarketValue || 0)}
@@ -388,6 +508,11 @@ export default function CardDetailsPage() {
                                                         </Badge>
                                                     )}
                                                 </div>
+                                                {card.lastMarketValueUpdate && (
+                                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                                        Last checked: {new Date(card.lastMarketValueUpdate).toLocaleString()}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
