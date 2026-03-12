@@ -18,10 +18,21 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         
         // Ensure we include negative keywords for raw cards
         const isGraded = card.condition.includes('PSA') || card.condition.includes('BGS') || card.condition.includes('SGC') || !!card.grader;
-        const searchQuery = `${card.year} ${card.brand} ${card.player} ${cleanCardNumber} ${card.parallel || ''} ${isGraded ? card.condition : '-PSA -Graded -Slab'}`.trim();
+        const negativeKeywords = isGraded ? card.condition : '-PSA -Graded -Slab';
         
-        const response = await ebayService.searchActiveAuctions(searchQuery, 10);
-        const items = response.itemSummaries || [];
+        // Stage 1: Specific Query (Year + Brand + Player + Number + Parallel)
+        const specificQuery = `${card.year} ${card.brand} ${card.player} ${cleanCardNumber} ${card.parallel || ''} ${negativeKeywords}`.trim();
+        
+        let response = await ebayService.searchActiveAuctions(specificQuery, 10);
+        let items = response.itemSummaries || [];
+
+        // Stage 2: Essential Fallback (If 0 results, try Year + Player + Number)
+        if (items.length === 0) {
+            const essentialQuery = `${card.year} ${card.player} ${cleanCardNumber} ${negativeKeywords}`.trim();
+            console.log(`Specific search failed, trying essential fallback: ${essentialQuery}`);
+            response = await ebayService.searchActiveAuctions(essentialQuery, 10);
+            items = response.itemSummaries || [];
+        }
 
         if (items.length === 0) {
             return { success: false, error: "No active auctions found on eBay for this card." };

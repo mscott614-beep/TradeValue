@@ -94,7 +94,7 @@ class EbayService {
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
         url.searchParams.append('category_ids', '261328'); // Trading Card Singles
-        url.searchParams.append('filter', 'buyingOptions:{AUCTION|FIXED_PRICE},itemLocation:{CO:US}');
+        url.searchParams.append('filter', 'buyingOptions:{AUCTION|FIXED_PRICE}');
 
         const response = await fetch(url.toString(), {
             headers: {
