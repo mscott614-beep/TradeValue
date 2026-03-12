@@ -12,7 +12,7 @@ import { Upload, X, WandSparkles, Loader2, CheckCircle, PlusCircle } from "lucid
 import Image from "next/image";
 import { Card, CardContent } from "../ui/card";
 import { useFirestore, useUser } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { compressImage } from "@/lib/image-utils";
 
@@ -132,10 +132,10 @@ export function CardScanner() {
   };
 
   const handleScan = async () => {
-    if (!frontFile) {
+    if (!frontFile || !user || !firestore) {
       toast({
-        title: "No front image selected",
-        description: "Please select an image of the card front.",
+        title: "Missing requirements",
+        description: "Please select an image and ensure you are logged in.",
         variant: "destructive",
       });
       return;
@@ -145,31 +145,69 @@ export function CardScanner() {
     setResult(null);
 
     try {
-      const frontPhotoDataUri = await readFileAsDataURL(frontFile);
+      // Stricter compression to ensure we are well under the 1MB Firestore limit per document
+      console.log("Starting image compression...");
+      const frontPhotoDataUri = await compressImage(frontFile, 800);
+      console.log(`Front Image compressed size: ${Math.round(frontPhotoDataUri.length / 1024)} KB`);
+      
       let backPhotoDataUri: string | undefined = undefined;
       if (backFile) {
-        backPhotoDataUri = await readFileAsDataURL(backFile);
+        backPhotoDataUri = await compressImage(backFile, 800);
+        console.log(`Back Image compressed size: ${Math.round(backPhotoDataUri.length / 1024)} KB`);
       }
 
-      const aiResult = await scanCardAndAddMetadata({
-        frontPhotoDataUri,
-        backPhotoDataUri,
+      // Create a new scan job
+      const scanJobsRef = collection(firestore, "scanJobs");
+      const jobId = `${user.uid}-${Date.now()}`;
+      const jobData = {
+        userId: user.uid,
+        status: "pending",
+        type: "image-scan",
+        payload: {
+          frontPhotoDataUri,
+          backPhotoDataUri: backPhotoDataUri ?? null,
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      console.log(`Creating image-scan job ${jobId}. Total payload size estimate: ${Math.round(JSON.stringify(jobData).length / 1024)} KB`);
+      const jobDocRef = doc(scanJobsRef, jobId);
+      await setDoc(jobDocRef, jobData);
+      console.log(`Job ${jobId} created in Firestore successfully.`);
+
+      // Listen for updates
+      const unsubscribe = onSnapshot(jobDocRef, (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as any;
+          if (data.status === "completed") {
+            setResult(data.result);
+            setIsLoading(false);
+            toast({
+              title: "Scan Successful",
+              description: "AI has identified your card.",
+              action: <CheckCircle className="text-green-500" />,
+            });
+            unsubscribe();
+          } else if (data.status === "error") {
+            setIsLoading(false);
+            toast({
+              title: "Scan Failed",
+              description: data.error || "AI failed to identify the card.",
+              variant: "destructive",
+            });
+            unsubscribe();
+          }
+        }
       });
 
-      setResult(aiResult);
-      toast({
-        title: "Scan Successful",
-        description: "AI has identified your card.",
-        action: <CheckCircle className="text-green-500" />,
-      });
     } catch (error) {
-      console.error("AI Scan or File Read Error:", error);
+      console.error("AI Scan Error:", error);
       toast({
         title: "Scan Failed",
-        description: "Could not read the file or the AI failed to identify the card. Please try another image.",
+        description: "Failed to start the scan process. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };

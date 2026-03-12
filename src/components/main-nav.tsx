@@ -13,6 +13,7 @@ import {
   ScanLine,
   Store,
   Bell,
+  HelpCircle,
 } from "lucide-react";
 
 const links = [
@@ -21,6 +22,7 @@ const links = [
   { href: "/scanner", label: "Scanner", icon: ScanLine },
   { href: "/market", label: "Market", icon: Store },
   { href: "/dashboard/alerts", label: "Alerts", icon: Bell },
+  { href: "/help", label: "Help Center", icon: HelpCircle },
 ];
 
 export function MainNav() {

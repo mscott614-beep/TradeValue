@@ -46,7 +46,7 @@ export const parseCsvTitlesFlow = ai.defineFlow({
 
     const response = await ai.generate({
         prompt: prompt,
-        model: 'googleai/gemini-2.5-flash',
+        model: 'googleai/gemini-3.1-flash-lite-preview',
         output: { schema: ParseCsvTitlesOutputSchema }
     });
 

@@ -24,6 +24,7 @@ type InsightResult = {
     }[];
     optimizationAdvice: string[];
     healthSummary: string;
+    riskMitigation: string;
 };
 
 export default function InsightsPage() {
@@ -147,7 +148,7 @@ export default function InsightsPage() {
                                     {insights.recommendations.map((rec, i) => (
                                         <div key={i} className="p-4 border rounded-lg bg-card hover:border-primary/50 transition-colors">
                                             <div className="flex items-center justify-between mb-2">
-                                                <span className="font-bold text-sm truncate max-w-[150px]">{rec.cardTitle}</span>
+                                                <span className="font-bold text-sm">{rec.cardTitle}</span>
                                                 <Badge variant="outline" className="flex items-center gap-1">
                                                     {getActionIcon(rec.action)}
                                                     {rec.action}
@@ -196,7 +197,7 @@ export default function InsightsPage() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <p className="text-sm italic">
-                                    "Your current holdings have high exposure to the 1990s base card market. Consider shifting 20% of your allocated capital into graded rookie stars from the 2010s for better stability."
+                                    &ldquo;{insights.riskMitigation}&rdquo;
                                 </p>
                                 <div className="pt-4 border-t flex justify-center">
                                     <Button variant="outline" onClick={handleGenerateInsights} disabled={isGenerating}>

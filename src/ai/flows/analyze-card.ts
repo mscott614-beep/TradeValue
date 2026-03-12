@@ -47,6 +47,7 @@ export const analyzeCardInvestment = ai.defineFlow(
       Player: ${card.player}
       Year: ${card.year}
       Brand/Set: ${card.brand}
+      Parallel/Variety: ${card.parallel || 'None'}
       Condition: ${card.condition || 'Unknown'}
       Current Market Value: $${card.currentMarketValue || 0}
       Estimated Grade: ${card.estimatedGrade || 'Raw'}
@@ -81,7 +82,7 @@ export const analyzeCardInvestment = ai.defineFlow(
     `;
 
         const response = await ai.generate({
-            model: 'googleai/gemini-2.5-flash',
+            model: 'googleai/gemini-3.1-flash-lite-preview',
             prompt: prompt,
             output: { format: 'json' }
         });

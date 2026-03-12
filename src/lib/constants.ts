@@ -144,5 +144,7 @@ export const CARD_PARALLELS = [
     "Wave & Wave Prizm",
     "X-Fractor",
     "Yellow",
+    "Young Guns",
+    "Young Guns Canvas",
     "Zebra"
 ];

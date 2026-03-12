@@ -58,7 +58,8 @@ const POPULAR_BRANDS = [
 
 const PARALLEL_KEYWORDS = [
     "Refractor", "Silver", "Holo", "Prizm", "Mojo", "Auto", "Patch", "RPA",
-    "RC", "Rookie", "Numbered", "SP", "SSP", "Parallel", "1st", "First"
+    "RC", "Rookie", "Numbered", "SP", "SSP", "Parallel", "1st", "First",
+    "Young Guns", "Young Guns Canvas"
 ];
 
 export function parseCardTitle(title: string): Partial<Portfolio> {

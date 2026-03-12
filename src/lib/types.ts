@@ -44,6 +44,15 @@ export interface AlertConfig {
   isActive: boolean;
 }
 
+export interface PriceAlert {
+  id?: string;
+  cardTitle: string;
+  type: 'above' | 'below';
+  targetPrice: number;
+  active: boolean;
+  createdAt: string;
+}
+
 export interface MarketAlert {
   id?: string;
   type: 'rise' | 'drop' | 'optimal_sell' | 'red_flag';
@@ -75,3 +84,20 @@ export interface CardAnalysisResult {
   historicalSignificance: string;
   comparisonMatchup?: string;
 }
+
+export interface ScanJob {
+  id?: string;
+  status: 'pending' | 'queued' | 'processing' | 'completed' | 'error';
+  userId: string;
+  type: 'image-scan' | 'text-parse';
+  payload: {
+    frontPhotoDataUri?: string;
+    backPhotoDataUri?: string;
+    title?: string;
+  };
+  result?: any;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

@@ -1,0 +1,1560 @@
+2026-03-11T17:23:34.976694Z E geminiprocessingqueue: 
+2026-03-11T17:23:34.986576Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-0-1773249301102
+
+2026-03-11T17:23:35.159785Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 24.898850976s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 24.898850976s.'
+}
+
+2026-03-11T17:23:35.161466Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-0-1773249301102: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 24.898850976s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 24.898850976s.',
+  traceId: '97764c38a2b0d1e42d2a0a318b8bb808',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:23:35.196366Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:23:45.238286Z E geminiprocessingqueue: 
+2026-03-11T17:23:45.249229Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-15-1773248547303
+
+2026-03-11T17:23:45.412547Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 14.642471634s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 14.642471634s.'
+}
+
+2026-03-11T17:23:45.413268Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-15-1773248547303: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 14.642471634s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 14.642471634s.',
+  traceId: '6d7ce982a86bc387c0f1b60b2d993c8a',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:23:45.446527Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:23:55.488454Z E geminiprocessingqueue: 
+2026-03-11T17:23:55.497972Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-5-1773249301105
+
+2026-03-11T17:23:55.730063Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 4.36603826s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 4.36603826s.'
+}
+
+2026-03-11T17:23:55.731196Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-5-1773249301105: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 4.36603826s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 4.36603826s.',
+  traceId: 'dab29114e0b811f809e1f4672abbf787',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:23:55.761573Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:24:05.791927Z E geminiprocessingqueue: 
+2026-03-11T17:24:05.807071Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-1-1773248547299
+
+2026-03-11T17:24:06.122812Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 53.970460256s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 53.970460256s.'
+}
+
+2026-03-11T17:24:06.123866Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-1-1773248547299: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 53.970460256s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 53.970460256s.',
+  traceId: 'f2fc5b0f1ac822f3ecfe4a093021fd8c',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:24:06.157156Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:24:16.196759Z E geminiprocessingqueue: 
+2026-03-11T17:24:16.211997Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-11-1773249301106
+
+2026-03-11T17:24:16.467548Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 43.627275679s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 43.627275679s.'
+}
+
+2026-03-11T17:24:16.468662Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-11-1773249301106: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 43.627275679s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 43.627275679s.',
+  traceId: '2e02ad8e25c8e84a33a4da708365f72a',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:24:16.493819Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:24:26.535446Z E geminiprocessingqueue: 
+2026-03-11T17:24:26.544208Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-18-1773248547303
+
+2026-03-11T17:24:26.728425Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 33.362527871s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 33.362527871s.'
+}
+
+2026-03-11T17:24:26.729214Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-18-1773248547303: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 33.362527871s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 33.362527871s.',
+  traceId: 'c4239581cab26d9d17927232cfc0cc25',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:24:26.762500Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:24:36.801677Z E geminiprocessingqueue: 
+2026-03-11T17:24:36.810475Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-9-1773249301106
+
+2026-03-11T17:24:36.981074Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 23.079223563s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 23.079223563s.'
+}
+
+2026-03-11T17:24:36.981968Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-9-1773249301106: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 23.079223563s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 23.079223563s.',
+  traceId: '397f3699ab13823b2a51e570a5dad649',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:24:37.015694Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:24:47.055905Z E geminiprocessingqueue: 
+2026-03-11T17:24:47.065838Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-17-1773248547303
+
+2026-03-11T17:24:47.272174Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 12.822975242s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 12.822975242s.'
+}
+
+2026-03-11T17:24:47.272939Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-17-1773248547303: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 12.822975242s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 12.822975242s.',
+  traceId: 'ffd9b3fbeb878556a47d1f6047484211',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:24:47.303760Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:24:57.345292Z E geminiprocessingqueue: 
+2026-03-11T17:24:57.356568Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-3-1773249301104
+
+2026-03-11T17:24:57.538358Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 2.527357477s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 2.527357477s.'
+}
+
+2026-03-11T17:24:57.539362Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-3-1773249301104: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 2.527357477s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 2.527357477s.',
+  traceId: '31a474a5c81c8a7816aac9de37d1a1d2',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:24:57.577001Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:25:07.617623Z E geminiprocessingqueue: 
+2026-03-11T17:25:07.627280Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-11-1773248547302
+
+2026-03-11T17:25:07.806781Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 52.249812417s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 52.249812417s.'
+}
+
+2026-03-11T17:25:07.807968Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-11-1773248547302: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 52.249812417s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 52.249812417s.',
+  traceId: 'b6868f05f20d75ad8637ef85d9e0975b',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:25:07.847662Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:25:17.893376Z E geminiprocessingqueue: 
+2026-03-11T17:25:17.902319Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-0-1773248547297
+
+2026-03-11T17:25:18.052190Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 42.001806037s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 42.001806037s.'
+}
+
+2026-03-11T17:25:18.053123Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-0-1773248547297: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 42.001806037s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 42.001806037s.',
+  traceId: 'bb5279926529bc3343df013be14f8b8f',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:25:18.080846Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:25:28.135995Z E geminiprocessingqueue: 
+2026-03-11T17:25:28.146525Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-2-1773249301104
+
+2026-03-11T17:25:28.336999Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 31.729406445s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 31.729406445s.'
+}
+
+2026-03-11T17:25:28.337687Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-2-1773249301104: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 31.729406445s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 31.729406445s.',
+  traceId: '3919ed0f3f968c96de19d3b176e6ab2e',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:25:28.370482Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:25:38.410245Z E geminiprocessingqueue: 
+2026-03-11T17:25:38.422535Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-7-1773249301105
+
+2026-03-11T17:25:38.613103Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 21.470468202s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 21.470468202s.'
+}
+
+2026-03-11T17:25:38.613811Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-7-1773249301105: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 21.470468202s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 21.470468202s.',
+  traceId: 'c043918176e4fbe041483fefe75e9ba1',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:25:38.643345Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:25:48.697681Z E geminiprocessingqueue: 
+2026-03-11T17:25:48.706015Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-16-1773249301107
+
+2026-03-11T17:25:48.866953Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 11.193302311s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 11.193302311s.'
+}
+
+2026-03-11T17:25:48.867814Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-16-1773249301107: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 11.193302311s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 11.193302311s.',
+  traceId: '9c27766a048884a592ced614a581dc67',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:25:48.892764Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:25:58.937463Z E geminiprocessingqueue: 
+2026-03-11T17:25:58.950402Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-15-1773249301107
+
+2026-03-11T17:25:59.120083Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 937.950629ms.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 937.950629ms.'
+}
+
+2026-03-11T17:25:59.121835Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-15-1773249301107: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 937.950629ms.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 937.950629ms.',
+  traceId: 'eec619ae9c2cc4a9fdd7411ee8409913',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:25:59.145656Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:26:09.190590Z E geminiprocessingqueue: 
+2026-03-11T17:26:09.201881Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-14-1773249301107
+
+2026-03-11T17:26:09.412093Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 50.677376462s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 50.677376462s.'
+}
+
+2026-03-11T17:26:09.413095Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-14-1773249301107: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 50.677376462s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 50.677376462s.',
+  traceId: '05ed7e4557db9031d607e308fb6f5cf5',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:26:09.448069Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:26:19.489643Z E geminiprocessingqueue: 
+2026-03-11T17:26:19.498383Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-17-1773249301107
+
+2026-03-11T17:26:19.658769Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 40.394813044s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 40.394813044s.'
+}
+
+2026-03-11T17:26:19.659598Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-17-1773249301107: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 40.394813044s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 40.394813044s.',
+  traceId: 'e70f676bf21bba640b96e23dc9a15860',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:26:19.690585Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:26:29.732566Z E geminiprocessingqueue: 
+2026-03-11T17:26:29.740434Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-4-1773249301105
+
+2026-03-11T17:26:29.932906Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 30.159038951s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 30.159038951s.'
+}
+
+2026-03-11T17:26:29.933622Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-4-1773249301105: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 30.159038951s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 30.159038951s.',
+  traceId: 'b4189e4534a96d1b29a3695289177728',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:26:29.966178Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:26:40.010207Z E geminiprocessingqueue: 
+2026-03-11T17:26:40.021005Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-13-1773249301107
+
+2026-03-11T17:26:40.184249Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 19.874805002s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 19.874805002s.'
+}
+
+2026-03-11T17:26:40.184984Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-13-1773249301107: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 19.874805002s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 19.874805002s.',
+  traceId: 'd03246b977a760ae11eaf96c643e5c04',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:26:40.215333Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:26:50.247303Z E geminiprocessingqueue: 
+2026-03-11T17:26:50.255131Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-6-1773249301105
+
+2026-03-11T17:26:50.430911Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 9.626643017s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 9.626643017s.'
+}
+
+2026-03-11T17:26:50.431687Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-6-1773249301105: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 9.626643017s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 9.626643017s.',
+  traceId: '9c8e9224f40a4745e76fc91f906a6306',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:26:50.457556Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:27:00.499436Z E geminiprocessingqueue: 
+2026-03-11T17:27:00.509701Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-8-1773249301106
+
+2026-03-11T17:27:00.673633Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 59.380900418s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 59.380900418s.'
+}
+
+2026-03-11T17:27:00.674790Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-8-1773249301106: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 59.380900418s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 59.380900418s.',
+  traceId: '2decd7cc783f19bbda8c971e76b6f1a8',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:27:00.704339Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:27:10.749251Z E geminiprocessingqueue: 
+2026-03-11T17:27:10.757717Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-12-1773249301106
+
+2026-03-11T17:27:10.927623Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 49.132568684s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 49.132568684s.'
+}
+
+2026-03-11T17:27:10.928329Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-12-1773249301106: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 49.132568684s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 49.132568684s.',
+  traceId: '5d297562de888ef3203caf471c92f1c4',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:27:10.973482Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:27:21.007510Z E geminiprocessingqueue: 
+2026-03-11T17:27:21.017786Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-1-1773249301104
+
+2026-03-11T17:27:21.265144Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 38.805106815s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 38.805106815s.'
+}
+
+2026-03-11T17:27:21.265939Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-1-1773249301104: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 38.805106815s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 38.805106815s.',
+  traceId: 'e05fd8c3ed1e453cf78ea1f5e5d183fe',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:27:21.296090Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:27:31.345182Z E geminiprocessingqueue: 
+2026-03-11T17:27:31.355540Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-18-1773249301108
+
+2026-03-11T17:27:31.527118Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 28.535835806s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 28.535835806s.'
+}
+
+2026-03-11T17:27:31.528076Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-18-1773249301108: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 28.535835806s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 28.535835806s.',
+  traceId: 'a645003fdd1863e699a681c55198e82a',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:27:31.560677Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:27:41.599274Z E geminiprocessingqueue: 
+2026-03-11T17:27:41.609482Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-10-1773249301106
+
+2026-03-11T17:27:41.752913Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 18.298979513s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 18.298979513s.'
+}
+
+2026-03-11T17:27:41.754081Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-10-1773249301106: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 18.298979513s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 18.298979513s.',
+  traceId: '581ea6377f56b7664ba95ed97cf6ee90',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:27:41.786047Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:27:51.828278Z E geminiprocessingqueue: 
+2026-03-11T17:27:51.836816Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-0-1773249301102
+
+2026-03-11T17:27:52.047920Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 8.001419703s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 8.001419703s.'
+}
+
+2026-03-11T17:27:52.049372Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-0-1773249301102: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 8.001419703s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 8.001419703s.',
+  traceId: '016c9854a8b54a22743b63bb770e4f57',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:27:52.079295Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:28:02.124377Z E geminiprocessingqueue: 
+2026-03-11T17:28:02.136242Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-5-1773249301105
+
+2026-03-11T17:28:02.395550Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 57.68784662s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 57.68784662s.'
+}
+
+2026-03-11T17:28:02.396416Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-5-1773249301105: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 57.68784662s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 57.68784662s.',
+  traceId: '698c30d6568fe851d04cdbdfd9cde450',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:28:02.426042Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:28:12.468938Z E geminiprocessingqueue: 
+2026-03-11T17:28:12.478129Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-11-1773249301106
+
+2026-03-11T17:28:12.669479Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 47.381968498s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 47.381968498s.'
+}
+
+2026-03-11T17:28:12.670296Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-11-1773249301106: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 47.381968498s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 47.381968498s.',
+  traceId: 'f0d5f8beb3921dd7533d622012f1dfe4',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:28:12.705608Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:28:22.740192Z E geminiprocessingqueue: 
+2026-03-11T17:28:22.750129Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-9-1773249301106
+
+2026-03-11T17:28:22.920565Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 37.129786683s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 37.129786683s.'
+}
+
+2026-03-11T17:28:22.921422Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-9-1773249301106: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 37.129786683s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 37.129786683s.',
+  traceId: '8b06c988d4762cd9ae51dbe262c1f231',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:28:22.958239Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17
+2026-03-11T17:28:32.998067Z E geminiprocessingqueue: 
+2026-03-11T17:28:33.006580Z ? geminiprocessingqueue: Worker processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-3-1773249301104
+
+2026-03-11T17:28:33.169253Z ? geminiprocessingqueue: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 26.892943563s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 26.892943563s.'
+}
+
+2026-03-11T17:28:33.170016Z ? geminiprocessingqueue: Error processing job csv-x6PdMgJJrUP6rGOAqC2zaJd6dRI3-3-1773249301104: GenkitError: RESOURCE_EXHAUSTED: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash
+Please retry in 26.892943563s.
+    at makeRequest (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:231:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async generateContent (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/client.js:62:20)
+    at async callGemini (/workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:520:22)
+    at async /workspace/node_modules/@genkit-ai/google-genai/lib/googleai/gemini.js:573:11
+    at async /workspace/node_modules/@genkit-ai/core/lib/action.js:171:27
+    at async /workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:91:24
+    at async runInNewSpan (/workspace/node_modules/@genkit-ai/core/lib/tracing/instrumentation.js:63:10)
+    at async actionFn.run (/workspace/node_modules/@genkit-ai/core/lib/action.js:127:18)
+    at async dispatch (/workspace/node_modules/@genkit-ai/core/lib/action.js:78:24) {
+  source: undefined,
+  status: 'RESOURCE_EXHAUSTED',
+  detail: undefined,
+  code: 429,
+  originalMessage: 'Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [429 Too Many Requests] You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n' +
+    '* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash\n' +
+    'Please retry in 26.892943563s.',
+  traceId: 'd0e53ea44bdf8e532782db79b957e3aa',
+  ignoreFailedSpan: true
+}
+
+2026-03-11T17:28:33.210769Z E geminiprocessingqueue: Unhandled error Error: Rate limit hit, retrying...
+    at /workspace/lib/index.js:173:19
+    at async /workspace/node_modules/firebase-functions/lib/common/providers/tasks.js:84:17

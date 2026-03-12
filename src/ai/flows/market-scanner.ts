@@ -78,7 +78,7 @@ export const runMarketScanner = ai.defineFlow(
 
         const response = await ai.generate({
             // Use 2.5 flash as it is our stable default that avoids the 2.0 quota limits
-            model: 'googleai/gemini-2.5-flash',
+            model: 'googleai/gemini-3.1-flash-lite-preview',
             prompt: prompt,
             output: { format: 'json' }
         });

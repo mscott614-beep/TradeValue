@@ -19,6 +19,7 @@ export const getPortfolioInsightsOutputSchema = z.object({
     recommendations: z.array(RecommendationSchema),
     optimizationAdvice: z.array(z.string()),
     healthSummary: z.string(),
+    riskMitigation: z.string().describe('A 1-2 sentence specific, actionable risk mitigation suggestion based on the actual portfolio composition — e.g. overexposure to one era, player, or card type.'),
 });
 
 export const getPortfolioInsights = ai.defineFlow(
@@ -59,14 +60,15 @@ export const getPortfolioInsights = ai.defineFlow(
           }
         ],
         "optimizationAdvice": ["Actionable step 1", "Actionable step 2"],
-        "healthSummary": "A 2-3 sentence executive overview of the portfolio's status."
+        "healthSummary": "A 2-3 sentence executive overview of the portfolio's status.",
+        "riskMitigation": "A 1-2 sentence specific risk mitigation suggestion based on actual portfolio composition (e.g. overexposure to one era, player, or grading tier)."
       }
 
       Focus on being realistic. If the portfolio is full of 1991 Score base cards, the risk score should be high (90+) because they are overproduced and have low liquidity.
     `;
 
         const response = await ai.generate({
-            model: 'googleai/gemini-2.5-flash', // Switching to 2.5 flash to avoid 2.0 quota limits
+            model: 'googleai/gemini-3.1-flash-lite-preview',
             prompt: prompt,
             output: { format: 'json' }
         });
