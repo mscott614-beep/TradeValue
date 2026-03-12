@@ -9,6 +9,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { ebayService } from '@/lib/ebay';
 
 const ScanCardAndAddMetadataInputSchema = z.object({
   frontPhotoDataUri: z
@@ -77,6 +78,24 @@ const scanCardAndAddMetadataFlow = ai.defineFlow(
   },
   async input => {
     const { output } = await scanCardPrompt(input);
+    
+    if (output) {
+      try {
+        // Build a precise query for eBay
+        const query = `${output.year} ${output.brand} ${output.player} ${output.cardNumber}`;
+        const ebayResults = await ebayService.searchActiveAuctions(query, 1);
+        
+        if (ebayResults.itemSummaries && ebayResults.itemSummaries.length > 0) {
+          const topResult = ebayResults.itemSummaries[0];
+          // Update the "estimated" value with a real-time current bid from eBay
+          output.estimatedMarketValue = parseFloat(topResult.price.value);
+        }
+      } catch (error) {
+        console.error('eBay Preis-Abfrage während Scan fehlgeschlagen:', error);
+        // Fallback to the AI's estimation if the API fails
+      }
+    }
+    
     return output!;
   }
 );
