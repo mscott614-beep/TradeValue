@@ -12,10 +12,13 @@ import { revalidatePath } from "next/cache";
 
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
-        // 1. Search eBay for active auctions
+        // 1. Search eBay for listings
+        // Sanitize card number (remove #)
+        const cleanCardNumber = (card.cardNumber || '').replace('#', '');
+        
         // Ensure we include negative keywords for raw cards
         const isGraded = card.condition.includes('PSA') || card.condition.includes('BGS') || card.condition.includes('SGC') || !!card.grader;
-        const searchQuery = `${card.year} ${card.brand} ${card.player} ${card.cardNumber} ${card.parallel || ''} ${isGraded ? card.condition : '-PSA -Graded -Slab'}`;
+        const searchQuery = `${card.year} ${card.brand} ${card.player} ${cleanCardNumber} ${card.parallel || ''} ${isGraded ? card.condition : '-PSA -Graded -Slab'}`.trim();
         
         const response = await ebayService.searchActiveAuctions(searchQuery, 10);
         const items = response.itemSummaries || [];
