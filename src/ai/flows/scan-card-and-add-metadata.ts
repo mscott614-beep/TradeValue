@@ -82,8 +82,15 @@ const scanCardAndAddMetadataFlow = ai.defineFlow(
     if (output) {
       try {
         // Build a precise query for eBay including condition
-        const condition = output.grader !== "None" ? `${output.grader} ${output.estimatedGrade}` : "Raw";
-        const query = `${output.year} ${output.brand} ${output.player} ${output.cardNumber} ${condition}`;
+        let conditionStr = "";
+        if (output.grader !== "None") {
+          conditionStr = `${output.grader} ${output.estimatedGrade}`;
+        } else {
+          // EXCLUSION: For raw cards, explicitly exclude graded terms to prevent price inflation
+          conditionStr = "Raw -PSA -BGS -SGC -CGC -GMA -Graded -Slab -Auth";
+        }
+        
+        const query = `${output.year} ${output.brand} ${output.player} ${output.cardNumber} ${conditionStr}`.trim();
         console.log(`Searching eBay for: "${query}"`);
         
         const ebayResults = await ebayService.searchActiveAuctions(query, 3);

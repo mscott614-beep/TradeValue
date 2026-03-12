@@ -162,8 +162,15 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
         try {
             const ebay = new ebay_1.EbayService(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
             // Search eBay using the identified metadata including condition
-            const condition = result.grader !== "None" ? `${result.grader} ${result.estimatedGrade}` : "Raw";
-            const searchQuery = `${result.year} ${result.brand} ${result.player} ${result.cardNumber || ""} ${result.parallel || ""} ${condition}`.trim();
+            let conditionStr = "";
+            if (result.grader !== "None") {
+                conditionStr = `${result.grader} ${result.estimatedGrade}`;
+            }
+            else {
+                // EXCLUSION: For raw cards, explicitly exclude graded terms to prevent price inflation
+                conditionStr = "Raw -PSA -BGS -SGC -CGC -GMA -Graded -Slab -Auth";
+            }
+            const searchQuery = `${result.year} ${result.brand} ${result.player} ${result.cardNumber || ""} ${result.parallel || ""} ${conditionStr}`.trim();
             console.log(`Enriching result with eBay data for query: "${searchQuery}"`);
             const ebayData = await ebay.searchActiveAuctions(searchQuery, 5);
             if (ebayData.itemSummaries && ebayData.itemSummaries.length > 0) {
