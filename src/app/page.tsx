@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Logo } from '@/components/icons';
 import { 
   AreaChart, 
   Area, 
@@ -71,9 +72,7 @@ export default function Home() {
       >
         <div className="container mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-[#38bdf8] to-[#0ea5e9] flex items-center justify-center">
-              <TrendingUp className="text-[#0f172a] h-5 w-5" />
-            </div>
+            <Logo className="w-8 h-8" />
             <span className="text-xl font-bold tracking-tight text-white uppercase">TradeValue</span>
           </div>
 
@@ -107,10 +106,6 @@ export default function Home() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-[#38bdf8]/5 rounded-full blur-[120px] -z-10" />
         
         <div className="container mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#38bdf8]/10 border border-[#38bdf8]/20 text-[#38bdf8] text-xs font-bold uppercase tracking-widest mb-8 animate-fade-in">
-            <ShieldCheck className="w-3.5 h-3.5" /> Trusted by 10k+ Collectors
-          </div>
-          
           <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-6 animate-slide-up">
             Master the Trade with <br />
             <span className="text-[#38bdf8]">Real-Time Analytics</span>
@@ -313,9 +308,7 @@ export default function Home() {
       <footer className="py-12 border-t border-slate-800">
         <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-slate-800 flex items-center justify-center">
-              <TrendingUp className="text-[#38bdf8] h-3.5 w-3.5" />
-            </div>
+            <Logo className="w-6 h-6" />
             <span className="text-sm font-bold tracking-tight text-white uppercase">TradeValue</span>
           </div>
           <p className="text-sm text-slate-500">© 2024 TradeValue Market Insight. All rights reserved.</p>
