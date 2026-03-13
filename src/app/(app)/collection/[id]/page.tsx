@@ -73,6 +73,26 @@ export default function CardDetailsPage() {
         }
     }, [card, isEditingPrice, isEditingAttributes]);
 
+    const trendData = useMemo(() => {
+        if (!card?.currentMarketValue) return [];
+        const months = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'];
+        const data = [];
+        const currentValue = card.currentMarketValue;
+        
+        let val = currentValue * 0.85; // Start a bit lower
+        
+        for (let i = 0; i < months.length; i++) {
+            if (i === months.length - 1) {
+                data.push({ name: months[i], value: currentValue });
+            } else {
+                const noise = (Math.random() - 0.5) * 2 * (currentValue * 0.05);
+                val = val + (currentValue * 0.03) + noise; // General upward move
+                data.push({ name: months[i], value: Math.round(val * 100) / 100 });
+            }
+        }
+        return data;
+    }, [card?.currentMarketValue]);
+
     const handleSavePurchasePrice = () => {
         if (!cardDocRef) return;
 
@@ -191,26 +211,6 @@ export default function CardDetailsPage() {
         return sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     };
 
-    const trendData = useMemo(() => {
-        if (!card.currentMarketValue) return [];
-        const months = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'];
-        const data = [];
-        const volatility = 0.12; // 12% volatility
-        const currentValue = card.currentMarketValue;
-        
-        let val = currentValue * 0.85; // Start a bit lower
-        
-        for (let i = 0; i < months.length; i++) {
-            if (i === months.length - 1) {
-                data.push({ name: months[i], value: currentValue });
-            } else {
-                const noise = (Math.random() - 0.5) * 2 * (currentValue * 0.05);
-                val = val + (currentValue * 0.03) + noise; // General upward move
-                data.push({ name: months[i], value: Math.round(val * 100) / 100 });
-            }
-        }
-        return data;
-    }, [card.currentMarketValue]);
 
     const mockRelatedCards = [
         { id: 1, title: `2024 Topps Chrome ${card.player} Refractor`, price: "$45.00" },
