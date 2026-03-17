@@ -113,7 +113,7 @@ export default function Home() {
           
           <p className="max-w-2xl mx-auto text-lg text-slate-400 mb-10 animate-slide-up [animation-delay:200ms]">
             Historical sold data and portfolio tracking powered by the 
-            <span className="text-white font-medium"> eBay Marketplace</span>. The Bloomberg Terminal for the trading card hobby.
+            <span className="text-white font-medium"> eBay Marketplace</span>. The Bloomberg style Terminal for the trading card hobby.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 animate-slide-up [animation-delay:400ms]">
@@ -267,7 +267,7 @@ export default function Home() {
             <FeatureCard 
               icon={<Search className="h-6 w-6 text-[#38bdf8]" />}
               title="Market Comp Engine"
-              description="Instantly fetch real-world sold data from multiple marketplaces to find the most accurate comps."
+              description="Instantly fetch real-world sold data to find the most accurate comps."
               delay="0ms"
             />
             <FeatureCard 
@@ -279,7 +279,7 @@ export default function Home() {
             <FeatureCard 
               icon={<BrainCircuit className="h-6 w-6 text-[#38bdf8]" />}
               title="Automated Appraisal"
-              description="AI-driven valuation that considers grading, centering, and current market sentiment."
+              description="AI-driven valuation that considers grading and current market sentiment."
               delay="200ms"
             />
           </div>
@@ -295,7 +295,7 @@ export default function Home() {
             
             <div className="relative z-10 max-w-3xl mx-auto">
               <h2 className="text-4xl md:text-6xl font-bold text-white mb-8">Ready to value your collection?</h2>
-              <p className="text-xl text-slate-400 mb-12">Join thousands of investors using TradeValue to gain the upper hand in the marketplace.</p>
+              <p className="text-xl text-slate-400 mb-12">TradeValue - Gain the upper hand in the marketplace.</p>
               <Button size="lg" className="bg-[#38bdf8] hover:bg-[#0ea5e9] text-[#0f172a] font-bold px-12 h-16 text-lg rounded-xl shadow-lg shadow-[#38bdf8]/20" asChild>
                 <Link href="/dashboard">Launch Dashboard Now</Link>
               </Button>
