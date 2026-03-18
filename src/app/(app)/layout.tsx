@@ -11,9 +11,13 @@ import { useUser } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { AnonymousBanner } from "@/components/anonymous-banner";
+import { TickerComponent } from "@/components/ticker-component";
+import { useSettings } from "@/hooks/use-settings";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
+  const { settings } = useSettings();
   const router = useRouter();
 
   useEffect(() => {
@@ -32,7 +36,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar className={settings.showTicker ? "pb-12" : ""}>
         <SidebarHeader>
            <Link href="/dashboard" className="flex items-center gap-2">
             <Logo className="w-8 h-8" />
@@ -42,14 +46,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <SidebarContent>
           <MainNav />
         </SidebarContent>
-        <SidebarFooter>
+        <SidebarFooter className={settings.showTicker ? "pb-12" : ""}>
           <UserNav />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
+      <SidebarInset className={settings.showTicker ? "pb-12" : ""}>
+        <AnonymousBanner />
         <div className="p-4 sm:p-6 lg:p-8">
             {children}
         </div>
+        {settings.showTicker && <TickerComponent />}
       </SidebarInset>
     </SidebarProvider>
   );

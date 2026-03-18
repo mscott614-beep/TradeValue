@@ -51,6 +51,8 @@ import { downloadCSV } from '@/lib/csv-utils';
 import { writeBatch } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useAccountLimits } from '@/hooks/use-account-limits';
+import { AlertCircle } from 'lucide-react';
 
 type SortableField = 'player' | 'currentMarketValue' | 'year';
 type SortDirection = 'asc' | 'desc';
@@ -60,6 +62,7 @@ export default function CollectionPage() {
   const router = useRouter();
   const firestore = useFirestore();
   const { user } = useUser();
+  const { isAnonymous, cardCount, portfolioLimit, isLimitReached } = useAccountLimits();
 
   const [filter, setFilter] = useState('');
   const [yearFilter, setYearFilter] = useState<string>('all');
@@ -155,8 +158,8 @@ export default function CollectionPage() {
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
-            <Link href="/scanner" passHref>
-              <Button>
+            <Link href={isLimitReached ? "#" : "/scanner"} passHref>
+              <Button disabled={isLimitReached} className={cn(isLimitReached && "opacity-50 cursor-not-allowed")}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Card
               </Button>
@@ -164,6 +167,32 @@ export default function CollectionPage() {
           </div>
         }
       />
+
+      {isAnonymous && (
+        <div className={cn(
+          "mb-6 p-4 rounded-lg border flex items-center justify-between",
+          isLimitReached ? "bg-red-500/10 border-red-500/20" : "bg-sky-500/10 border-sky-500/20"
+        )}>
+          <div className="flex items-center gap-3">
+            <AlertCircle className={cn("h-5 w-5", isLimitReached ? "text-red-400" : "text-sky-400")} />
+            <div>
+              <p className="text-sm font-medium text-slate-200">
+                {isLimitReached 
+                  ? "Portfolio Limit Reached" 
+                  : `Guest Portfolio: ${cardCount} / ${portfolioLimit} cards used`}
+              </p>
+              <p className="text-xs text-slate-400">
+                {isLimitReached 
+                  ? "Sign up to add unlimited cards to your collection." 
+                  : "Create an account to unlock unlimited space."}
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/login">{isLimitReached ? "Sign Up Now" : "Unlock Unlimited"}</Link>
+          </Button>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-4 gap-4 flex-wrap">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

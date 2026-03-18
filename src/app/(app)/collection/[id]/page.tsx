@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { analyzeCardAction } from "@/app/actions/analyze-card";
 import { refreshCardValueAction } from "@/app/actions/refresh-card-value";
+import { getSimilarCardsAction, type SimilarCard } from "@/app/actions/get-similar-cards";
 import type { CardAnalysisResult } from "@/lib/types";
 import { BarChart3, LineChart as LineChartIcon, BrainCircuit, CheckCircle2, TrendingDown, Edit3, X, Check, Upload, Image as ImageIcon } from "lucide-react";
 import { CARD_ATTRIBUTES, CARD_PARALLELS } from "@/lib/constants";
@@ -61,6 +62,8 @@ export default function CardDetailsPage() {
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [isRefreshingValue, setIsRefreshingValue] = useState(false);
     const [liveListings, setLiveListings] = useState<any[]>([]);
+    const [similarCards, setSimilarCards] = useState<SimilarCard[]>([]);
+    const [isFetchingSimilar, setIsFetchingSimilar] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Sync local input state with fetched data if we aren't currently editing
     useEffect(() => {
@@ -251,6 +254,27 @@ export default function CardDetailsPage() {
         }
     };
 
+    const fetchSimilarCards = async () => {
+        if (!card) return;
+        setIsFetchingSimilar(true);
+        try {
+            const response = await getSimilarCardsAction(card);
+            if (response.success && response.similarCards) {
+                setSimilarCards(response.similarCards);
+            }
+        } catch (error) {
+            console.error("Failed to fetch similar cards:", error);
+        } finally {
+            setIsFetchingSimilar(false);
+        }
+    };
+
+    useEffect(() => {
+        if (card) {
+            fetchSimilarCards();
+        }
+    }, [card?.id]);
+
     const handleRunAnalysis = async () => {
         if (!card) return;
         setIsAnalyzing(true);
@@ -377,6 +401,65 @@ export default function CardDetailsPage() {
                                         {isRefreshingValue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                                         Fetch Live Listings
                                     </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="mt-6">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 text-sm py-3 px-4 bg-muted/30 border-b">
+                            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                <History className="h-3 w-3" />
+                                Similar Highlights
+                            </CardTitle>
+                            <span className="text-[10px] text-muted-foreground">Parallels & Player Matches</span>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            {isFetchingSimilar ? (
+                                <div className="p-8 flex items-center justify-center">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
+                                </div>
+                            ) : similarCards.length > 0 ? (
+                                <div className="flex overflow-x-auto pb-4 pt-4 px-4 gap-3 no-scrollbar scroll-smooth">
+                                    {similarCards.map((sCard, i) => (
+                                        <a 
+                                            key={i} 
+                                            href={sCard.url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex-shrink-0 w-40 group cursor-pointer"
+                                        >
+                                            <div className="relative aspect-[3/4] bg-muted/50 rounded-lg overflow-hidden border border-border group-hover:border-primary/50 transition-all shadow-sm">
+                                                {sCard.imageUrl ? (
+                                                    <Image src={sCard.imageUrl} alt={sCard.title} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                        <ImageIcon className="h-8 w-8 opacity-20" />
+                                                    </div>
+                                                )}
+                                                <div className="absolute top-2 right-2">
+                                                    <Badge variant="secondary" className="text-[9px] px-1.5 h-4 bg-background/80 backdrop-blur-md border-none lowercase font-semibold shadow-sm">
+                                                        {sCard.type === 'parallel' ? 'Parallel' : 'Player'}
+                                                    </Badge>
+                                                </div>
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 pb-3">
+                                                    <p className="text-[10px] text-white font-medium flex items-center gap-1">
+                                                        View on eBay <ExternalLink className="h-2.5 w-2.5" />
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-left space-y-0.5 px-1">
+                                                <p className="text-xs font-bold text-green-400 leading-tight">${sCard.price.toFixed(2)}</p>
+                                                <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight group-hover:text-foreground transition-colors" title={sCard.title}>
+                                                    {sCard.title}
+                                                </p>
+                                            </div>
+                                        </a>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-8 text-center text-xs text-muted-foreground">
+                                    No similar cards found.
                                 </div>
                             )}
                         </CardContent>

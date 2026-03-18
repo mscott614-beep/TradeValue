@@ -15,6 +15,9 @@ import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { compressImage } from "@/lib/image-utils";
+import { useAccountLimits } from "@/hooks/use-account-limits";
+import { AlertCircle } from "lucide-react";
+import Link from "next/link";
 
 interface ImageUploaderProps {
   file: File | null;
@@ -88,6 +91,7 @@ export function CardScanner() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const { isAnonymous, isLimitReached, portfolioLimit, cardCount } = useAccountLimits();
 
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -121,6 +125,8 @@ export function CardScanner() {
 
   const handleRemoveFrontImage = createRemoveImageHandler(setFrontFile, setFrontPreview, frontFileInputRef);
   const handleRemoveBackImage = createRemoveImageHandler(setBackFile, setBackPreview, backFileInputRef);
+
+  const canAction = !isLimitReached;
 
   const readFileAsDataURL = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -301,7 +307,7 @@ export function CardScanner() {
         <Button
           size="lg"
           onClick={handleScan}
-          disabled={!frontFile || isLoading}
+          disabled={!frontFile || isLoading || !canAction}
           className="w-full max-w-sm"
         >
           {isLoading ? (
@@ -309,9 +315,24 @@ export function CardScanner() {
           ) : (
             <WandSparkles className="mr-2 h-5 w-5" />
           )}
-          {isLoading ? "Scanning..." : "Scan Card with AI"}
+          {isLoading ? "Scanning..." : isLimitReached ? "Limit Reached" : "Scan Card with AI"}
         </Button>
       </div>
+
+      {isLimitReached && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-400" />
+            <div>
+              <p className="text-sm font-medium text-red-200">Guest Portfolio Limit Reached</p>
+              <p className="text-xs text-slate-400">You've used all {portfolioLimit} card slots available for guests.</p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/login">Sign Up to Unlock</Link>
+          </Button>
+        </div>
+      )}
 
       {result && (
         <Card className="bg-muted/50">
@@ -331,7 +352,9 @@ export function CardScanner() {
               </p>
             </div>
             <div className="flex gap-2 mt-6">
-              <Button className="flex-1" onClick={handleAddToCollection}>Add to Collection</Button>
+              <Button className="flex-1" onClick={handleAddToCollection} disabled={isLimitReached}>
+                {isLimitReached ? "Portfolio Full" : "Add to Collection"}
+              </Button>
               <Button variant="outline" className="flex-1" onClick={handleScanAnother}>Scan Another</Button>
             </div>
           </CardContent>

@@ -2,6 +2,10 @@ rules_version='2'
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAnonymous() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       
@@ -16,11 +20,20 @@ service cloud.firestore {
       match /marketAlerts/{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      match /settings/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     match /scanJobs/{jobId} {
+      // Limit frequency or types for anonymous in the future here
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
       allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+
+    match /market_prices/{document=**} {
+      allow read: if true;
     }
   }
 }

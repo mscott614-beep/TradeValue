@@ -13,11 +13,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { ChevronUp, LogOut } from "lucide-react";
+import { ChevronUp, LogOut, Settings, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSettings } from "@/hooks/use-settings";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 export function UserNav() {
   const { user } = useUser();
+  const { settings, updateSettings } = useSettings();
   const auth = useAuth();
   const router = useRouter();
 
@@ -59,8 +63,22 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem disabled>Profile</DropdownMenuItem>
-          <DropdownMenuItem disabled>Settings</DropdownMenuItem>
+          <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground pt-2">Preferences</DropdownMenuLabel>
+          <div className="flex items-center justify-between px-2 py-2">
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="ticker-toggle" className="text-sm font-medium cursor-pointer">Market Ticker</Label>
+            </div>
+            <Switch 
+              id="ticker-toggle" 
+              checked={settings.showTicker} 
+              onCheckedChange={(checked) => updateSettings({ showTicker: checked })}
+            />
+          </div>
+          <DropdownMenuItem disabled>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Advanced Settings</span>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut}>
