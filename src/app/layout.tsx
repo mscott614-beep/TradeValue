@@ -4,6 +4,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { DemoProvider } from '@/context/demo-context';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,7 +22,9 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={cn('min-h-screen bg-background text-foreground antialiased', inter.className)}>
         <FirebaseClientProvider>
-          {children}
+          <DemoProvider>
+            {children}
+          </DemoProvider>
         </FirebaseClientProvider>
         <Toaster />
       </body>

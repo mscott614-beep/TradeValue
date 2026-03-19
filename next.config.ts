@@ -33,6 +33,18 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.psacard.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.ebayimg.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

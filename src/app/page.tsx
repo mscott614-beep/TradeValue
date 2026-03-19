@@ -17,11 +17,17 @@ import {
   X,
   ChevronRight,
   Activity,
-  DollarSign
+  DollarSign,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Logo } from '@/components/icons';
+import { useRouter } from 'next/navigation';
+import { auth, db } from '@/firebase';
+import { signInAnonymously } from 'firebase/auth';
+import { collection, addDoc, getDocs, query, limit } from 'firebase/firestore';
+import { useDemo } from '@/context/demo-context';
 import { 
   AreaChart, 
   Area, 
@@ -53,14 +59,129 @@ const liveFeeds = [
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+  const { setIsDemo } = useDemo();
 
   useEffect(() => {
+    setMounted(true);
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const handleDemo = async () => {
+    try {
+      setIsDemoLoading(true);
+      
+      // 1. Sign in anonymously
+      const userCredential = await signInAnonymously(auth);
+      const uid = userCredential.user.uid;
+
+      // 2. Check if already seeded (prevent duplicates if they click again)
+      const cardsRef = collection(db, `users/${uid}/portfolios`);
+      const existingCards = await getDocs(query(cardsRef, limit(1)));
+      
+      if (existingCards.empty) {
+        // 3. Seed 5 high-value cards
+        const demoCards = [
+          {
+            player: 'Mickey Mantle',
+            title: '1952 Topps #311',
+            brand: 'Topps',
+            year: 1952,
+            card_number: '311',
+            currentMarketValue: 12600000,
+            purchasePrice: 50000,
+            valueChange24h: 300000,
+            valueChange24hPercent: 2.4,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1952-topps-mickey-mantle-311-psa-9.jpg',
+            grader: 'PSA',
+            condition: 'PSA 9',
+            dateAdded: new Date().toISOString()
+          },
+          {
+            player: 'Wayne Gretzky',
+            title: '1979 O-Pee-Chee RC',
+            brand: 'O-Pee-Chee',
+            year: 1979,
+            card_number: '18',
+            currentMarketValue: 3750000,
+            purchasePrice: 1000000,
+            valueChange24h: 30000,
+            valueChange24hPercent: 0.8,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1979-o-pee-chee-wayne-gretzky-18-psa-10.jpg',
+            grader: 'PSA',
+            condition: 'PSA 10',
+            dateAdded: new Date().toISOString()
+          },
+          {
+            player: 'Honus Wagner',
+            title: '1909-11 T206 Sweet Caporal',
+            brand: 'T206',
+            year: 1909,
+            card_number: 'N/A',
+            currentMarketValue: 7250000,
+            purchasePrice: 6000000,
+            valueChange24h: -87000,
+            valueChange24hPercent: -1.2,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1909-11-t206-honus-wagner-psa-8.jpg',
+            grader: 'PSA',
+            condition: 'PSA 8',
+            dateAdded: new Date().toISOString()
+          },
+          {
+            player: 'LeBron James',
+            title: '2003 Exquisite Collection RPA /99',
+            brand: 'Upper Deck',
+            year: 2003,
+            card_number: '78',
+            currentMarketValue: 5200000,
+            purchasePrice: 1800000,
+            valueChange24h: 234000,
+            valueChange24hPercent: 4.5,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/2003-04-exquisite-collection-lebron-james-78-psa-10.jpg',
+            grader: 'BGS',
+            condition: 'BGS 9.5',
+            dateAdded: new Date().toISOString()
+          },
+          {
+            player: 'Charizard',
+            title: '1999 Base Set 1st Edition Shadowless',
+            brand: 'Wizards of the Coast',
+            year: 1999,
+            card_number: '4',
+            currentMarketValue: 420000,
+            purchasePrice: 150000,
+            valueChange24h: 21840,
+            valueChange24hPercent: 5.2,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1999-base-set-charizard-4-psa-10.jpg',
+            grader: 'PSA',
+            condition: 'PSA 10',
+            dateAdded: new Date().toISOString()
+          }
+        ];
+
+        for (const card of demoCards) {
+          await addDoc(cardsRef, card);
+        }
+      }
+
+      // 4. Set demo state and redirect
+      setIsDemo(true);
+      router.push('/demo');
+    } catch (error: any) {
+      console.error('Demo Error:', error);
+      setIsDemoLoading(false);
+    }
+  };
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-[#0f172a]" />;
+  }
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-200 selection:bg-[#38bdf8]/30 selection:text-[#38bdf8]">
@@ -120,8 +241,21 @@ export default function Home() {
             <Button size="lg" className="bg-[#38bdf8] hover:bg-[#0ea5e9] text-[#0f172a] font-bold px-8 h-14 text-base w-full sm:w-auto" asChild>
               <Link href="/dashboard">Get Started Free <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
-            <Button size="lg" variant="outline" className="border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-white h-14 px-8 text-base w-full sm:w-auto">
-              View Live Demo
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-white h-14 px-8 text-base w-full sm:w-auto min-w-[200px]"
+              onClick={handleDemo}
+              disabled={isDemoLoading}
+            >
+              {isDemoLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#38bdf8]" />
+                  Entering...
+                </>
+              ) : (
+                "View Live Demo"
+              )}
             </Button>
           </div>
 

@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react";
 import { AnonymousBanner } from "@/components/anonymous-banner";
 import { TickerComponent } from "@/components/ticker-component";
 import { useSettings } from "@/hooks/use-settings";
+import { useDemo } from "@/context/demo-context";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -34,9 +35,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  const { isDemo } = useDemo();
+  const showTicker = settings.showTicker || isDemo;
+  const paddingClass = showTicker ? (isDemo ? "pb-24" : "pb-12") : "";
+
   return (
     <SidebarProvider>
-      <Sidebar className={settings.showTicker ? "pb-12" : ""}>
+      <Sidebar className={paddingClass}>
         <SidebarHeader>
            <Link href="/dashboard" className="flex items-center gap-2">
             <Logo className="w-8 h-8" />
@@ -46,16 +51,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <SidebarContent>
           <MainNav />
         </SidebarContent>
-        <SidebarFooter className={settings.showTicker ? "pb-12" : ""}>
+        <SidebarFooter className={paddingClass}>
           <UserNav />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className={settings.showTicker ? "pb-12" : ""}>
+      <SidebarInset className={paddingClass}>
         <AnonymousBanner />
         <div className="p-4 sm:p-6 lg:p-8">
             {children}
         </div>
-        {settings.showTicker && <TickerComponent />}
+        {showTicker && <TickerComponent />}
       </SidebarInset>
     </SidebarProvider>
   );

@@ -172,6 +172,26 @@ export default function CardDetailsPage() {
             }
         }
     };
+    const fetchSimilarCards = async () => {
+        if (!card) return;
+        setIsFetchingSimilar(true);
+        try {
+            const response = await getSimilarCardsAction(card);
+            if (response.success && response.similarCards) {
+                setSimilarCards(response.similarCards);
+            }
+        } catch (error) {
+            console.error("Failed to fetch similar cards:", error);
+        } finally {
+            setIsFetchingSimilar(false);
+        }
+    };
+
+    useEffect(() => {
+        if (card) {
+            fetchSimilarCards();
+        }
+    }, [card?.id]);
 
     if (isLoading) {
         return (
@@ -254,26 +274,6 @@ export default function CardDetailsPage() {
         }
     };
 
-    const fetchSimilarCards = async () => {
-        if (!card) return;
-        setIsFetchingSimilar(true);
-        try {
-            const response = await getSimilarCardsAction(card);
-            if (response.success && response.similarCards) {
-                setSimilarCards(response.similarCards);
-            }
-        } catch (error) {
-            console.error("Failed to fetch similar cards:", error);
-        } finally {
-            setIsFetchingSimilar(false);
-        }
-    };
-
-    useEffect(() => {
-        if (card) {
-            fetchSimilarCards();
-        }
-    }, [card?.id]);
 
     const handleRunAnalysis = async () => {
         if (!card) return;
@@ -431,7 +431,13 @@ export default function CardDetailsPage() {
                                         >
                                             <div className="relative aspect-[3/4] bg-muted/50 rounded-lg overflow-hidden border border-border group-hover:border-primary/50 transition-all shadow-sm">
                                                 {sCard.imageUrl ? (
-                                                    <Image src={sCard.imageUrl} alt={sCard.title} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                    <Image 
+                                                        src={sCard.imageUrl} 
+                                                        alt={sCard.title} 
+                                                        fill 
+                                                        className="object-cover group-hover:scale-110 transition-transform duration-500" 
+                                                        unoptimized={sCard.imageUrl.includes('psacard.com') || sCard.imageUrl.includes('ebayimg.com')}
+                                                    />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                                                         <ImageIcon className="h-8 w-8 opacity-20" />
@@ -483,6 +489,7 @@ export default function CardDetailsPage() {
                                                 fill
                                                 className="object-contain p-4"
                                                 priority
+                                                unoptimized={card.imageUrl.includes('psacard.com') || card.imageUrl.includes('ebayimg.com')}
                                             />
                                         )
                                     ) : (

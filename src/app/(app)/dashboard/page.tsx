@@ -25,6 +25,7 @@ import PortfolioChart from "@/components/dashboard/portfolio-chart";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
+import { useDemo } from "@/context/demo-context";
 import type { Portfolio } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -36,7 +37,93 @@ export default function DashboardPage() {
         return collection(firestore, `users/${user.uid}/portfolios`);
     }, [firestore, user]);
 
-    const { data: cards, isLoading } = useCollection<Portfolio>(portfoliosCollection);
+    const { data: realCards, isLoading } = useCollection<Portfolio>(portfoliosCollection);
+    const { isDemo } = useDemo();
+
+    const demoCards: Portfolio[] = useMemo(() => [
+        {
+            id: 'demo-1',
+            player: 'Mickey Mantle',
+            title: '1952 Topps #311',
+            brand: 'Topps',
+            year: 1952,
+            card_number: '311',
+            currentMarketValue: 12600000,
+            purchasePrice: 50000,
+            valueChange24h: 300000,
+            valueChange24hPercent: 2.4,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1952-topps-mickey-mantle-311-psa-9.jpg',
+            grader: 'PSA',
+            condition: 'PSA 9',
+            dateAdded: new Date().toISOString()
+        },
+        {
+            id: 'demo-2',
+            player: 'Wayne Gretzky',
+            title: '1979 O-Pee-Chee RC',
+            brand: 'O-Pee-Chee',
+            year: 1979,
+            card_number: '18',
+            currentMarketValue: 3750000,
+            purchasePrice: 1000000,
+            valueChange24h: 30000,
+            valueChange24hPercent: 0.8,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1979-o-pee-chee-wayne-gretzky-18-psa-10.jpg',
+            grader: 'PSA',
+            condition: 'PSA 10',
+            dateAdded: new Date().toISOString()
+        },
+        {
+            id: 'demo-3',
+            player: 'Honus Wagner',
+            title: '1909-11 T206 Sweet Caporal',
+            brand: 'T206',
+            year: 1909,
+            card_number: 'N/A',
+            currentMarketValue: 7250000,
+            purchasePrice: 6000000,
+            valueChange24h: -87000,
+            valueChange24hPercent: -1.2,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1909-11-t206-honus-wagner-psa-8.jpg',
+            grader: 'PSA',
+            condition: 'PSA 8',
+            dateAdded: new Date().toISOString()
+        },
+        {
+            id: 'demo-4',
+            player: 'LeBron James',
+            title: '2003 Exquisite Collection RPA /99',
+            brand: 'Upper Deck',
+            year: 2003,
+            card_number: '78',
+            currentMarketValue: 5200000,
+            purchasePrice: 1800000,
+            valueChange24h: 234000,
+            valueChange24hPercent: 4.5,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/2003-04-exquisite-collection-lebron-james-78-psa-10.jpg',
+            grader: 'BGS',
+            condition: 'BGS 9.5',
+            dateAdded: new Date().toISOString()
+        },
+        {
+            id: 'demo-5',
+            player: 'Charizard',
+            title: '1999 Base Set 1st Edition Shadowless',
+            brand: 'Wizards of the Coast',
+            year: 1999,
+            card_number: '4',
+            currentMarketValue: 420000,
+            purchasePrice: 150000,
+            valueChange24h: 21840,
+            valueChange24hPercent: 5.2,
+            imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1999-base-set-charizard-4-psa-10.jpg',
+            grader: 'PSA',
+            condition: 'PSA 10',
+            dateAdded: new Date().toISOString()
+        }
+    ], []);
+
+    const cards = isDemo ? demoCards : realCards;
 
     const { totalValue, totalGain, change24h, topGainers, uniqueBrands, rawCount, gradedCount } = useMemo(() => {
         if (!cards || cards.length === 0) {
@@ -219,6 +306,7 @@ export default function DashboardPage() {
                                                                     width={40}
                                                                     height={56}
                                                                     className="rounded-sm object-cover h-[56px]"
+                                                                    unoptimized={card.imageUrl.includes('psacard.com') || card.imageUrl.includes('ebayimg.com')}
                                                                 />
                                                             )
                                                         ) : (
