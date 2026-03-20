@@ -3,25 +3,37 @@ import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { getFunctions } from "firebase-admin/functions";
 import * as admin from "firebase-admin";
 import { defineSecret } from "firebase-functions/params";
-import { genkit, z } from "genkit";
-import { googleAI } from "@genkit-ai/google-genai";
+// Lazy load heavy dependencies to avoid 10s initialization timeout
+let EbayService: any;
+let genkit: any;
+let googleAI: any;
+let z: any;
 
-admin.initializeApp();
+async function loadEbay() {
+    if (!EbayService) {
+        const mod = await import("./ebay");
+        EbayService = mod.EbayService;
+    }
+    return EbayService;
+}
+
+async function loadGenkit() {
+    if (!genkit) {
+        const genkitMod = await import("genkit");
+        const aiMod = await import("@genkit-ai/google-genai");
+        genkit = genkitMod.genkit;
+        z = genkitMod.z;
+        googleAI = aiMod.googleAI;
+    }
+    return { genkit, z, googleAI };
+}
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = defineSecret("EBAY_CLIENT_SECRET");
 const EBAY_ENV = defineSecret("EBAY_ENV");
 
-import { EbayService } from "./ebay";
-
-// Initialize Genkit inside the function to use the secret
-const getGenkit = (apiKey: string) => {
-  return genkit({
-    plugins: [googleAI({ apiKey })],
-    model: "googleai/gemini-3.1-flash-lite-preview",
-  });
-};
+admin.initializeApp();
 
 // Producer: Triggered when a new job is created in 'scanJobs'
 export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (event) => {
@@ -98,18 +110,22 @@ export const geminiProcessingQueue = onTaskDispatched(
         updatedAt: new Date().toISOString(),
       });
 
-      const ai = getGenkit(GOOGLE_GENAI_API_KEY.value());
+      const { genkit: genkitFunc, googleAI: googleAIFunc, z: zod } = await loadGenkit();
+      const ai = genkitFunc({
+        plugins: [googleAIFunc({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
+        model: "googleai/gemini-3.1-flash-lite-preview",
+      });
 
       // Define Output Schema
-      const ScanOutputSchema = z.object({
-        year: z.string(),
-        brand: z.string(),
-        player: z.string(),
-        cardNumber: z.string(),
-        parallel: z.string().default("Base"),
-        estimatedGrade: z.string(),
-        grader: z.string().default("None"),
-        estimatedMarketValue: z.number(),
+      const ScanOutputSchema = zod.object({
+        year: zod.string(),
+        brand: zod.string(),
+        player: zod.string(),
+        cardNumber: zod.string(),
+        parallel: zod.string().default("Base"),
+        estimatedGrade: zod.string(),
+        grader: zod.string().default("None"),
+        estimatedMarketValue: zod.number(),
       });
 
       const promptText = `You are an expert trading card authenticator and grader.
@@ -151,7 +167,8 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
 
       // --- Post-AI Enrichment: Fetch Real-Time eBay Data ---
       try {
-        const ebay = new EbayService(
+        const EbayServiceClass = await loadEbay();
+        const ebay = new EbayServiceClass(
           EBAY_CLIENT_ID.value(),
           EBAY_CLIENT_SECRET.value(),
           EBAY_ENV.value()
@@ -174,9 +191,9 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
         if (ebayData.itemSummaries && ebayData.itemSummaries.length > 0) {
           // Use MEDIAN price for better outlier rejection
           const prices = ebayData.itemSummaries
-            .map(item => parseFloat(item.price.value))
-            .filter(p => !isNaN(p))
-            .sort((a, b) => a - b);
+            .map((item: any) => parseFloat(item.price.value))
+            .filter((p: number) => !isNaN(p))
+            .sort((a: number, b: number) => a - b);
 
           if (prices.length > 0) {
             const mid = Math.floor(prices.length / 2);

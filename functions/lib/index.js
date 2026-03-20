@@ -39,21 +39,33 @@ const tasks_1 = require("firebase-functions/v2/tasks");
 const functions_1 = require("firebase-admin/functions");
 const admin = __importStar(require("firebase-admin"));
 const params_1 = require("firebase-functions/params");
-const genkit_1 = require("genkit");
-const google_genai_1 = require("@genkit-ai/google-genai");
-admin.initializeApp();
+// Lazy load heavy dependencies to avoid 10s initialization timeout
+let EbayService;
+let genkit;
+let googleAI;
+let z;
+async function loadEbay() {
+    if (!EbayService) {
+        const mod = await Promise.resolve().then(() => __importStar(require("./ebay")));
+        EbayService = mod.EbayService;
+    }
+    return EbayService;
+}
+async function loadGenkit() {
+    if (!genkit) {
+        const genkitMod = await Promise.resolve().then(() => __importStar(require("genkit")));
+        const aiMod = await Promise.resolve().then(() => __importStar(require("@genkit-ai/google-genai")));
+        genkit = genkitMod.genkit;
+        z = genkitMod.z;
+        googleAI = aiMod.googleAI;
+    }
+    return { genkit, z, googleAI };
+}
 const GOOGLE_GENAI_API_KEY = (0, params_1.defineSecret)("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
 const EBAY_ENV = (0, params_1.defineSecret)("EBAY_ENV");
-const ebay_1 = require("./ebay");
-// Initialize Genkit inside the function to use the secret
-const getGenkit = (apiKey) => {
-    return (0, genkit_1.genkit)({
-        plugins: [(0, google_genai_1.googleAI)({ apiKey })],
-        model: "googleai/gemini-3.1-flash-lite-preview",
-    });
-};
+admin.initializeApp();
 // Producer: Triggered when a new job is created in 'scanJobs'
 exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)("scanJobs/{jobId}", async (event) => {
     const jobId = event.params.jobId;
@@ -115,17 +127,21 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
             status: "processing",
             updatedAt: new Date().toISOString(),
         });
-        const ai = getGenkit(GOOGLE_GENAI_API_KEY.value());
+        const { genkit: genkitFunc, googleAI: googleAIFunc, z: zod } = await loadGenkit();
+        const ai = genkitFunc({
+            plugins: [googleAIFunc({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
+            model: "googleai/gemini-3.1-flash-lite-preview",
+        });
         // Define Output Schema
-        const ScanOutputSchema = genkit_1.z.object({
-            year: genkit_1.z.string(),
-            brand: genkit_1.z.string(),
-            player: genkit_1.z.string(),
-            cardNumber: genkit_1.z.string(),
-            parallel: genkit_1.z.string().default("Base"),
-            estimatedGrade: genkit_1.z.string(),
-            grader: genkit_1.z.string().default("None"),
-            estimatedMarketValue: genkit_1.z.number(),
+        const ScanOutputSchema = zod.object({
+            year: zod.string(),
+            brand: zod.string(),
+            player: zod.string(),
+            cardNumber: zod.string(),
+            parallel: zod.string().default("Base"),
+            estimatedGrade: zod.string(),
+            grader: zod.string().default("None"),
+            estimatedMarketValue: zod.number(),
         });
         const promptText = `You are an expert trading card authenticator and grader.
 Identify the card and return year, brand, player, card number, parallel, condition, grader, and estimated value.
@@ -160,7 +176,8 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
         }
         // --- Post-AI Enrichment: Fetch Real-Time eBay Data ---
         try {
-            const ebay = new ebay_1.EbayService(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
+            const EbayServiceClass = await loadEbay();
+            const ebay = new EbayServiceClass(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
             // Search eBay using the identified metadata including condition
             let conditionStr = "";
             if (result.grader !== "None") {
@@ -176,8 +193,8 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
             if (ebayData.itemSummaries && ebayData.itemSummaries.length > 0) {
                 // Use MEDIAN price for better outlier rejection
                 const prices = ebayData.itemSummaries
-                    .map(item => parseFloat(item.price.value))
-                    .filter(p => !isNaN(p))
+                    .map((item) => parseFloat(item.price.value))
+                    .filter((p) => !isNaN(p))
                     .sort((a, b) => a - b);
                 if (prices.length > 0) {
                     const mid = Math.floor(prices.length / 2);
