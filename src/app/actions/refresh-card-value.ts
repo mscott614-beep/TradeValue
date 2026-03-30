@@ -61,11 +61,15 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             timestamp: timestamp
         });
 
+        const diagnostics = `Query: "${primaryQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value} | Outliers: ${calc.outliersCount}`;
+        console.log(`[Refresh] Final Diagnostic: ${diagnostics}`);
+
         return { 
             success: true, 
             newPrice: calc.value, 
             avgActivePrice: calc.value,
             avgSoldPrice: 0, 
+            diagnostics,
             top5: rawItems.map(item => ({
                 title: item.title,
                 price: parseFloat(item.price.value),
