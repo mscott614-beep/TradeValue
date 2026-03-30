@@ -6,7 +6,9 @@ import { Portfolio, AlertConfig } from '@/lib/types';
 // Modular pattern for Next.js 15+ Compatibility
 export const getAdminApp = () => {
     if (getApps().length <= 0) {
-        return initializeApp();
+        return initializeApp({
+            projectId: 'puckvaluebak-38609945-5e85c'
+        });
     }
     return getApp();
 }
