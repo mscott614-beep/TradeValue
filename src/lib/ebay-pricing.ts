@@ -11,6 +11,7 @@ export interface CardDescriptor {
     cardNumber?: string;
     parallel?: string;
     title?: string;
+    condition?: string; // Added for grading support
 }
 
 const TRUE_PARALLEL_KEYWORDS = [
@@ -22,7 +23,8 @@ const TRUE_PARALLEL_KEYWORDS = [
 
 const BASE_LIKE_KEYWORDS = [
     'psa', 'bgs', 'sgc', 'cgc', 'graded', 'gem mt', 'mint',
-    'young guns', 'canvas', 'rookie card', 'rc'
+    'young guns', 'canvas', 'rookie card', 'rc', 'rookie',
+    'bccg', 'gma', 'hga', 'csa', 'isa', 'slab', 'auth'
 ];
 
 
@@ -33,8 +35,9 @@ const BASE_LIKE_KEYWORDS = [
  */
 export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel', query: string } {
     const parallelText = (card.parallel || '').toLowerCase();
+    const conditionText = (card.condition || '').toLowerCase();
     const titleText = (card.title || '').toLowerCase();
-    const combinedText = `${parallelText} ${titleText}`;
+    const combinedText = `${parallelText} ${conditionText} ${titleText}`;
     
     // Check if this is a "True Parallel" (a variant that changes the card type)
     const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) || 
@@ -50,16 +53,23 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const cardNumber = rawNumber ? `#${rawNumber}` : '';
     const parallel = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
 
+    // Grading Logic: Extract grade if present
+    const isGraded = BASE_LIKE_KEYWORDS.some(k => conditionText.includes(k)) && /\d+/.test(conditionText);
+    const gradeString = isGraded ? card.condition : '';
+
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
-        // Added -reprint and -digital as standard protection
         const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
-        let query = `${year} ${brand} ${player} ${parallel} ${cardNumber} ${negativeKeywords}`.trim();
+        
+        // If not graded, also exclude graded terms to avoid price inflation
+        const gradingExclusions = !isGraded ? '-psa -bgs -sgc -cgc -graded -slab' : '';
+        
+        let query = `${gradeString} ${year} ${brand} ${player} ${parallel} ${cardNumber} ${negativeKeywords} ${gradingExclusions}`.replace(/\s+/g, ' ').trim();
         return { type: 'Base', query };
     } else {
         // Parallel Query: Feature name is a mandatory inclusion
         const feature = parallel || 'insert';
-        let query = `${year} ${brand} ${player} ${feature} ${cardNumber} -sold -completed -reprint -digital`.trim();
+        let query = `${gradeString} ${year} ${brand} ${player} ${feature} ${cardNumber} -sold -completed -reprint -digital`.replace(/\s+/g, ' ').trim();
         return { type: 'Parallel', query };
     }
 }

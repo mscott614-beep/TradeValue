@@ -19,7 +19,8 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             player: card.player,
             cardNumber: card.cardNumber,
             parallel: card.parallel,
-            title: card.title
+            title: card.title,
+            condition: card.condition // Added to support graded card pricing
         });
 
         // 2. Step 3: API Request Configuration (FIXED_PRICE Priority / EXTENDED Fields)

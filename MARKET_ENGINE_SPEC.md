@@ -3,11 +3,13 @@
 This document is the **Ground Truth** for the TradeValue pricing engine. Any modifications to the eBay search or valuation logic *must* adhere to this specification.
 
 ## Core Objective
+
 Generate precise eBay API search queries to determine the current market value of sports cards using **Active Listings** only, specifically targeting the "Market Floor."
 
 ---
 
 ## Step 1: Classification Logic
+
 Analyze input card details for **Feature Keywords**:
 - `Silver, Prizm, Refractor, Holo, /#, Auto, Patch, Color/Mojo variants, Young Guns, Canvas, Jumbo, Glossy`.
 
@@ -18,19 +20,28 @@ Analyze input card details for **Feature Keywords**:
 ---
 
 ## Step 2: Search String Construction
+
 Construct the `q` (query) parameter for the eBay Browse API:
 
 ### Base Card Query
+
 - Format: `{Year} {Brand} {Player} {Card #} -parallel -refractor -silver -prizm -auto -jersey -patch`
 - **Mandatory**: Use negative keywords to exclude high-value parallels and noise.
 
 ### Parallel Query
+
 - Format: `{Year} {Brand} {Player} {Specific Feature} {Card #} -sold -completed`
 - **Mandatory**: The specific feature name (e.g., "Silver Prizm") must be included.
+
+### Grading Logic (Applies to Base & Parallel)
+
+- If card is **Graded**: Append `{Grader} {Grade}` to the beginning of the query (e.g., "PSA 10 2023 Prizm...").
+- If card is **Raw**: Use negative keywords to exclude graded slabs: `-psa -bgs -sgc -cgc -graded -slab`.
 
 ---
 
 ## Step 3: API Request Configuration
+
 - **API Endpoint**: `item_summary/search`
 - **Filter**: `buyingOptions:{FIXED_PRICE|AUCTION}`
 - **FieldGroups**: `EXTENDED` (Mandatory to see listing types).
@@ -40,6 +51,7 @@ Construct the `q` (query) parameter for the eBay Browse API:
 ---
 
 ## Step 4: Value Calculation (The TradeValue Rule)
+
 When processing the API response:
 
 1. **Fixed Price Priority**: Prioritize `FIXED_PRICE` listings over `AUCTIONS` to avoid low-bid noise.
@@ -50,6 +62,7 @@ When processing the API response:
 ---
 
 ## Anchoring & Safety
+
 - **Unit Tests**: All logic must be validated by `src/lib/ebay-pricing.test.ts`. 
 - **Environment**: Must strictly use `production` eBay environment for live valuations.
 - **Persistence**: Database writes must use the **Admin SDK** to ensure atomic, authorized updates.

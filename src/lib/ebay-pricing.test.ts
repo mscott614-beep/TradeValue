@@ -19,18 +19,32 @@ describe('Lead Data Architect: Query Construction', () => {
         expect(result.query).toContain('Silver');
         expect(result.query).not.toContain('-parallel');
     });
+
+    it('should include the grade in the query and remove exclusions for graded cards', () => {
+        const card = { 
+            year: '1992-93', 
+            brand: 'Upper Deck', 
+            player: 'Paul Kariya', 
+            condition: 'BCCG 10', 
+            cardNumber: '586' 
+        };
+        const result = buildEbayQuery(card);
+        expect(result.query).toContain('BCCG 10');
+        expect(result.query).not.toContain('-psa');
+        expect(result.query).toContain('-parallel -refractor');
+    });
 });
 
 describe('Lead Data Architect: Valuation Math (The TradeValue Rule)', () => {
     it('should calculate the median of the 3 lowest priced items', () => {
         const items = [
-            { price: { value: '10.00' }, buyingOptions: ['FIXED_PRICE'] },
+            { price: { value: '15.00' }, buyingOptions: ['FIXED_PRICE'] },
             { price: { value: '20.00' }, buyingOptions: ['FIXED_PRICE'] },
-            { price: { value: '30.00' }, buyingOptions: ['FIXED_PRICE'] },
+            { price: { value: '25.00' }, buyingOptions: ['FIXED_PRICE'] },
             { price: { value: '100.00' }, buyingOptions: ['FIXED_PRICE'] } // High noise
         ];
         const result = calculateTradeValue(items);
-        expect(result.value).toBe(20.00); // Median of 10, 20, 30
+        expect(result.value).toBe(20.00); // Median of 15, 20, 25
         expect(result.logic).toContain('Median of 3 lowest Fixed Price items');
     });
 
