@@ -49,8 +49,8 @@ class EbayService {
         this.clientId = process.env.EBAY_CLIENT_ID || '';
         this.clientSecret = process.env.EBAY_CLIENT_SECRET || '';
         
-        // Reverting to sandbox because the App Hosting environment contains Sandbox credentials.
-        this.env = 'sandbox'; 
+        // Hardcoded to production to avoid the broken Firebase UI rejecting "EBAY_ENV" updates
+        this.env = 'production'; 
     }
 
     private async getAccessToken(): Promise<string> {
