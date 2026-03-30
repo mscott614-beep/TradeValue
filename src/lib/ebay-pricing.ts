@@ -57,12 +57,12 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const subsetExclusions = '-portraits -ahl -glossy -canvas -sticker';
 
     if (!hasFeature) {
-        // Base Card Logic
-        let query = `${year} ${brand} ${player} ${cardNumber} ${NEGATIVE_BASE_KEYWORDS.join(' ')}`.trim();
+        // Base Card Logic - Keep it simple to avoid over-filtering vintage cards
+        let query = `${year} ${brand} ${player} ${cardNumber}`.trim();
         return { type: 'Base', query };
     } else {
-        // Parallel Logic
-        let query = `${year} ${brand} ${player} ${parallelTerm} ${cardNumber} ${subsetExclusions} -sold -completed`.trim();
+        // Parallel Logic - Only exclude common noise if searching for a parallel
+        let query = `${year} ${brand} ${player} ${parallelTerm} ${cardNumber} -sold -completed`.trim();
         return { type: 'Parallel', query };
     }
 }
