@@ -54,16 +54,23 @@ export default function AlertsDashboardPage() {
     }, [user]);
 
     // Handle any fetch errors
+    const [hasAttemptedInit, setHasAttemptedInit] = useState(false);
     const anyError = portfoliosError || configsError || alertsError || metadataError;
 
     useEffect(() => {
         if (anyError) {
-            console.error('[AlertsPage] Firestore Sync Error:', anyError);
-            if (anyError instanceof Error && 'code' in anyError && (anyError as any).code === 'permission-denied') {
-                toast.error("Permission Denied: Ensure you are logged into the correct account and perform a hard refresh (Ctrl+Shift+R).");
+            const isPermissionError = anyError instanceof Error && 'code' in anyError && (anyError as any).code === 'permission-denied';
+            
+            console.warn('[AlertsPage] Firestore Sync Warning:', anyError);
+            
+            if (isPermissionError && !hasAttemptedInit) {
+                // For new users, we don't want to spam toasts until they actually tray to run a scan
+                console.log('[AlertsPage] Potential new user detected. Waiting for manual scan to initialize data.');
+            } else if (isPermissionError) {
+                toast.error("Access Restricted: Please perform a Hard Refresh (Ctrl+Shift+R) to sync your permissions.");
             }
         }
-    }, [anyError]);
+    }, [anyError, hasAttemptedInit]);
 
     // Sort alerts by timestamp descending (newest first)
     const sortedAlerts = alerts ? [...alerts].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) : [];
