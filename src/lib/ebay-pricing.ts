@@ -15,12 +15,16 @@ export interface CardDescriptor {
 
 const TRUE_PARALLEL_KEYWORDS = [
     'silver', 'prizm', 'refractor', 'holo', '/#', 'auto', 'patch', 
-    'mojo', 'cracked ice', 'atomic', 'superfractor', 'young guns', 
-    'canvas', 'jumbo', 'glossy', 'rookie card', 'rc', 'parallel',
+    'mojo', 'cracked ice', 'atomic', 'superfractor',
+    'jumbo', 'glossy', 'parallel',
     'numbered', 'variation', 'short print', 'sp', 'ssp'
 ];
 
-const GRADE_KEYWORDS = ['psa', 'bgs', 'sgc', 'cgc', 'graded', 'gem mt', 'mint'];
+const BASE_LIKE_KEYWORDS = [
+    'psa', 'bgs', 'sgc', 'cgc', 'graded', 'gem mt', 'mint',
+    'young guns', 'canvas', 'rookie card', 'rc'
+];
+
 
 
 /**
@@ -34,7 +38,8 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     
     // Check if this is a "True Parallel" (a variant that changes the card type)
     const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) || 
-                           (parallelText && parallelText !== 'base' && !GRADE_KEYWORDS.some(g => parallelText.includes(g)));
+                           (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
+
     
     const year = card.year || '';
     const brand = card.brand || '';
