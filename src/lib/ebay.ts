@@ -49,8 +49,8 @@ class EbayService {
         this.clientId = process.env.EBAY_CLIENT_ID || '';
         this.clientSecret = process.env.EBAY_CLIENT_SECRET || '';
         
-        // Force production. The 'sandbox' variable is somehow being evaluated true in the App Hosting edge cache.
-        this.env = 'production'; 
+        // Reverting to sandbox because the App Hosting environment contains Sandbox credentials.
+        this.env = 'sandbox'; 
     }
 
     private async getAccessToken(): Promise<string> {
@@ -93,6 +93,7 @@ class EbayService {
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
+        url.searchParams.append('category_ids', '261328'); // Restored to mitigate Sandbox 12000 errors
         url.searchParams.append('sort', sort); // price (Ascending) by default
         url.searchParams.append('fieldGroups', 'EXTENDED'); // To see buyingOptions and other details
 
@@ -122,6 +123,7 @@ class EbayService {
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
+        url.searchParams.append('category_ids', '261328');
         url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
         url.searchParams.append('fieldGroups', 'EXTENDED');
 
