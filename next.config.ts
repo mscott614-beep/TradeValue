@@ -48,12 +48,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  env: {
-    EBAY_CLIENT_ID: process.env.EBAY_CLIENT_ID,
-    EBAY_CLIENT_SECRET: process.env.EBAY_CLIENT_SECRET,
-    EBAY_ENV: process.env.EBAY_ENV,
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-  },
 };
 
 export default nextConfig;
