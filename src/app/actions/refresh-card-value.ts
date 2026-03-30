@@ -3,6 +3,7 @@
 import { ebayService } from "@/lib/ebay";
 import { Portfolio } from "@/lib/types";
 import { buildEbayQuery, calculateTradeValue } from "@/lib/ebay-pricing";
+import { getAdminDb } from "@/lib/firebase-server";
 
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
@@ -72,6 +73,26 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         // 4. Calculate TradeValue using the "Floor Median" Rule
         const calc = calculateTradeValue(rawItems);
 
+        // 5. Atomic Authorized Update (Admin SDK)
+        // This bypasses client-side security rules to ensure persistence
+        const db = getAdminDb();
+        const timestamp = new Date().toISOString();
+        
+        // Update the card reference
+        const cardRef = db.doc(`users/${userId}/portfolios/${card.id}`);
+        await cardRef.update({
+            currentMarketValue: calc.value,
+            lastChecked: timestamp,
+            status: 'success'
+        });
+
+        // Update the price history
+        const historyRef = db.collection(`users/${userId}/portfolios/${card.id}/priceHistory`).doc(timestamp.split('T')[0]);
+        await historyRef.set({
+            value: calc.value,
+            timestamp: timestamp
+        });
+
         return { 
             success: true, 
             newPrice: calc.value, 
@@ -84,7 +105,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 imageUrl: item.image?.imageUrl,
             })),
             soldItems: [], 
-            lastUpdated: new Date().toISOString(),
+            lastUpdated: timestamp,
             searchType: type,
             logic: calc.logic
         };

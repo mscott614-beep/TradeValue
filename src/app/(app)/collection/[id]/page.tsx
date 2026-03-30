@@ -330,14 +330,7 @@ export default function CardDetailsPage() {
         try {
             const response = await refreshCardValueAction(user.uid, card);
             if (response.success && response.newPrice !== undefined) {
-                updateDocumentNonBlocking(cardDocRef, {
-                    currentMarketValue: response.newPrice,
-                    lastMarketValueUpdate: response.lastUpdated
-                });
-                // Write a price history snapshot for the chart
-                const today = new Date().toISOString().split('T')[0];
-                const historyDocRef = doc(firestore, `users/${user.uid}/portfolios/${id}/priceHistory`, today);
-                setDoc(historyDocRef, { value: response.newPrice, timestamp: new Date().toISOString() }, { merge: true });
+                // Success: Update local state only (Server handles persistence)
                 setLiveListings(response.top5 || []);
                 setSoldListings(response.soldItems || []);
                 setAvgPrices({
