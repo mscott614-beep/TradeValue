@@ -108,9 +108,14 @@ export default function AlertsDashboardPage() {
             return;
         }
 
+        // Buffer for rule engine cluster propagation (essential for new user heartbeat sync)
+        const delayPromise = new Promise(resolve => setTimeout(resolve, 2000));
+        
         setIsScanning(true);
         const scanToast = toast.loading(scanType === 'deep' ? "Performing Deep Portfolio Scan... this may take 15-30s" : "Running Market Scan...");
         
+        await delayPromise;
+
         try {
             const response = await runMarketScannerAction(
                 user!.uid,

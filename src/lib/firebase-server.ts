@@ -1,24 +1,24 @@
-import * as admin from 'firebase-admin';
+import { getApps, getApp, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { Portfolio, AlertConfig } from '@/lib/types';
 
 // Initialize Firebase Admin for Server-Side Use (Server Actions)
-// This bypasses client-side security rules for authorized server-side logic
-if (!admin.apps.length) {
-    try {
-        admin.initializeApp();
-    } catch (error) {
-        console.error('Firebase Admin initialization error:', error);
+// Modular pattern for Next.js 15+ Compatibility
+export const getAdminApp = () => {
+    if (getApps().length <= 0) {
+        return initializeApp();
     }
+    return getApp();
 }
 
-export const getAdminDb = () => admin.firestore();
+export const getAdminDb = () => getFirestore(getAdminApp());
 
 export async function getUserPortfolioServer(userId: string): Promise<Portfolio[]> {
     const db = getAdminDb();
     const portfolioRef = db.collection(`users/${userId}/portfolios`);
     const snapshot = await portfolioRef.get();
     
-    return snapshot.docs.map(doc => ({ 
+    return snapshot.docs.map((doc: any) => ({ 
         id: doc.id, 
         ...doc.data() 
     } as Portfolio));
@@ -29,7 +29,7 @@ export async function getUserAlertConfigsServer(userId: string): Promise<AlertCo
     const configRef = db.collection(`users/${userId}/alertsConfig`);
     const snapshot = await configRef.get();
     
-    return snapshot.docs.map(doc => ({ 
+    return snapshot.docs.map((doc: any) => ({ 
         id: doc.id, 
         ...doc.data() 
     } as AlertConfig));
