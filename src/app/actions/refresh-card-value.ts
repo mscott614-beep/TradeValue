@@ -20,7 +20,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                             (card.player || '').toLowerCase().includes('checklist');
         
         // Expanded exclusions to catch noise from AHL, Portraits, and Graded variants
-        const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale -portrait -ahl -glossy -psa -bgs -sgc -cgc -csg -sticker -non-auto -rp';
+        const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale -portrait -ahl -glossy -sticker -non-auto -rp';
 
         let finalQuery = primaryQuery;
         if (!isChecklist && !finalQuery.includes('-checklist')) {

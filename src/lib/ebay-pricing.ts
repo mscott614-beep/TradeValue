@@ -59,16 +59,10 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     if (!hasFeature) {
         // Base Card Logic
         let query = `${year} ${brand} ${player} ${cardNumber} ${NEGATIVE_BASE_KEYWORDS.join(' ')}`.trim();
-        if (!isGraded) {
-             query += ` ${RAW_EXCLUSIONS.join(' ')}`;
-        }
         return { type: 'Base', query };
     } else {
         // Parallel Logic
         let query = `${year} ${brand} ${player} ${parallelTerm} ${cardNumber} ${subsetExclusions} -sold -completed`.trim();
-        if (!isGraded) {
-             query += ` ${RAW_EXCLUSIONS.join(' ')}`;
-        }
         return { type: 'Parallel', query };
     }
 }
