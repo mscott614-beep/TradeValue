@@ -1,34 +1,36 @@
-import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import * as admin from 'firebase-admin';
 import { Portfolio, AlertConfig } from '@/lib/types';
 
-// Initialize Firebase for Server-Side Use (Server Actions)
-export const getServerDb = () => {
-    let app;
-    if (!getApps().length) {
-        // In some environments (like App Hosting), initializeApp() without args picks up project defaults
-        try {
-            app = initializeApp();
-        } catch (e) {
-            app = initializeApp(firebaseConfig);
-        }
-    } else {
-        app = getApp();
+// Initialize Firebase Admin for Server-Side Use (Server Actions)
+// This bypasses client-side security rules for authorized server-side logic
+if (!admin.apps.length) {
+    try {
+        admin.initializeApp();
+    } catch (error) {
+        console.error('Firebase Admin initialization error:', error);
     }
-    return getFirestore(app);
-};
+}
+
+export const getAdminDb = () => admin.firestore();
 
 export async function getUserPortfolioServer(userId: string): Promise<Portfolio[]> {
-    const db = getServerDb();
-    const portfolioRef = collection(db, `users/${userId}/portfolios`);
-    const snapshot = await getDocs(portfolioRef);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Portfolio));
+    const db = getAdminDb();
+    const portfolioRef = db.collection(`users/${userId}/portfolios`);
+    const snapshot = await portfolioRef.get();
+    
+    return snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+    } as Portfolio));
 }
 
 export async function getUserAlertConfigsServer(userId: string): Promise<AlertConfig[]> {
-    const db = getServerDb();
-    const configRef = collection(db, `users/${userId}/alertsConfig`);
-    const snapshot = await getDocs(configRef);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AlertConfig));
+    const db = getAdminDb();
+    const configRef = db.collection(`users/${userId}/alertsConfig`);
+    const snapshot = await configRef.get();
+    
+    return snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+    } as AlertConfig));
 }
