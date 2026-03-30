@@ -6,13 +6,14 @@ import { buildEbayQuery, calculateTradeValue } from "@/lib/ebay-pricing";
 import { getAdminDb } from "@/lib/firebase-server";
 
 /**
- * Refreshes the card value using a simple, broad eBay search.
- * [Hybrid Revert Build: Admin SDK Infrastructure + Simple Search Logic]
+ * Refreshes the card value using the Lead Data Architect Specification.
+ * Ground Truth: MARKET_ENGINE_SPEC.md
+ * Phase: Production Engine v1.2
  */
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
-        // 1. Build a simple, broad query
-        const { type, query } = buildEbayQuery({
+        // 1. Classification and Initial Query Construction (Step 1 & 2)
+        const { type, query: primaryQuery } = buildEbayQuery({
             year: card.year,
             brand: card.brand,
             player: card.player,
@@ -21,18 +22,27 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             title: card.title
         });
 
-        console.log(`[Refresh] Simple Query (${type}): "${query}"`);
+        // 2. Step 3: API Request Configuration (FIXED_PRICE Priority / EXTENDED Fields)
+        console.log(`[Refresh] Lead Architect Query (${type}): "${primaryQuery}"`);
         
-        // 2. Fetch from eBay (Limit to 10 for speed)
-        const activeResponse = await ebayService.searchActiveItems(query, 10);
-        const rawItems = activeResponse.itemSummaries || [];
+        let activeResponse = await ebayService.searchActiveItems(primaryQuery, 10);
+        let rawItems = activeResponse.itemSummaries || [];
         
-        console.log(`[Refresh] Found ${rawItems.length} items on eBay.`);
+        // Self-Healing Logic: If the ultra-precise query returns 0, try a slightly broader search 
+        // to ensure we get a valuation for vintage cards where # might be inconsistent.
+        if (rawItems.length === 0) {
+            const secondaryQuery = `${card.year} ${card.brand} ${card.player} ${card.cardNumber}`.trim();
+            console.log(`[Refresh] Precision query returned 0. Trying broad fallback: "${secondaryQuery}"`);
+            activeResponse = await ebayService.searchActiveItems(secondaryQuery, 10);
+            rawItems = activeResponse.itemSummaries || [];
+        }
 
-        // 3. Simple Calculation
+        console.log(`[Refresh] Found ${rawItems.length} matching items on eBay.`);
+
+        // 3. Step 4: Value Calculation (The TradeValue Rule - 3 Lowest Median)
         const calc = calculateTradeValue(rawItems);
 
-        // 4. Atomic Authorized Update (Admin SDK)
+        // 4. Atomic Authorized Update (Admin SDK - Permissions Fix)
         const db = getAdminDb();
         const timestamp = new Date().toISOString();
         
