@@ -57,6 +57,25 @@ export default function AlertsDashboardPage() {
     const [hasAttemptedInit, setHasAttemptedInit] = useState(false);
     const anyError = portfoliosError || configsError || alertsError || metadataError;
 
+    // Heartbeat: Force-initialize the user document to "warm up" the permission rules
+    useEffect(() => {
+        if (user && firestore && !hasAttemptedInit) {
+            const initUser = async () => {
+                try {
+                    await setDoc(doc(firestore, `users/${user.uid}`), {
+                        lastSeen: new Date().toISOString(),
+                        email: user.email
+                    }, { merge: true });
+                    console.log('[AlertsPage] Initialization Heartbeat Successful.');
+                    setHasAttemptedInit(true);
+                } catch (e) {
+                    console.warn('[AlertsPage] Initialization Heartbeat Failed (expected for fresh auth):', e);
+                }
+            };
+            initUser();
+        }
+    }, [user, firestore, hasAttemptedInit]);
+
     useEffect(() => {
         if (anyError) {
             const isPermissionError = anyError instanceof Error && 'code' in anyError && (anyError as any).code === 'permission-denied';
