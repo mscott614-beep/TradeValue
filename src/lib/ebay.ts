@@ -49,8 +49,8 @@ class EbayService {
         this.clientId = process.env.EBAY_CLIENT_ID || '';
         this.clientSecret = process.env.EBAY_CLIENT_SECRET || '';
         
-        const envInput = (process.env.EBAY_ENV || '').toLowerCase();
-        this.env = envInput.includes('sandbox') ? 'sandbox' : 'production';
+        const envInput = (process.env.EBAY_ENV || process.env.NODE_ENV || '').toLowerCase();
+        this.env = envInput === 'production' ? 'production' : (envInput.includes('sandbox') ? 'sandbox' : 'production');
     }
 
     private async getAccessToken(): Promise<string> {
