@@ -21,31 +21,55 @@ export const generateTrendingCards = ai.defineFlow(
         outputSchema: z.array(TrendingCardSchema),
     },
     async () => {
-        // 1. Define typical high-volume players to check for trends
-        const playersToWatch = ["Connor McDavid", "Victor Wembanyama", "Shohei Ohtani", "Auston Matthews"];
+        // 1. Expanded player pool for variety
+        const playerPool = [
+            "Connor McDavid", "Auston Matthews", "Nathan MacKinnon", "Cale Makar", "Connor Bedard", 
+            "Sidney Crosby", "Alex Ovechkin", "Igor Shesterkin", "Tage Thompson", "Jack Hughes",
+            "Victor Wembanyama", "LeBron James", "Stephen Curry", "Luka Doncic", "Giannis Antetokounmpo", 
+            "Jayson Tatum", "Shai Gilgeous-Alexander", "Anthony Edwards", "Ja Morant", "Nikola Jokic",
+            "Shohei Ohtani", "Aaron Judge", "Ronald Acuna Jr.", "Mookie Betts", "Juan Soto", 
+            "Elly De La Cruz", "Corbin Carroll", "Mike Trout", "Julio Rodriguez", "Bobby Witt Jr.",
+            "Patrick Mahomes", "Joe Burrow", "Josh Allen", "Justin Jefferson", "Tyreek Hill", 
+            "Lamar Jackson", "C.J. Stroud", "Brock Purdy", "Christian McCaffrey", "Travis Kelce"
+        ];
         
-        // 2. Fetch "historical" data for these players
-        // In a real app, this would iterate and find actual 'movers'.
-        // For now, we fetch mock historical data from our service to demonstrate the pattern.
-        const historicalContexts = await Promise.all(
-            playersToWatch.slice(0, 2).map(async (player) => {
-                const sales = await ebayService.getHistoricalSales(player);
-                return { player, sales };
+        // 2. Randomly sample 8 players to find potential "movers"
+        const shuffled = [...playerPool].sort(() => 0.5 - Math.random());
+        const selectedPlayers = shuffled.slice(0, 8);
+
+        // 3. Fetch real-time market volume (active listing count) for these players
+        const marketIntelligence = await Promise.all(
+            selectedPlayers.map(async (player) => {
+                try {
+                    const results = await ebayService.searchActiveItems(player, 1);
+                    return { 
+                        player, 
+                        activeListingCount: results.total || 0,
+                        lastChecked: new Date().toISOString()
+                    };
+                } catch (error) {
+                    return { player, activeListingCount: "unavailable", lastChecked: new Date().toISOString() };
+                }
             })
         );
 
         const prompt = `
-      You are a sports card market analyst. Analyze the provided historical sales data (if any) 
-      and generate exactly 4 trending sports cards for this week.
+      You are a sports card market analyst at TradeValue. Analyze the provided real-time market liquidity 
+      indicators (active listing counts) and generate exactly 4 trending sports cards for this week.
 
-      Historical Context (Simulated/Real):
-      ${JSON.stringify(historicalContexts)}
+      Today's Date: ${new Date().toLocaleDateString()}
+      
+      Market Intelligence (Current Active Volume):
+      ${JSON.stringify(marketIntelligence)}
 
       Requirements:
-      - 3 should be trending UP (+5% to +30%)
-      - 1 should be trending DOWN (-2% to -15%)
-      - Use real, well-known players and real card sets
-      - The "reason" must be a real-world market catalyst (e.g. playoff run, injury, trade).
+      - Select exactly 4 cards from the provided list of players or closely related star athletes.
+      - 3 cards should be trending UP (+5% to +40%)
+      - 1 card should be trending DOWN (-3% to -20%)
+      - Ensure the "reason" is specific to current (simulated or real) market catalysts like 
+        standout performances, playoff positioning, injuries, or significant card set releases.
+      - **CRITICAL**: Do Not return the same 4 cards every time. Use the variety in the input 
+        to ensure different players are featured each week.
       
       Return a valid JSON array of exactly 4 objects.
     `;

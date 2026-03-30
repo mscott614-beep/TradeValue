@@ -20,12 +20,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
   const { settings } = useSettings();
   const router = useRouter();
+  const { isDemo } = useDemo();
 
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/login');
     }
   }, [isUserLoading, user, router]);
+
+  const showTicker = settings.showTicker || isDemo;
+  const paddingClass = showTicker ? (isDemo ? "pb-24" : "pb-12") : "";
 
   if (isUserLoading || !user) {
     return (
@@ -34,10 +38,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </div>
     );
   }
-
-  const { isDemo } = useDemo();
-  const showTicker = settings.showTicker || isDemo;
-  const paddingClass = showTicker ? (isDemo ? "pb-24" : "pb-12") : "";
 
   return (
     <SidebarProvider>

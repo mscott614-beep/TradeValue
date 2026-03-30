@@ -85,16 +85,17 @@ class EbayService {
     }
 
     /**
-     * Search for active auctions using the Browse API.
+     * Search for active items using the Browse API.
      */
-    async searchActiveAuctions(query: string, limit: number = 4): Promise<EbayAuctionResponse> {
+    async searchActiveItems(query: string, limit: number = 10, sort: string = 'price'): Promise<EbayAuctionResponse> {
         const token = await this.getAccessToken();
         
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
         url.searchParams.append('category_ids', '261328'); // Trading Card Singles
-        url.searchParams.append('filter', 'buyingOptions:{AUCTION|FIXED_PRICE}');
+        url.searchParams.append('sort', sort); // price (Ascending) by default
+        url.searchParams.append('fieldGroups', 'EXTENDED'); // To see buyingOptions and other details
 
         const response = await fetch(url.toString(), {
             headers: {
@@ -113,17 +114,45 @@ class EbayService {
     }
 
     /**
-     * Placeholder for historical data.
-     * Real implementation would require Marketplace Insights API approval.
+     * Search specifically for active auctions.
+     */
+    async searchActiveAuctions(query: string, limit: number = 10): Promise<EbayAuctionResponse> {
+        const token = await this.getAccessToken();
+        
+        const url = new URL(this.BASE_URLS[this.env].browse);
+        url.searchParams.append('q', query);
+        url.searchParams.append('limit', limit.toString());
+        url.searchParams.append('category_ids', '261328');
+        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
+        url.searchParams.append('fieldGroups', 'EXTENDED');
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`eBay ${this.env} Auction API search failed: ${error}`);
+        }
+
+        return await response.json();
+    }
+    /**
+     * @deprecated Currently unused in the main trending flow in favor of live active volume.
+     * Simulated results for testing UI components that require historical arrays.
      */
     async getHistoricalSales(query: string): Promise<any[]> {
         console.warn('Historical sales currently returns mock data as Marketplace Insights API requires specific approval.');
         
         // Simulating some historical results for the AI to analyze
         return [
-            { title: query, price: 150.00, date: '2024-03-01' },
-            { title: query, price: 165.50, date: '2024-03-05' },
-            { title: query, price: 180.00, date: '2024-03-10' },
+            { title: `${query} (Base)`, price: 150.00, date: '2024-03-01' },
+            { title: `${query} (Parallel)`, price: 165.50, date: '2024-03-05' },
+            { title: `${query} (Rookie)`, price: 180.00, date: '2024-03-10' },
         ];
     }
 }

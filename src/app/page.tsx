@@ -346,6 +346,7 @@ export default function Home() {
                           width={40}
                           height={40}
                           className="rounded opacity-60"
+                          unoptimized
                         />
                       </div>
                       <div className="flex-1">
@@ -445,7 +446,7 @@ export default function Home() {
             <Logo className="w-6 h-6" />
             <span className="text-sm font-bold tracking-tight text-white uppercase">TradeValue</span>
           </div>
-          <p className="text-sm text-slate-500">© 2024 TradeValue Market Insight. All rights reserved.</p>
+          <p className="text-sm text-slate-500">© {new Date().getFullYear()} TradeValue Market Insight. All rights reserved.</p>
           <div className="flex gap-6 text-sm text-slate-500">
             <Link href="#" className="hover:text-white transition-colors">Twitter</Link>
             <Link href="#" className="hover:text-white transition-colors">Discord</Link>

@@ -148,3 +148,49 @@ export const CARD_PARALLELS = [
     "Young Guns Canvas",
     "Zebra"
 ];
+
+export const CARD_CONDITIONS = [
+    "Gem Mint",
+    "Mint",
+    "Near Mint-Mint",
+    "Near Mint",
+    "Excellent-Mint",
+    "Excellent",
+    "Very Good-Excellent",
+    "Very Good",
+    "Good",
+    "Fair",
+    "Poor",
+    "Authentic",
+    "Raw/Ungraded"
+];
+
+export const CARD_GRADERS = [
+    "Raw (Uncertified)",
+    "PSA",
+    "BGS (Beckett)",
+    "SGC",
+    "CGC",
+    "CSG",
+    "HGA",
+    "GMA",
+    "ISA"
+];
+
+export const CARD_GRADES = [
+    "N/A",
+    "10",
+    "9.5",
+    "9",
+    "8.5",
+    "8",
+    "7.5",
+    "7",
+    "6.5",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2",
+    "1"
+];

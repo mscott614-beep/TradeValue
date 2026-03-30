@@ -2,70 +2,91 @@
 
 import { ebayService } from "@/lib/ebay";
 import { Portfolio } from "@/lib/types";
-import { doc, updateDoc } from "firebase/firestore";
-import { getFirestore } from "firebase-admin/firestore"; // Assuming we use admin for server actions or regular firestore if client-side compatible
-// Wait, "use server" actions should probably use firebase-admin if updating firestore directly, 
-// OR they can return the data and let the client update. 
-// However, updating in the background is better.
-
-import { revalidatePath } from "next/cache";
+import { buildEbayQuery, calculateTradeValue } from "@/lib/ebay-pricing";
 
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
-        // 1. Search eBay for listings
-        // Sanitize card number (remove #)
-        const cleanCardNumber = (card.cardNumber || '').replace('#', '');
-        
-        // Ensure we include negative keywords for raw cards
-        const isGraded = card.condition.includes('PSA') || card.condition.includes('BGS') || card.condition.includes('SGC') || !!card.grader;
-        const negativeKeywords = isGraded ? card.condition : '-PSA -Graded -Slab';
-        
-        // Stage 1: Specific Query (Year + Brand + Player + Number + Parallel)
-        const specificQuery = `${card.year} ${card.brand} ${card.player} ${cleanCardNumber} ${card.parallel || ''} ${negativeKeywords}`.trim();
-        
-        let response = await ebayService.searchActiveAuctions(specificQuery, 10);
-        let items = response.itemSummaries || [];
+        // 1. Classification and Initial Query Construction
+        const { type, query: primaryQuery } = buildEbayQuery({
+            year: card.year,
+            brand: card.brand,
+            player: card.player,
+            cardNumber: card.cardNumber,
+            parallel: card.parallel,
+            title: card.title
+        });
 
-        // Stage 2: Essential Fallback (If 0 results, try Year + Player + Number)
-        if (items.length === 0) {
-            const essentialQuery = `${card.year} ${card.player} ${cleanCardNumber} ${negativeKeywords}`.trim();
-            console.log(`Specific search failed, trying essential fallback: ${essentialQuery}`);
-            response = await ebayService.searchActiveAuctions(essentialQuery, 10);
-            items = response.itemSummaries || [];
+        const isChecklist = card.title?.toLowerCase().includes('checklist') || 
+                            (card.player || '').toLowerCase().includes('checklist');
+        
+        // Expanded exclusions to catch noise from AHL, Portraits, and Graded variants
+        const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale -portrait -ahl -glossy -psa -bgs -sgc -cgc -csg -sticker -non-auto -rp';
+
+        let finalQuery = primaryQuery;
+        if (!isChecklist && !finalQuery.includes('-checklist')) {
+            finalQuery += EXCLUSIONS;
         }
 
-        if (items.length === 0) {
-            return { success: false, error: "No active auctions found on eBay for this card." };
+        console.log(`[Refresh] Lead Architect Query (${type}): "${finalQuery}"`);
+        let activeResponse = await ebayService.searchActiveItems(finalQuery, 10);
+        let rawItems = activeResponse.itemSummaries || [];
+
+        // 2. Soft Query Fallback (Tier 2): Player + Parallel + Number (Removes Year/Brand noise)
+        if (rawItems.length === 0) {
+            const cleanNumber = (card.cardNumber || '').replace('#', '');
+            const parallelStr = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
+            let softQuery = `${card.player} ${parallelStr} ${cleanNumber}`.trim();
+            if (!isChecklist) softQuery += EXCLUSIONS;
+            
+            console.log(`[Refresh] Tier 1 failed. Trying Tier 2 Soft Fallback: "${softQuery}"`);
+            activeResponse = await ebayService.searchActiveItems(softQuery, 10);
+            rawItems = activeResponse.itemSummaries || [];
         }
 
-        // 2. Calculate Median
-        const prices = items
-            .map(item => parseFloat(item.price.value))
-            .filter(price => !isNaN(price))
-            .sort((a, b) => a - b);
+        // 3. Post-Fetch Filter: Eliminate misidentified subsets
+        // If we are looking for Young Guns, the result title *must* contain "Young Guns"
+        const combinedSpec = `${card.parallel || ''} ${card.title || ''}`.toLowerCase();
+        const needsYoungGuns = combinedSpec.includes('young guns');
+        const needsJumbo = combinedSpec.includes('jumbo');
+        const needsGlossy = combinedSpec.includes('glossy');
 
-        let medianPrice = 0;
-        if (prices.length > 0) {
-            const mid = Math.floor(prices.length / 2);
-            medianPrice = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+        if (rawItems.length > 0) {
+            const initialCount = rawItems.length;
+            rawItems = rawItems.filter(item => {
+                const title = item.title.toLowerCase();
+                if (needsYoungGuns && !title.includes('young guns')) return false;
+                if (needsJumbo && !title.includes('jumbo')) return false;
+                if (needsGlossy && !title.includes('glossy')) return false;
+                
+                // If it's a base search, explicitly exclude the big features
+                if (!needsYoungGuns && title.includes('young guns')) return false;
+                if (!needsJumbo && title.includes('jumbo')) return false;
+
+                return true;
+            });
+            if (rawItems.length < initialCount) {
+                console.log(`[Refresh] Filtered out ${initialCount - rawItems.length} misidentified listings (Subset mismatch).`);
+            }
         }
 
-        // 3. Update Firestore (Using a placeholder for the update logic since I need to verify how firestore is initialized in actions)
-        // For now, I'll return the results and the Top 5 listings.
-        
-        const top5 = items.slice(0, 5).map(item => ({
-            title: item.title,
-            price: parseFloat(item.price.value),
-            url: item.itemWebUrl,
-            imageUrl: item.image?.imageUrl,
-            bidCount: item.bidCount
-        }));
+        // 4. Calculate TradeValue using the "Floor Median" Rule
+        const calc = calculateTradeValue(rawItems);
 
         return { 
             success: true, 
-            newPrice: medianPrice, 
-            top5,
-            lastUpdated: new Date().toISOString()
+            newPrice: calc.value, 
+            avgActivePrice: calc.value,
+            avgSoldPrice: 0, 
+            top5: rawItems.slice(0, 10).map(item => ({
+                title: item.title,
+                price: parseFloat(item.price.value),
+                url: item.itemWebUrl,
+                imageUrl: item.image?.imageUrl,
+            })),
+            soldItems: [], 
+            lastUpdated: new Date().toISOString(),
+            searchType: type,
+            logic: calc.logic
         };
     } catch (error: any) {
         console.error("Failed to refresh card value:", error);

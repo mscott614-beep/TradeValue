@@ -3,11 +3,26 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useFirestore, useUser, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection, query, orderBy, limit, setDoc } from 'firebase/firestore';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,7 +37,7 @@ import { refreshCardValueAction } from "@/app/actions/refresh-card-value";
 import { getSimilarCardsAction, type SimilarCard } from "@/app/actions/get-similar-cards";
 import type { CardAnalysisResult } from "@/lib/types";
 import { BarChart3, LineChart as LineChartIcon, BrainCircuit, CheckCircle2, TrendingDown, Edit3, X, Check, Upload, Image as ImageIcon } from "lucide-react";
-import { CARD_ATTRIBUTES, CARD_PARALLELS } from "@/lib/constants";
+import { CARD_ATTRIBUTES, CARD_PARALLELS, CARD_CONDITIONS, CARD_GRADERS, CARD_GRADES } from "@/lib/constants";
 import { compressImage } from "@/lib/image-utils";
 import { cn } from "@/lib/utils";
 import { useRef, useMemo } from 'react';
@@ -62,8 +77,23 @@ export default function CardDetailsPage() {
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [isRefreshingValue, setIsRefreshingValue] = useState(false);
     const [liveListings, setLiveListings] = useState<any[]>([]);
+    const [soldListings, setSoldListings] = useState<any[]>([]);
+    const [avgPrices, setAvgPrices] = useState<{ active: number; sold: number } | null>(null);
     const [similarCards, setSimilarCards] = useState<SimilarCard[]>([]);
     const [isFetchingSimilar, setIsFetchingSimilar] = useState(false);
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [titleInput, setTitleInput] = useState<string>('');
+    const [isEditingInfo, setIsEditingInfo] = useState(false);
+    const [infoInput, setInfoInput] = useState({
+        player: '',
+        year: '',
+        brand: '',
+        cardNumber: '',
+        parallel: '',
+        condition: '',
+        grader: '',
+        estimatedGrade: ''
+    });
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Sync local input state with fetched data if we aren't currently editing
     useEffect(() => {
@@ -74,27 +104,57 @@ export default function CardDetailsPage() {
             setSelectedFeatures(card.features || []);
             setSelectedParallel(card.parallel || '');
         }
-    }, [card, isEditingPrice, isEditingAttributes]);
+        if (card && !isEditingTitle) {
+            setTitleInput(card.title || '');
+        }
+        if (card && !isEditingInfo) {
+            setInfoInput({
+                player: card.player || '',
+                year: card.year || '',
+                brand: card.brand || '',
+                cardNumber: card.cardNumber || '',
+                parallel: card.parallel || '',
+                condition: card.condition || '',
+                grader: card.grader || '',
+                estimatedGrade: card.estimatedGrade || ''
+            });
+        }
+        // Sync market data from Firestore
+        if (card?.marketPrices) {
+            setLiveListings(card.marketPrices.activeItems || []);
+            // Since we pivoted to active only, we use activeItems for both
+            setSoldListings(card.marketPrices.activeItems || []);
+            setAvgPrices({
+                active: card.marketPrices.median || 0,
+                sold: 0
+            });
+        }
+    }, [card, isEditingPrice, isEditingAttributes, isEditingTitle, card?.marketPrices]);
+
+    // Query real price history from Firestore subcollection
+    const priceHistoryQuery = useMemoFirebase(() => {
+        if (!user || !firestore || !id) return null;
+        return query(
+            collection(firestore, `users/${user.uid}/portfolios/${id}/priceHistory`),
+            orderBy('__name__', 'asc'),
+            limit(90)
+        );
+    }, [firestore, user, id]);
+
+    const { data: priceHistoryDocs, isLoading: isLoadingHistory } = useCollection<{ value: number; timestamp: string }>(priceHistoryQuery);
 
     const trendData = useMemo(() => {
-        if (!card?.currentMarketValue) return [];
-        const months = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'];
-        const data = [];
-        const currentValue = card.currentMarketValue;
-        
-        let val = currentValue * 0.85; // Start a bit lower
-        
-        for (let i = 0; i < months.length; i++) {
-            if (i === months.length - 1) {
-                data.push({ name: months[i], value: currentValue });
-            } else {
-                const noise = (Math.random() - 0.5) * 2 * (currentValue * 0.05);
-                val = val + (currentValue * 0.03) + noise; // General upward move
-                data.push({ name: months[i], value: Math.round(val * 100) / 100 });
-            }
-        }
-        return data;
-    }, [card?.currentMarketValue]);
+        if (!priceHistoryDocs || priceHistoryDocs.length === 0) return [];
+        return priceHistoryDocs.map((entry: any) => {
+            // Document ID is YYYY-MM-DD, parse to a readable label
+            const dateStr = entry.id || '';
+            const parts = dateStr.split('-');
+            const label = parts.length === 3
+                ? new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : dateStr;
+            return { name: label, value: entry.value };
+        });
+    }, [priceHistoryDocs]);
 
     const handleSavePurchasePrice = () => {
         if (!cardDocRef) return;
@@ -121,6 +181,20 @@ export default function CardDetailsPage() {
         });
     };
 
+    const handleSaveTitle = () => {
+        if (!cardDocRef || !titleInput.trim()) return;
+
+        updateDocumentNonBlocking(cardDocRef, {
+            title: titleInput.trim()
+        });
+
+        setIsEditingTitle(false);
+        toast({
+            title: "Title Updated",
+            description: "The card title has been saved successfully.",
+        });
+    };
+
     const handleSaveAttributes = () => {
         if (!cardDocRef) return;
 
@@ -134,6 +208,39 @@ export default function CardDetailsPage() {
             title: "Attributes Updated",
             description: "Card features and parallels have been saved.",
         });
+    };
+
+    const handleSaveInfo = async () => {
+        if (!cardDocRef) return;
+
+        try {
+            updateDocumentNonBlocking(cardDocRef, {
+                player: infoInput.player.trim(),
+                year: infoInput.year.trim(),
+                brand: infoInput.brand.trim(),
+                cardNumber: infoInput.cardNumber.trim(),
+                parallel: infoInput.parallel.trim(),
+                condition: infoInput.condition.trim(),
+                grader: infoInput.grader.trim(),
+                estimatedGrade: infoInput.estimatedGrade.trim()
+            });
+
+            setIsEditingInfo(false);
+            toast({
+                title: "Card Details Updated",
+                description: "The card's metadata has been saved successfully.",
+            });
+            
+            // Auto-refresh market value if metadata changed significantly
+            // handleRefreshValue(); 
+        } catch (error) {
+            console.error("Failed to save info:", error);
+            toast({
+                title: "Save Failed",
+                description: "Could not update card details.",
+                variant: "destructive"
+            });
+        }
     };
 
     const toggleFeature = (feature: string) => {
@@ -172,25 +279,24 @@ export default function CardDetailsPage() {
             }
         }
     };
-    const fetchSimilarCards = async () => {
-        if (!card) return;
-        setIsFetchingSimilar(true);
-        try {
-            const response = await getSimilarCardsAction(card);
-            if (response.success && response.similarCards) {
-                setSimilarCards(response.similarCards);
-            }
-        } catch (error) {
-            console.error("Failed to fetch similar cards:", error);
-        } finally {
-            setIsFetchingSimilar(false);
-        }
-    };
-
     useEffect(() => {
-        if (card) {
-            fetchSimilarCards();
-        }
+        if (!card) return;
+        let cancelled = false;
+        const fetchSimilar = async () => {
+            setIsFetchingSimilar(true);
+            try {
+                const response = await getSimilarCardsAction(card);
+                if (!cancelled && response.success && response.similarCards) {
+                    setSimilarCards(response.similarCards);
+                }
+            } catch (error) {
+                console.error("Failed to fetch similar cards:", error);
+            } finally {
+                if (!cancelled) setIsFetchingSimilar(false);
+            }
+        };
+        fetchSimilar();
+        return () => { cancelled = true; };
     }, [card?.id]);
 
     if (isLoading) {
@@ -215,49 +321,32 @@ export default function CardDetailsPage() {
         ? ((calculatedGain / card.purchasePrice) * 100).toFixed(2)
         : null;
 
-    // --- MOCK DATA GENERATORS FOR MARKET INTELLIGENCE ---
-    const generateMockRecentSales = (currentValue: number) => {
-        const sales = [];
-        const baseVariance = currentValue * 0.15; // 15% variance
-        const now = new Date();
-        for (let i = 1; i <= 3; i++) {
-            const date = new Date(now.getTime() - (Math.random() * 30 * 24 * 60 * 60 * 1000));
-            const price = currentValue + (Math.random() * baseVariance * 2) - baseVariance;
-            sales.push({
-                id: i,
-                date: date.toLocaleDateString(),
-                price: price,
-                platform: "eBay",
-                type: Math.random() > 0.5 ? "Auction" : "Buy It Now"
-            });
-        }
-        return sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    };
 
-
-    const mockRelatedCards = [
-        { id: 1, title: `2024 Topps Chrome ${card.player} Refractor`, price: "$45.00" },
-        { id: 2, title: `2023 Panini Prizm ${card.player} Silver`, price: "$32.50" },
-        { id: 3, title: `2022 Bowman Chrome ${card.player} 1st`, price: "$125.00" },
-    ];
-
-    const mockRecentSales = generateMockRecentSales(card.currentMarketValue || 100);
 
 
     const handleRefreshValue = async () => {
-        if (!card || !cardDocRef) return;
+        if (!card || !cardDocRef || !user) return;
         setIsRefreshingValue(true);
         try {
-            const response = await refreshCardValueAction(user!.uid, card);
+            const response = await refreshCardValueAction(user.uid, card);
             if (response.success && response.newPrice !== undefined) {
                 updateDocumentNonBlocking(cardDocRef, {
                     currentMarketValue: response.newPrice,
                     lastMarketValueUpdate: response.lastUpdated
                 });
+                // Write a price history snapshot for the chart
+                const today = new Date().toISOString().split('T')[0];
+                const historyDocRef = doc(firestore, `users/${user.uid}/portfolios/${id}/priceHistory`, today);
+                setDoc(historyDocRef, { value: response.newPrice, timestamp: new Date().toISOString() }, { merge: true });
                 setLiveListings(response.top5 || []);
+                setSoldListings(response.soldItems || []);
+                setAvgPrices({
+                    active: response.avgActivePrice || 0,
+                    sold: response.avgSoldPrice || 0
+                });
                 toast({
-                    title: "Market Value Updated",
-                    description: `New Median: $${response.newPrice.toFixed(2)}`,
+                    title: "Market Price Updated",
+                    description: `Average Asking Price: $${response.newPrice.toFixed(2)}`,
                 });
             } else {
                 toast({
@@ -320,10 +409,39 @@ export default function CardDetailsPage() {
                 </Button>
             </div>
 
-            <PageHeader
-                title={card.title}
-                description={`Details for your ${card.year} ${card.brand} ${card.player} card.`}
-            />
+            <div className="mb-8">
+                {isEditingTitle ? (
+                    <div className="flex items-center gap-2 max-w-2xl">
+                        <Input
+                            value={titleInput}
+                            onChange={(e) => setTitleInput(e.target.value)}
+                            className="text-2xl font-bold h-10"
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveTitle();
+                                if (e.key === 'Escape') setIsEditingTitle(false);
+                            }}
+                        />
+                        <Button size="sm" onClick={handleSaveTitle}>Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditingTitle(false)}>Cancel</Button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl font-headline">
+                            {card.title}
+                        </h1>
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => setIsEditingInfo(true)}
+                        >
+                            <Edit3 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
+                <p className="text-muted-foreground mt-1.5">{`Details for your ${card.year} ${card.brand} ${card.player} card.`}</p>
+            </div>
 
             <Tabs defaultValue="overview" className="space-y-6">
                 <TabsList className="bg-muted/50 border">
@@ -337,106 +455,39 @@ export default function CardDetailsPage() {
                 {/* LIVE MARKET TAB */}
                 <TabsContent value="market" className="space-y-6">
                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <ShoppingCart className="h-5 w-5 text-primary" />
-                                    Active eBay Listings
-                                </CardTitle>
-                                <CardDescription>Top 5 most relevant live auctions for this card.</CardDescription>
-                            </div>
-                            <Button variant="outline" size="sm" onClick={handleRefreshValue} disabled={isRefreshingValue}>
-                                {isRefreshingValue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                                Sync Data
-                            </Button>
-                        </CardHeader>
-                        <CardContent>
-                            {liveListings.length > 0 ? (
-                                <div className="space-y-4">
-                                    {liveListings.map((listing, i) => (
-                                        <div key={i} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                                            <div className="relative h-16 w-12 bg-muted rounded overflow-hidden flex-shrink-0">
-                                                {listing.imageUrl ? (
-                                                    <Image src={listing.imageUrl} alt={listing.title} fill className="object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                                        <ImageIcon className="h-6 w-6 opacity-20" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium text-sm truncate" title={listing.title}>{listing.title}</p>
-                                                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                                    <span className="flex items-center gap-1">
-                                                        <Tag className="h-3 w-3" /> eBay
-                                                    </span>
-                                                    {listing.bidCount !== undefined && (
-                                                        <span className="flex items-center gap-1">
-                                                            <History className="h-3 w-3" /> {listing.bidCount} bids
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="text-right flex-shrink-0">
-                                                <p className="font-bold text-lg">${listing.price.toFixed(2)}</p>
-                                                <Button size="sm" variant="ghost" className="h-7 text-xs text-primary px-0" asChild>
-                                                    <a href={listing.url} target="_blank" rel="noopener noreferrer">
-                                                        View <ExternalLink className="ml-1 h-3 w-3" />
-                                                    </a>
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                                        <ShoppingCart className="h-6 w-6 opacity-40" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium">No live listings synced yet</p>
-                                        <p className="text-sm text-muted-foreground">Click the "Sync Data" button above to fetch live auctions from eBay.</p>
-                                    </div>
-                                    <Button onClick={handleRefreshValue} disabled={isRefreshingValue}>
-                                        {isRefreshingValue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                                        Fetch Live Listings
-                                    </Button>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="mt-6">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 text-sm py-3 px-4 bg-muted/30 border-b">
-                            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                <History className="h-3 w-3" />
-                                Similar Highlights
-                            </CardTitle>
-                            <span className="text-[10px] text-muted-foreground">Parallels & Player Matches</span>
+                            <div>
+                                <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                                    <Tag className="h-3 w-3" />
+                                    Top Active Listings
+                                </CardTitle>
+                                <CardDescription className="text-[10px]">Current market availability and listing prices.</CardDescription>
+                            </div>
+                            {avgPrices && (
+                                <Badge variant="outline" className="h-6 text-[10px] bg-background/50">
+                                    Avg Asking: ${avgPrices.active.toFixed(2)}
+                                </Badge>
+                            )}
                         </CardHeader>
                         <CardContent className="p-0">
-                            {isFetchingSimilar ? (
-                                <div className="p-8 flex items-center justify-center">
-                                    <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
-                                </div>
-                            ) : similarCards.length > 0 ? (
-                                <div className="flex overflow-x-auto pb-4 pt-4 px-4 gap-3 no-scrollbar scroll-smooth">
-                                    {similarCards.map((sCard, i) => (
+                            {liveListings.length > 0 ? (
+                                <div className="grid grid-cols-5 gap-3 p-4">
+                                    {liveListings.map((listing, i) => (
                                         <a 
                                             key={i} 
-                                            href={sCard.url} 
+                                            href={listing.url} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            className="flex-shrink-0 w-40 group cursor-pointer"
+                                            className="group cursor-pointer"
                                         >
                                             <div className="relative aspect-[3/4] bg-muted/50 rounded-lg overflow-hidden border border-border group-hover:border-primary/50 transition-all shadow-sm">
-                                                {sCard.imageUrl ? (
+                                                {listing.imageUrl ? (
                                                     <Image 
-                                                        src={sCard.imageUrl} 
-                                                        alt={sCard.title} 
+                                                        src={listing.imageUrl} 
+                                                        alt={listing.title} 
                                                         fill 
                                                         className="object-cover group-hover:scale-110 transition-transform duration-500" 
-                                                        unoptimized={sCard.imageUrl.includes('psacard.com') || sCard.imageUrl.includes('ebayimg.com')}
+                                                        unoptimized
                                                     />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-muted-foreground">
@@ -445,27 +496,143 @@ export default function CardDetailsPage() {
                                                 )}
                                                 <div className="absolute top-2 right-2">
                                                     <Badge variant="secondary" className="text-[9px] px-1.5 h-4 bg-background/80 backdrop-blur-md border-none lowercase font-semibold shadow-sm">
-                                                        {sCard.type === 'parallel' ? 'Parallel' : 'Player'}
+                                                        Live
                                                     </Badge>
-                                                </div>
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 pb-3">
-                                                    <p className="text-[10px] text-white font-medium flex items-center gap-1">
-                                                        View on eBay <ExternalLink className="h-2.5 w-2.5" />
-                                                    </p>
                                                 </div>
                                             </div>
                                             <div className="mt-2 text-left space-y-0.5 px-1">
-                                                <p className="text-xs font-bold text-green-400 leading-tight">${sCard.price.toFixed(2)}</p>
-                                                <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight group-hover:text-foreground transition-colors" title={sCard.title}>
-                                                    {sCard.title}
+                                                <p className="text-xs font-bold text-primary leading-tight">${listing.price.toFixed(2)}</p>
+                                                <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight group-hover:text-foreground transition-colors" title={listing.title}>
+                                                    {listing.title}
                                                 </p>
                                             </div>
                                         </a>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="p-8 text-center text-xs text-muted-foreground">
-                                    No similar cards found.
+                                <div className="p-8 text-center text-[10px] text-muted-foreground italic">
+                                    No live listings found. Try syncing data.
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 text-sm py-3 px-4 bg-green-500/5 border-b">
+                            <div>
+                                <CardTitle className="text-xs font-bold uppercase tracking-widest text-green-500 flex items-center gap-2">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Market Comparisons
+                                </CardTitle>
+                                <CardDescription className="text-[10px]">Similar active listings used for valuation.</CardDescription>
+                            </div>
+                            {avgPrices && (
+                                <Badge variant="secondary" className="h-6 text-[10px] bg-green-500/20 text-green-600 border-none">
+                                    Median: ${avgPrices.active.toFixed(2)}
+                                </Badge>
+                            )}
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            {liveListings.length > 0 ? (
+                                <div className="grid grid-cols-5 gap-3 p-4">
+                                    {soldListings.map((listing, i) => (
+                                        <div key={i} className="group flex flex-col">
+                                            <div className="relative aspect-[3/4] bg-muted/30 rounded-lg overflow-hidden border border-border group-hover:border-green-500/30 transition-all shadow-sm">
+                                                {listing.imageUrl ? (
+                                                    <Image 
+                                                        src={listing.imageUrl} 
+                                                        alt={listing.title} 
+                                                        fill 
+                                                        className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                                                        unoptimized
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                                                        <ImageIcon className="h-8 w-8 opacity-20" />
+                                                    </div>
+                                                )}
+                                                <div className="absolute top-2 right-2">
+                                                    <Badge className="text-[9px] px-1.5 h-4 bg-green-500 text-white border-none shadow-sm">
+                                                        LISTED
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-left space-y-0.5 px-1 text-[10px]">
+                                                <p className="font-bold text-green-600">${listing.price.toFixed(2)}</p>
+                                                <p className="text-muted-foreground line-clamp-2 leading-tight" title={listing.title}>
+                                                    {listing.title}
+                                                </p>
+                                                <p className="text-[8px] text-muted-foreground/60">{listing.date}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-8 text-center space-y-3">
+                                    <p className="text-[10px] text-muted-foreground italic">No market comparison data currently available.</p>
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-8 text-[11px] border-green-500/30 text-green-600 hover:bg-green-500/10"
+                                        onClick={handleRefreshValue}
+                                        disabled={isRefreshingValue}
+                                    >
+                                        {isRefreshingValue ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
+                                        Sync Market Data
+                                    </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 text-sm py-3 px-4 bg-muted/10 border-b">
+                            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                <History className="h-3 w-3" />
+                                Similar Market Highlights
+                            </CardTitle>
+                            <span className="text-[10px] text-muted-foreground">Parallels & Variations</span>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            {isFetchingSimilar ? (
+                                <div className="p-8 flex items-center justify-center">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
+                                </div>
+                            ) : similarCards.length > 0 ? (
+                                <div className="divide-y divide-border/30">
+                                    {similarCards.slice(0, 5).map((sCard, i) => (
+                                        <div key={i} className="flex items-center gap-4 p-3 hover:bg-muted/30 transition-colors group">
+                                            <div className="relative h-12 w-9 rounded overflow-hidden flex-shrink-0 border border-border/50">
+                                                {sCard.imageUrl ? (
+                                                    <Image src={sCard.imageUrl} alt={sCard.title} fill className="object-cover" unoptimized />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
+                                                        <ImageIcon className="h-4 w-4 opacity-20" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors" title={sCard.title}>
+                                                    {sCard.title}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <Badge variant="outline" className="text-[8px] h-3 px-1 leading-none uppercase tracking-tighter">
+                                                        {sCard.type}
+                                                    </Badge>
+                                                    <span className="text-[10px] text-muted-foreground font-mono">${sCard.price.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+                                            <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
+                                                <a href={sCard.url} target="_blank" rel="noopener noreferrer">
+                                                    <ExternalLink className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100 transition-opacity" />
+                                                </a>
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-8 text-center text-[10px] text-muted-foreground italic">
+                                    No variations found for this specific player/set.
                                 </div>
                             )}
                         </CardContent>
@@ -606,7 +773,7 @@ export default function CardDetailsPage() {
                                             <DollarSign className="h-5 w-5 text-green-400 shrink-0 mt-0.5" />
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Est. Market Value</p>
+                                                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Average Asking Price</p>
                                                     <Button 
                                                         variant="ghost" 
                                                         size="icon" 
@@ -765,7 +932,7 @@ export default function CardDetailsPage() {
                                         <BarChart3 className="h-5 w-5 text-primary" />
                                         Grade Probabilities
                                     </CardTitle>
-                                    <CardDescription>Simulated odds based on era/set quality.</CardDescription>
+                                    <CardDescription>Estimated probabilities based on set quality.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-6">
                                     <div className="space-y-4">
@@ -809,53 +976,74 @@ export default function CardDetailsPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <LineChartIcon className="h-5 w-5 text-primary" />
-                                Simulated 6-Month Trend
+                                Price History
                             </CardTitle>
-                            <CardDescription>Market volatility estimation based on current value.</CardDescription>
+                            <CardDescription>
+                                {trendData.length > 0
+                                    ? `Tracked market value over ${trendData.length} day${trendData.length > 1 ? 's' : ''}.`
+                                    : 'Daily price snapshots will appear here once tracking begins.'
+                                }
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="h-[350px] w-full pt-6">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={trendData}>
-                                    <defs>
-                                        <linearGradient id="colorHistory" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
-                                    <XAxis 
-                                        dataKey="name" 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
-                                        dy={10}
-                                    />
-                                    <YAxis 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
-                                        tickFormatter={(value) => `$${value}`}
-                                    />
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: 'hsl(var(--background))', 
-                                            borderColor: 'hsl(var(--border))',
-                                            borderRadius: '8px',
-                                            fontSize: '12px'
-                                        }}
-                                        formatter={(value: number) => [`$${value.toFixed(2)}`, 'Market Value']}
-                                    />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="value" 
-                                        stroke="#38bdf8" 
-                                        strokeWidth={3}
-                                        fillOpacity={1} 
-                                        fill="url(#colorHistory)" 
-                                        animationDuration={1500}
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                            {isLoadingHistory ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
+                                </div>
+                            ) : trendData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={trendData}>
+                                        <defs>
+                                            <linearGradient id="colorHistory" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3}/>
+                                                <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
+                                        <XAxis 
+                                            dataKey="name" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
+                                            dy={10}
+                                        />
+                                        <YAxis 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
+                                            tickFormatter={(value) => `$${value}`}
+                                        />
+                                        <Tooltip 
+                                            contentStyle={{ 
+                                                backgroundColor: 'hsl(var(--background))', 
+                                                borderColor: 'hsl(var(--border))',
+                                                borderRadius: '8px',
+                                                fontSize: '12px'
+                                            }}
+                                            formatter={(value: number) => [`$${value.toFixed(2)}`, 'Market Value']}
+                                        />
+                                        <Area 
+                                            type="monotone" 
+                                            dataKey="value" 
+                                            stroke="#38bdf8" 
+                                            strokeWidth={3}
+                                            fillOpacity={1} 
+                                            fill="url(#colorHistory)" 
+                                            animationDuration={1500}
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                                        <LineChartIcon className="h-6 w-6 text-muted-foreground opacity-40" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-sm">Price tracking started</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Snapshots are taken daily. Your first data point will appear tomorrow.</p>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -903,6 +1091,119 @@ export default function CardDetailsPage() {
                     )}
                 </TabsContent>
             </Tabs>
+
+            <Dialog open={isEditingInfo} onOpenChange={setIsEditingInfo}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Edit Card Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="player" className="text-right">Player</Label>
+                            <Input 
+                                id="player" 
+                                value={infoInput.player} 
+                                className="col-span-3" 
+                                onChange={(e) => setInfoInput({...infoInput, player: e.target.value})}
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="year" className="text-right">Year</Label>
+                            <Input 
+                                id="year" 
+                                value={infoInput.year} 
+                                className="col-span-3" 
+                                onChange={(e) => setInfoInput({...infoInput, year: e.target.value})}
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="brand" className="text-right">Brand</Label>
+                            <Input 
+                                id="brand" 
+                                value={infoInput.brand} 
+                                className="col-span-3" 
+                                onChange={(e) => setInfoInput({...infoInput, brand: e.target.value})}
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="cardNumber" className="text-right">Card #</Label>
+                            <Input 
+                                id="cardNumber" 
+                                value={infoInput.cardNumber} 
+                                className="col-span-3" 
+                                onChange={(e) => setInfoInput({...infoInput, cardNumber: e.target.value})}
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="parallel" className="text-right">Parallel</Label>
+                            <Input 
+                                id="parallel" 
+                                value={infoInput.parallel} 
+                                className="col-span-3" 
+                                onChange={(e) => setInfoInput({...infoInput, parallel: e.target.value})}
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="condition" className="text-right">Condition</Label>
+                            <Select 
+                                value={infoInput.condition} 
+                                onValueChange={(value) => setInfoInput({...infoInput, condition: value})}
+                            >
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Select condition" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CARD_CONDITIONS.map((condition) => (
+                                        <SelectItem key={condition} value={condition}>
+                                            {condition}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="grader" className="text-right">Grader</Label>
+                            <Select 
+                                value={infoInput.grader} 
+                                onValueChange={(value) => setInfoInput({...infoInput, grader: value})}
+                            >
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Select grader" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CARD_GRADERS.map((grader) => (
+                                        <SelectItem key={grader} value={grader}>
+                                            {grader}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="grade" className="text-right">Grade</Label>
+                            <Select 
+                                value={infoInput.estimatedGrade} 
+                                onValueChange={(value) => setInfoInput({...infoInput, estimatedGrade: value})}
+                            >
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Select grade" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CARD_GRADES.map((grade) => (
+                                        <SelectItem key={grade} value={grade}>
+                                            {grade}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditingInfo(false)}>Cancel</Button>
+                        <Button onClick={handleSaveInfo}>Save Changes</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

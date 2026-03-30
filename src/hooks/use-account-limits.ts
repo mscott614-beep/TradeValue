@@ -13,7 +13,8 @@ export function useAccountLimits() {
 
   const portfoliosCollection = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return collection(firestore, `users/${user.uid}/portfolios`);
+    // Ensure path is consistent across all hooks
+    return collection(firestore, 'users', user.uid, 'portfolios');
   }, [firestore, user]);
 
   const { data: cards, isLoading: isCollectionLoading } = useCollection<Portfolio>(portfoliosCollection);

@@ -25,6 +25,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -38,6 +46,7 @@ import {
   Search,
   LayoutGrid,
   List,
+  Edit2,
 } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
@@ -52,6 +61,7 @@ import { writeBatch } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAccountLimits } from '@/hooks/use-account-limits';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { AlertCircle } from 'lucide-react';
 
 type SortableField = 'player' | 'currentMarketValue' | 'year';
@@ -73,6 +83,10 @@ export default function CollectionPage() {
     key: 'player',
     direction: 'asc',
   });
+
+  const [editingCard, setEditingCard] = useState<Portfolio | null>(null);
+  const [tempTitle, setTempTitle] = useState('');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const portfoliosCollection = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -146,6 +160,25 @@ export default function CollectionPage() {
       downloadCSV(filteredAndSortedCards);
     }
   }, [filteredAndSortedCards]);
+
+  const openEditDialog = (card: Portfolio) => {
+    setEditingCard(card);
+    setTempTitle(card.title);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveTitle = () => {
+    if (!user || !firestore || !editingCard || !tempTitle.trim()) return;
+
+    const docRef = doc(firestore, `users/${user.uid}/portfolios`, editingCard.id);
+    updateDocumentNonBlocking(docRef, {
+      title: tempTitle.trim()
+    });
+
+    setIsEditDialogOpen(false);
+    setEditingCard(null);
+    toast.success('Title updated successfully');
+  };
 
   return (
     <>
@@ -326,6 +359,10 @@ export default function CollectionPage() {
                             <DropdownMenuItem onClick={() => router.push(`/collection/${card.id}`)}>
                               View Details
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditDialog(card)}>
+                              <Edit2 className="mr-2 h-4 w-4" />
+                              Edit Title
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleDelete(card.id)} className="text-destructive">
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -404,6 +441,37 @@ export default function CollectionPage() {
           )}
         </div>
       )}
+
+      {/* Edit Title Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Card Title</DialogTitle>
+            <DialogDescription>
+              Correct the card title below. This will be reflected across your entire collection.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <label htmlFor="title" className="text-sm font-medium">Title</label>
+              <Input
+                id="title"
+                value={tempTitle}
+                onChange={(e) => setTempTitle(e.target.value)}
+                placeholder="Enter card title..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveTitle}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

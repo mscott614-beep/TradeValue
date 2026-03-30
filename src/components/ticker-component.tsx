@@ -2,36 +2,36 @@
 
 import React from 'react';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
-import { collection, query, limit } from 'firebase/firestore';
+import { collection, query, limit, orderBy } from 'firebase/firestore';
 import { useDemo } from '@/context/demo-context';
+import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
+import type { Portfolio } from '@/lib/types';
 
-interface MarketPrice {
-  id: string;
-  name: string;
-  price: string;
-  change: string;
-  up: boolean;
-}
 export function TickerComponent() {
   const firestore = useFirestore();
   const { isDemo, setIsDemo } = useDemo();
+  const { user } = useUser();
   const router = useRouter();
 
-  const pricesQuery = useMemoFirebase(() => {
-    return query(collection(firestore, 'market_prices'), limit(20));
-  }, [firestore]);
+  // Query the user's portfolio for ticker data
+  const portfolioQuery = useMemoFirebase(() => {
+    if (!user || !firestore || isDemo) return null;
+    // Standardized path across components
+    return query(collection(firestore, 'users', user.uid, 'portfolios'), limit(20));
+  }, [firestore, user, isDemo]);
 
-  const { data: prices, isLoading } = useCollection<MarketPrice>(pricesQuery);
+  const { data: portfolioCards, isLoading } = useCollection<Portfolio>(portfolioQuery);
 
   const handleExitDemo = () => {
     setIsDemo(false);
     router.push('/');
   };
 
-  if (isDemo) {
+  // Demo mode: show hardcoded whale data ONLY if no user is logged in or explicitly in demo
+  if (isDemo && !user) {
     const whaleData = [
       { name: '1952 Mickey Mantle #311 PSA 9', price: '$12,600,000', change: '+2.4%', up: true },
       { name: '1979 O-Pee-Chee Wayne Gretzky RC PSA 10', price: '$3,750,000', change: '+0.8%', up: true },
@@ -42,19 +42,25 @@ export function TickerComponent() {
     return <TickerLayout items={whaleData} isDemo={true} onExit={handleExitDemo} />;
   }
 
-  if (isLoading || !prices || prices.length === 0) {
-    const fallbackData = [
-      { name: '1999 Base Set Charizard', price: '$420,000', change: '+5.2%', up: true },
-      { name: '2000 Tom Brady RC', price: '$2,500', change: '+12.8%', up: true },
-      { name: '2023 Connor Bedard Young Guns', price: '$850', change: '-2.1%', up: false },
-      { name: '1986 Fleer Michael Jordan', price: '$15,400', change: '+1.4%', up: true },
-      { name: '2015 Connor McDavid Collection', price: '$1,200', change: '+8.5%', up: true },
-    ];
-    
-    return <TickerLayout items={fallbackData} />;
+  // Build ticker items from the user's own portfolio
+  const tickerItems = (portfolioCards || [])
+    .filter(card => card.currentMarketValue && card.currentMarketValue > 0)
+    .map(card => {
+      const change24h = card.valueChange24hPercent || 0;
+      return {
+        name: `${card.year} ${card.brand} ${card.player}`.trim(),
+        price: `$${card.currentMarketValue!.toLocaleString()}`,
+        change: `${change24h >= 0 ? '+' : ''}${change24h.toFixed(1)}%`,
+        up: change24h >= 0,
+      };
+    });
+
+  if (isLoading || tickerItems.length === 0) {
+    // Show nothing if portfolio is empty — no fake data
+    return null;
   }
 
-  return <TickerLayout items={prices} />;
+  return <TickerLayout items={tickerItems} />;
 }
 
 function TickerLayout({ items, isDemo, onExit }: { items: any[], isDemo?: boolean, onExit?: () => void }) {

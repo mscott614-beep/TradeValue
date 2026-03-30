@@ -101,6 +101,59 @@
   .animate-slide-up {
     animation: slideUp 0.8s ease-out forwards;
   }
+
+  /* Investor Report Utilities */
+  .font-serif {
+    font-family: var(--font-serif), Georgia, serif;
+  }
+  .font-sans {
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+  
+  .report-text-gain {
+    color: #39FF14;
+  }
+  .report-text-loss {
+    color: #FF3131;
+  }
+
+  .report-container {
+    line-height: 1.6;
+    letter-spacing: -0.011em;
+  }
+
+  .report-section {
+    padding-bottom: 2rem;
+  }
+
+  .report-callout {
+    @apply bg-muted/30 border-l-4 border-primary p-6 my-6 rounded-r-lg;
+    background-color: rgba(120, 120, 120, 0.05);
+  }
+
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    .print-only {
+      display: block !important;
+    }
+    body {
+      background: white !important;
+      color: black !important;
+    }
+    .report-card {
+      border: none !important;
+      box-shadow: none !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    @page {
+      margin: 2cm;
+      size: auto;
+    }
+  }
 }
 
 @keyframes marquee {

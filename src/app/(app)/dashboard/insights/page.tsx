@@ -47,7 +47,19 @@ export default function InsightsPage() {
         setIsGenerating(true);
         setError(null);
         try {
-            const response = await getPortfolioInsightsAction(cards);
+            // Trim to only the fields the AI flow needs to stay under the 1 MB server action body limit
+            const trimmedCards = cards.map(c => ({
+                year: c.year,
+                brand: c.brand,
+                player: c.player,
+                condition: c.condition,
+                currentMarketValue: c.currentMarketValue,
+                parallel: c.parallel,
+                cardNumber: c.cardNumber,
+                grader: c.grader,
+                purchasePrice: c.purchasePrice,
+            }));
+            const response = await getPortfolioInsightsAction(user!.uid);
             if (response.success && response.result) {
                 setInsights(response.result as InsightResult);
             } else {

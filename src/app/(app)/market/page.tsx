@@ -7,18 +7,38 @@ import { generateAuctionsAction } from "@/app/actions/generate-auctions";
 import { generateTrendingCardsAction } from "@/app/actions/generate-trending-cards";
 import type { AuctionListing } from "@/ai/flows/generate-live-auctions";
 import type { TrendingCard } from "@/ai/flows/generate-trending-cards";
-import ReactMarkdown from 'react-markdown';
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { AuctionList } from "@/components/market/auction-list";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Flame, FileText, WandSparkles, Scale, ExternalLink, RefreshCw } from "lucide-react";
+import { 
+  Loader2, 
+  TrendingUp, 
+  TrendingDown, 
+  Flame, 
+  FileText, 
+  WandSparkles, 
+  Scale, 
+  ExternalLink, 
+  RefreshCw,
+  Printer
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-
-
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from "@/components/ui/tabs";
+import { AuctionList } from "@/components/market/auction-list";
+import { MarketReportDocument } from "@/components/market/MarketReportDocument";
 
 // Map AI-generated listing to the Auction shape expected by AuctionList
 function toAuction(listing: AuctionListing) {
@@ -47,6 +67,7 @@ function toAuction(listing: AuctionListing) {
     bids: listing.bids,
     timeLeft: listing.timeLeft,
     watchlist: false,
+    url: listing.url,
   };
 }
 
@@ -103,6 +124,10 @@ export default function MarketPage() {
     loadAuctions(auctionTopic.trim() || undefined);
   };
 
+  const handlePrintReport = () => {
+    window.print();
+  };
+
   const handleExportToGoogleDocs = async () => {
     if (!report) return;
     const plain = report
@@ -113,11 +138,11 @@ export default function MarketPage() {
       .replace(/^[-*]\s+/gm, "• ");
     try {
       await navigator.clipboard.writeText(plain);
-      toast.success("Report copied! Paste it into your new Google Doc.", { duration: 6000 });
+      toast.success("Report copied! Open Google Docs to paste.", { duration: 6000 });
+      window.open("https://docs.new", "_blank");
     } catch {
-      toast.error("Could not copy to clipboard. Please copy the report text manually.");
+      toast.error("Could not copy to clipboard.");
     }
-    window.open("https://docs.new", "_blank");
   };
 
   const handleGenerateReport = async () => {
@@ -127,10 +152,11 @@ export default function MarketPage() {
       const response = await generateReportAction(topic.trim() || undefined);
       if (response.success && response.result) {
         setReport(response.result);
+        toast.success("Investor-grade report generated!");
       } else {
         const errMsg = response.error || "";
-        if (errMsg.includes("429") || errMsg.includes("Quota exceeded") || errMsg.includes("Too Many Requests")) {
-          toast.error("AI Quota Exceeded. Please wait a minute for your limit to reset and try again.");
+        if (errMsg.includes("429") || errMsg.includes("Quota exceeded")) {
+          toast.error("AI Quota Exceeded. Please try again in 60 seconds.");
         } else {
           toast.error(`Report generation failed: ${errMsg}`);
         }
@@ -144,7 +170,7 @@ export default function MarketPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 no-print">
         <PageHeader
           title="Market Hub"
           description="Track live auctions, analyze trending cards, and generate AI market reports."
@@ -158,26 +184,16 @@ export default function MarketPage() {
       </div>
 
       <Tabs defaultValue="auctions" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] no-print">
           <TabsTrigger value="auctions">Live Auctions</TabsTrigger>
           <TabsTrigger value="intelligence">Market Intelligence</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="auctions" className="mt-6 space-y-4">
-          {/* Coming Soon watermark */}
+        <TabsContent value="auctions" className="mt-6 space-y-4 no-print">
           <div className="relative">
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-lg">
-              <span
-                className="rotate-[-35deg] select-none text-[clamp(2.5rem,8vw,5rem)] font-black uppercase tracking-widest text-foreground/[0.07] whitespace-nowrap"
-                style={{ letterSpacing: "0.25em" }}
-              >
-                Coming Soon
-              </span>
-            </div>
-            {/* Auction search / refresh bar */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-4">
               <Input
-                placeholder="Filter by topic (e.g. McDavid, PSA 10, rookies)…"
+                placeholder="Filter auctions (e.g. McDavid, PSA 10 rookies)…"
                 value={auctionTopic}
                 onChange={(e) => setAuctionTopic(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleRefreshAuctions()}
@@ -199,9 +215,9 @@ export default function MarketPage() {
             </div>
 
             {isLoadingAuctions ? (
-              <div className="space-y-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="rounded-lg border bg-card animate-pulse h-48" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3, 6].map((i) => (
+                  <div key={i} className="rounded-xl border bg-card animate-pulse h-64" />
                 ))}
               </div>
             ) : (
@@ -211,108 +227,134 @@ export default function MarketPage() {
         </TabsContent>
 
         <TabsContent value="intelligence" className="mt-6 space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Flame className="w-5 h-5 text-orange-500" />
-                    Trending Cards
-                  </CardTitle>
-                  <Button variant="ghost" size="sm" onClick={loadTrending} disabled={isLoadingTrending} className="gap-1.5 text-xs">
-                    {isLoadingTrending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                    Refresh
-                  </Button>
-                </div>
-                <CardDescription>AI-curated biggest movers this week.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingTrending ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="h-16 rounded-lg bg-muted/50 animate-pulse" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {trending.map((item) => (
-                      <div key={item.id} className="flex items-start justify-between p-3 bg-muted/50 rounded-lg gap-3">
-                        <div className="min-w-0">
-                          <div className="font-semibold truncate">{item.player}</div>
-                          <div className="text-sm text-muted-foreground truncate">{item.title}</div>
-                          <div className="text-xs text-muted-foreground/70 mt-0.5 line-clamp-1 italic">{item.reason}</div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="font-bold">{item.value}</div>
-                          <Badge
-                            variant="outline"
-                            className={`mt-1 flex items-center gap-1 ${item.trend === "up" ? "text-green-500 border-green-500/30" : "text-red-400 border-red-400/30"}`}
-                          >
-                            {item.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                            {item.change}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="flex flex-col">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-primary" />
-                    Weekly Market Report
-                  </CardTitle>
-                  {report && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportToGoogleDocs}
-                      className="text-xs gap-1.5"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      Export to Google Docs
+          <div className="grid gap-6 lg:grid-cols-3">
+            
+            {/* Trending Cards Column */}
+            <div className="lg:col-span-1 no-print">
+              <Card className="sticky top-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Flame className="w-5 h-5 text-orange-500" />
+                      Trending Cards
+                    </CardTitle>
+                    <Button variant="ghost" size="sm" onClick={loadTrending} disabled={isLoadingTrending} className="h-8 w-8 p-0">
+                      <RefreshCw className={cn("w-4 h-4", isLoadingTrending && "animate-spin")} />
                     </Button>
-                  )}
-                </div>
-                <CardDescription>AI-generated analysis of current market conditions.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col p-6 min-h-[300px]">
-                {report ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-h1:text-xl prose-h2:text-lg prose-h3:text-md">
-                    <ReactMarkdown>{report}</ReactMarkdown>
                   </div>
-                ) : (
-                  <div className="flex-1 flex flex-col justify-center items-center text-center bg-muted/30 rounded-lg border border-dashed p-6">
-                    <FileText className="w-12 h-12 text-muted-foreground/50 mb-4" />
-                    <h3 className="font-semibold mb-2">No Recent Report Generated</h3>
-                    <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-                      Generate a fresh AI market analysis to get insights on hot players, cold streaks, and investment opportunities.
-                    </p>
-                    <div className="flex w-full max-w-sm items-center space-x-2">
-                      <Input
-                        type="text"
-                        placeholder="Optional: Enter a specific topic (e.g. Connor McDavid)"
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        disabled={isGenerating}
-                      />
-                      <Button onClick={handleGenerateReport} disabled={isGenerating}>
-                        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <><WandSparkles className="w-4 h-4 mr-2" />Generate</>}
-                      </Button>
+                  <CardDescription>Real-time market movers and shakers.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingTrending ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="h-16 rounded-lg bg-muted/50 animate-pulse" />
+                      ))}
                     </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {trending.map((item) => (
+                        <div key={item.id} className="flex items-start justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-lg gap-3 text-sm border border-transparent hover:border-border/50">
+                          <div className="min-w-0">
+                            <div className="font-bold truncate">{item.player}</div>
+                            <div className="text-xs text-muted-foreground truncate">{item.title}</div>
+                            <div className="text-[10px] text-primary/70 mt-1 line-clamp-2 leading-tight italic">{item.reason}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-mono font-bold">{item.value}</div>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "mt-1.5 px-1 py-0 text-[10px] flex items-center gap-0.5 border-none bg-transparent",
+                                item.trend === "up" ? "text-green-500" : "text-red-400"
+                              )}
+                            >
+                              {item.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                              {item.change}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Report Column */}
+            <div className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-4 no-print">
+                <div>
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Market Intelligence Report
+                  </h3>
+                  <p className="text-sm text-muted-foreground italic">Generated: {new Date().toLocaleDateString()}</p>
+                </div>
+                {report && (
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handlePrintReport} className="h-8 gap-2">
+                      <Printer className="w-3.5 h-3.5" /> PDF
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={handleExportToGoogleDocs} className="h-8 gap-2">
+                      <ExternalLink className="w-3.5 h-3.5" /> Export
+                    </Button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
 
+              {report ? (
+                <div className="print:shadow-none bg-transparent">
+                  <MarketReportDocument content={report} />
+                </div>
+              ) : (
+                <Card className="flex flex-col items-center justify-center text-center p-12 border-dashed bg-muted/20">
+                  <div className="bg-primary/10 p-4 rounded-full mb-6">
+                    <WandSparkles className="w-10 h-10 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">No Report Active</h3>
+                  <p className="text-sm text-muted-foreground mb-8 max-w-sm">
+                    Leverage our AI engine to synthesize a professional market report based on current auction trends and historical data.
+                  </p>
+                  <div className="flex w-full max-w-md items-center space-x-2">
+                    <Input
+                      type="text"
+                      placeholder="Optional topic (e.g. Modern Hockey PSA 10)"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      disabled={isGenerating}
+                      className="bg-background"
+                    />
+                    <Button onClick={handleGenerateReport} disabled={isGenerating} className="shrink-0 gap-2">
+                      {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate"}
+                    </Button>
+                  </div>
+                </Card>
+              )}
+            </div>
           </div>
         </TabsContent>
       </Tabs>
+      
+      <style jsx global>{`
+        @media print {
+          .no-print, header, nav, footer, aside, .sidebar { 
+            display: none !important; 
+          }
+          body {
+            background-color: white !important;
+            color: black !important;
+          }
+          .space-y-6 {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+        }
+      `}</style>
     </div>
   );
+}
+
+function cn(...inputs: any[]) {
+  return inputs.filter(Boolean).join(" ");
 }

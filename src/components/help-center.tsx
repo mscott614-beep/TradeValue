@@ -65,7 +65,7 @@ const features = [
     icon: CreditCard,
     title: "Card Details",
     description:
-      "Deep-dive into any card: edit attributes, run AI Analysis, check grading ROI, and view price history.",
+      "Deep-dive into any card: edit attributes, run AI Analysis, and view 24h price history snapshots with direct eBay matches.",
     href: "/collection",
     badge: "AI Powered",
     color: "text-primary",
@@ -77,9 +77,9 @@ const features = [
     icon: LayoutDashboard,
     title: "Portfolio Dashboard",
     description:
-      "6-month value chart, Total P&L, Raw vs. Graded breakdown, and your top daily performers.",
+      "Real-time value history, Total P&L, and a dynamic Market Ticker driven by your unique portfolio performance.",
     href: "/dashboard",
-    badge: "Real-time",
+    badge: "Production",
     color: "text-emerald-500",
     bg: "bg-emerald-500/10",
     infographic: "/infographics/portfolio-dashboard-infographic.png",
@@ -113,7 +113,7 @@ const features = [
     icon: ShoppingCart,
     title: "Market Hub",
     description:
-      "Browse live auctions, generate weekly AI market reports, and compare two cards side-by-side.",
+      "Browse live auctions with direct bidding links, generate AI market reports, and compare cards side-by-side.",
     href: "/market",
     badge: "Market",
     color: "text-pink-500",
@@ -125,7 +125,7 @@ const features = [
     icon: Lightbulb,
     title: "Tips & Best Practices",
     description:
-      "Get the most out of TradeValue: set your cost basis, use AI CSV enhancement, and run monthly insights.",
+      "Get the most out of TradeValue: set your cost basis, use AI CSV enhancement, and watch the real-time ticker.",
     href: "#faq",
     badge: "Guide",
     color: "text-teal-500",
@@ -143,13 +143,13 @@ const faqs = [
     category: "Adding Cards",
     question: "What's the best way to add a single graded card?",
     answer:
-      "Use Camera Scan on the Add Cards page. Upload a photo of the front (and optionally the back) and the AI will read the slab label, identify the player, year, brand, and grading company, then estimate current market value. Place the card on a dark, non-reflective surface in natural light for best results.",
+      "Use Camera Scan on the Add Cards page. Upload a photo of the front (and optionally the back) and the AI will read the slab label, identify the player, year, brand, and grading company, then estimate its average asking price. Place the card on a dark, non-reflective surface in natural light for best results.",
   },
   {
     category: "Adding Cards",
-    question: "How do I bulk import my eBay sold listings?",
+    question: "How do I bulk import my card collection?",
     answer:
-      "Go to Add Cards → CSV Import tab. Upload your eBay export CSV. Common headers like \"Item Title\", \"Sold Price\", and \"Sale Date\" are auto-recognized. Click \"Enhance Rows with AI\" to have the AI clean up titles and extract Player, Year, Brand, Condition, Parallel, and Special Features automatically.",
+      "Go to Add Cards → CSV Import tab. Upload your collection CSV. Common headers like \"Item Title\", \"Purchase Price\", and \"Purchase Date\" are auto-recognized. Click \"Enhance Rows with AI\" to have the AI clean up titles and extract Player, Year, Brand, Condition, Parallel, and Special Features automatically.",
   },
   {
     category: "Adding Cards",
@@ -234,6 +234,24 @@ const faqs = [
     question: "Can I focus the Weekly Market Report on a specific topic?",
     answer:
       "Yes. On the Market → Market Intelligence tab, type a topic in the optional input field before clicking Generate (e.g., \"Connor McDavid\" or \"Junk Wax era\"). A focused report is far more actionable than a general overview.",
+  },
+  {
+    category: "Portfolio",
+    question: "Where does the Market Ticker get its data?",
+    answer:
+      "The ticker at the bottom of your screen displays real-time prices and 24-hour value changes pulled from official eBay active listings. It only displays cards with a valid asking price. If you are not logged in, it may show demo ‘whale’ data to demonstrate its functionality.",
+  },
+  {
+    category: "Portfolio",
+    question: "How is the 24-hour value change calculated?",
+    answer:
+      "Every midnight UTC, our engine takes a ‘snapshot’ of your portfolio’s total value and each card’s market price. The ticker and dashboard charts then compare your current live value against the previous day’s snapshot to show accurate gains or losses.",
+  },
+  {
+    category: "Market Hub",
+    question: "Are the eBay auctions live and clickable?",
+    answer:
+      "Yes! Every auction displayed in the Market Hub is actively running on eBay. You can click on the auction title or image to open the listing directly on eBay in a new tab for seamless bidding.",
   },
 ];
 

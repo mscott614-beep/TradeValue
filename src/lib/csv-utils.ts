@@ -12,7 +12,7 @@ export function downloadCSV(cards: Portfolio[]) {
         'Parallel/Refractor': card.parallel || '',
         'Special Features': card.features?.join(', ') || '',
         'Purchase Price': card.purchasePrice || 0,
-        'Current Market Value': card.currentMarketValue || 0,
+        'Average Asking Price': card.currentMarketValue || 0,
         'Date Added': card.dateAdded ? new Date(card.dateAdded).toISOString().split('T')[0] : '', // Format date locally
         'Card ID': card.id // Useful if they want to re-import updates later
     }));
@@ -43,7 +43,7 @@ const headerSynonyms: Record<string, string[]> = {
     brand: ["Brand/Set", "Set", "Brand", "Manufacturer", "Product", "Series"],
     condition: ["Condition", "Grade", "Professional Grade", "Card Condition"],
     purchasePrice: ["Purchase Price", "Price", "Sold For", "Paid", "Cost", "Price Paid"],
-    currentMarketValue: ["Current Market Value", "Value", "Market Price", "Est Value", "Estimated Value"],
+    currentMarketValue: ["Average Asking Price", "Market Listed", "Current Market Value", "Value", "Market Price", "Est Value", "Estimated Value"],
     cardNumber: ["Card Number", "Card #", "Number", "#"],
     parallel: ["Parallel/Refractor", "Parallel", "Refractor", "Variant"],
     features: ["Special Features", "Features", "Attributes", "Notes"]

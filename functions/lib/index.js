@@ -33,9 +33,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
+exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const tasks_1 = require("firebase-functions/v2/tasks");
+const scheduler_1 = require("firebase-functions/v2/scheduler");
 const functions_1 = require("firebase-admin/functions");
 const admin = __importStar(require("firebase-admin"));
 const params_1 = require("firebase-functions/params");
@@ -178,35 +179,54 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
         try {
             const EbayServiceClass = await loadEbay();
             const ebay = new EbayServiceClass(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
-            // Search eBay using the identified metadata including condition
-            let conditionStr = "";
-            if (result.grader !== "None") {
-                conditionStr = `${result.grader} ${result.estimatedGrade}`;
+            const { buildEbayQuery, calculateTradeValue } = await Promise.resolve().then(() => __importStar(require("./ebay-pricing")));
+            // Search eBay using the identified metadata
+            const { type, query: primaryQuery } = buildEbayQuery({
+                year: result.year,
+                brand: result.brand,
+                player: result.player,
+                cardNumber: result.cardNumber,
+                parallel: result.parallel,
+            });
+            const isChecklistSearch = (result.player || "").toLowerCase().includes("checklist") ||
+                (result.brand || "").toLowerCase().includes("checklist");
+            const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale';
+            let finalQuery = primaryQuery;
+            if (!isChecklistSearch && !finalQuery.includes('-checklist')) {
+                finalQuery += EXCLUSIONS;
+            }
+            console.log(`[Enrichment] Lead Architect Query (${type}): "${finalQuery}"`);
+            let ebayData = await ebay.searchActiveItems(finalQuery, 10);
+            let rawItems = ebayData.itemSummaries || [];
+            // 2. Soft Query Fallback (Tier 2): Player + Parallel + Number (removes Year/Brand noise)
+            if (rawItems.length === 0) {
+                const cleanNumber = (result.cardNumber || '').replace('#', '');
+                const parallelStr = result.parallel && result.parallel.toLowerCase() !== 'base' ? result.parallel : '';
+                let softQuery = `${result.player} ${parallelStr} ${cleanNumber}`.trim();
+                if (!isChecklistSearch)
+                    softQuery += EXCLUSIONS;
+                console.log(`[Enrichment] Tier 1 failed. Trying Tier 2 Soft Fallback: "${softQuery}"`);
+                ebayData = await ebay.searchActiveItems(softQuery, 10);
+                rawItems = ebayData.itemSummaries || [];
+            }
+            // 3. Softest Query Fallback (Tier 3): Player + Brand + Parallel (NO card number)
+            if (rawItems.length === 0) {
+                const parallelStr = result.parallel && result.parallel.toLowerCase() !== 'base' ? result.parallel : '';
+                let softestQuery = `${result.player} ${result.brand} ${parallelStr}`.trim();
+                if (!isChecklistSearch)
+                    softestQuery += EXCLUSIONS;
+                console.log(`[Enrichment] Tier 2 failed. Trying Tier 3 Softest Fallback: "${softestQuery}"`);
+                ebayData = await ebay.searchActiveItems(softestQuery, 10);
+                rawItems = ebayData.itemSummaries || [];
+            }
+            // 4. Calculate TradeValue using the "Floor Median" Rule
+            const calc = calculateTradeValue(rawItems);
+            if (calc.value > 0) {
+                console.log(`eBay enrichment successful. Found ${rawItems.length} items. Logic: ${calc.logic}. Price: ${calc.value}`);
+                result.estimatedMarketValue = calc.value;
             }
             else {
-                // EXCLUSION: For raw cards, explicitly exclude graded terms to prevent price inflation
-                conditionStr = "Raw -PSA -BGS -SGC -CGC -GMA -Graded -Slab -Auth";
-            }
-            const searchQuery = `${result.year} ${result.brand} ${result.player} ${result.cardNumber || ""} ${result.parallel || ""} ${conditionStr}`.trim();
-            console.log(`Enriching result with eBay data for query: "${searchQuery}"`);
-            const ebayData = await ebay.searchActiveAuctions(searchQuery, 10);
-            if (ebayData.itemSummaries && ebayData.itemSummaries.length > 0) {
-                // Use MEDIAN price for better outlier rejection
-                const prices = ebayData.itemSummaries
-                    .map((item) => parseFloat(item.price.value))
-                    .filter((p) => !isNaN(p))
-                    .sort((a, b) => a - b);
-                if (prices.length > 0) {
-                    const mid = Math.floor(prices.length / 2);
-                    const medianPrice = prices.length % 2 !== 0
-                        ? prices[mid]
-                        : (prices[mid - 1] + prices[mid]) / 2;
-                    console.log(`eBay enrichment successful. Found ${prices.length} items. Updating price from ${result.estimatedMarketValue} to Median: ${medianPrice.toFixed(2)}`);
-                    result.estimatedMarketValue = parseFloat(medianPrice.toFixed(2));
-                }
-            }
-            else {
-                console.log(`No active eBay auctions found for "${searchQuery}". Falling back to AI estimation ${result.estimatedMarketValue}`);
+                console.log(`No active eBay matches found for "${finalQuery}". Using AI estimate: ${result.estimatedMarketValue}`);
             }
         }
         catch (ebayError) {
@@ -245,5 +265,71 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
             updatedAt: new Date().toISOString(),
         });
     }
+});
+exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
+    schedule: "0 0 * * *", // Midnight UTC daily
+    timeZone: "UTC",
+    region: "us-central1",
+    timeoutSeconds: 300,
+    memory: "256MiB",
+}, async () => {
+    const db = admin.firestore();
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    console.log(`[PriceSnapshot] Starting daily snapshot for ${today}`);
+    const usersSnap = await db.collection("users").listDocuments();
+    let totalCards = 0;
+    for (const userDocRef of usersSnap) {
+        const portfolioSnap = await userDocRef.collection("portfolios").get();
+        const batch = db.batch();
+        let batchCount = 0;
+        let totalPortfolioValue = 0;
+        const yesterday = new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split("T")[0];
+        for (const cardDoc of portfolioSnap.docs) {
+            const cardData = cardDoc.data();
+            const value = cardData.currentMarketValue;
+            if (typeof value === "number" && value > 0) {
+                totalPortfolioValue += value;
+                // 1. Save history snapshot
+                const historyRef = cardDoc.ref
+                    .collection("priceHistory")
+                    .doc(today);
+                batch.set(historyRef, {
+                    value,
+                    timestamp: new Date().toISOString(),
+                }, { merge: true });
+                // 2. Calculate 24h change if yesterday's snapshot exists
+                const yesterdaySnap = await cardDoc.ref.collection("priceHistory").doc(yesterday).get();
+                if (yesterdaySnap.exists) {
+                    const yesterdayValue = yesterdaySnap.data()?.value;
+                    if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
+                        const diff = value - yesterdayValue;
+                        const percent = (diff / yesterdayValue) * 100;
+                        batch.update(cardDoc.ref, {
+                            valueChange24h: diff,
+                            valueChange24hPercent: Math.round(percent * 100) / 100
+                        });
+                    }
+                }
+                batchCount++;
+                totalCards++;
+            }
+        }
+        // Record total portfolio value for the user
+        if (totalPortfolioValue > 0) {
+            const portfolioHistoryRef = userDocRef
+                .collection("portfolioHistory")
+                .doc(today);
+            batch.set(portfolioHistoryRef, {
+                totalValue: totalPortfolioValue,
+                timestamp: new Date().toISOString(),
+                cardCount: portfolioSnap.size
+            }, { merge: true });
+            batchCount++;
+        }
+        if (batchCount > 0) {
+            await batch.commit();
+        }
+    }
+    console.log(`[PriceSnapshot] Done. Snapshotted ${totalCards} cards for ${today}.`);
 });
 //# sourceMappingURL=index.js.map

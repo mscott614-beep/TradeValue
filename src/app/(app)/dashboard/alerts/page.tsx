@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Bell, TrendingUp, TrendingDown, AlertTriangle, Settings, RefreshCw, CheckCircle2 } from "lucide-react";
-import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, updateDoc, doc, setDoc } from "firebase/firestore";
 import type { AlertConfig, Portfolio, MarketAlert } from "@/lib/types";
 import { runMarketScannerAction } from "@/app/actions/run-market-scanner";
@@ -35,28 +35,72 @@ export default function AlertsDashboardPage() {
         return collection(firestore, `users/${user.uid}/marketAlerts`);
     }, [firestore, user]);
 
-    const { data: cards } = useCollection<Portfolio>(portfoliosCollection);
-    const { data: configs } = useCollection<AlertConfig>(alertsConfigCollection);
-    const { data: alerts, isLoading: loadingAlerts } = useCollection<MarketAlert>(marketAlertsCollection);
+    const metadataDocRef = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return doc(firestore, `users/${user.uid}/metadata/scanner`);
+    }, [firestore, user]);
+
+    const { data: cards, error: portfoliosError } = useCollection<Portfolio>(portfoliosCollection);
+    const { data: configs, error: configsError } = useCollection<AlertConfig>(alertsConfigCollection);
+    const { data: alerts, isLoading: loadingAlerts, error: alertsError } = useCollection<MarketAlert>(marketAlertsCollection);
+    const { data: metadata, error: metadataError } = useDoc<any>(metadataDocRef);
+
+    useEffect(() => {
+        if (user) {
+            console.log(`[AlertsPage] UID: ${user.uid}`);
+            console.log(`[AlertsPage] Email: ${user.email}`);
+            console.log(`[AlertsPage] Fetching: users/${user.uid}/marketAlerts`);
+        }
+    }, [user]);
+
+    // Handle any fetch errors
+    const anyError = portfoliosError || configsError || alertsError || metadataError;
+
+    useEffect(() => {
+        if (anyError) {
+            console.error('[AlertsPage] Firestore Sync Error:', anyError);
+            if (anyError instanceof Error && 'code' in anyError && (anyError as any).code === 'permission-denied') {
+                toast.error("Permission Denied: Ensure you are logged into the correct account and perform a hard refresh (Ctrl+Shift+R).");
+            }
+        }
+    }, [anyError]);
 
     // Sort alerts by timestamp descending (newest first)
     const sortedAlerts = alerts ? [...alerts].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) : [];
     const unreadCount = sortedAlerts.filter(a => !a.read).length;
 
+    const [scanType, setScanType] = useState<'standard' | 'deep'>('standard');
+
+    const lastFullScan = metadata?.lastFullScan ? new Date(metadata.lastFullScan) : null;
+    const isExempt = user?.email === 'mscott614@gmail.com';
+    const canRunDeepScan = isExempt || !lastFullScan || (Date.now() - lastFullScan.getTime() > 24 * 60 * 60 * 1000);
+
     const handleRunScan = async () => {
-        if (!cards || cards.length === 0) {
-            toast.error("You need cards in your portfolio to run a scan.");
+        if (scanType === 'deep' && !canRunDeepScan) {
+            const nextAvailable = new Date(lastFullScan!.getTime() + 24 * 60 * 60 * 1000);
+            toast.error(`Deep Scan limit reached. Next available: ${nextAvailable.toLocaleTimeString()}`);
             return;
         }
 
         setIsScanning(true);
+        const scanToast = toast.loading(scanType === 'deep' ? "Performing Deep Portfolio Scan... this may take 15-30s" : "Running Market Scan...");
+        
         try {
-            const response = await runMarketScannerAction(cards, configs?.filter(c => c.isActive) || []);
+            const response = await runMarketScannerAction(
+                user!.uid,
+                scanType,
+                user?.email || undefined
+            );
 
             if (response.success && response.result && firestore && user) {
                 const newAlerts = response.result.alerts;
+                
+                // If deep scan, update the limit metadata
+                if (scanType === 'deep' && !isExempt) {
+                    await setDoc(metadataDocRef!, { lastFullScan: new Date().toISOString() }, { merge: true });
+                }
+
                 if (newAlerts && newAlerts.length > 0) {
-                    // Save these new alerts to Firestore to persist them in the user's inbox
                     const batchPromises = newAlerts.map((alert: any) => {
                         const alertDocRef = doc(collection(firestore, `users/${user.uid}/marketAlerts`));
                         return setDoc(alertDocRef, {
@@ -66,16 +110,16 @@ export default function AlertsDashboardPage() {
                         });
                     });
                     await Promise.all(batchPromises);
-                    toast.success(`Scan complete! Generated ${newAlerts.length} new insights.`);
+                    toast.success(`Scan complete! Generated ${newAlerts.length} new insights.`, { id: scanToast });
                 } else {
-                    toast.info("Scan complete. No significant market movements detected.");
+                    toast.info("Scan complete. No significant market movements detected.", { id: scanToast });
                 }
             } else {
-                toast.error("Failed to run scan.");
+                toast.error(response.error || "Failed to run scan.", { id: scanToast });
             }
         } catch (error) {
             console.error(error);
-            toast.error("An error occurred during the market scan.");
+            toast.error("An error occurred during the market scan.", { id: scanToast });
         } finally {
             setIsScanning(false);
         }
@@ -92,8 +136,8 @@ export default function AlertsDashboardPage() {
 
     const getAlertIcon = (type: string) => {
         switch (type) {
-            case 'drop': return <TrendingDown className="w-5 h-5 text-green-500" />; // Drop is a buying op
-            case 'rise': return <TrendingUp className="w-5 h-5 text-blue-500" />; // Rise is a selling op
+            case 'drop': return <TrendingDown className="w-5 h-5 text-green-500" />;
+            case 'rise': return <TrendingUp className="w-5 h-5 text-blue-500" />;
             case 'optimal_sell': return <CheckCircle2 className="w-5 h-5 text-purple-500" />;
             case 'red_flag': return <AlertTriangle className="w-5 h-5 text-red-500" />;
             default: return <Bell className="w-5 h-5 text-primary" />;
@@ -120,15 +164,38 @@ export default function AlertsDashboardPage() {
                     description="Your AI-curated inbox for market movements, buying opportunities, and risk alerts."
                 />
                 <div className="flex items-center gap-3">
+                    <div className="flex bg-muted p-1 rounded-lg mr-2">
+                        <button 
+                            onClick={() => setScanType('standard')}
+                            className={cn(
+                                "px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                                scanType === 'standard' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                            )}
+                        >
+                            Standard
+                        </button>
+                        <button 
+                            onClick={() => setScanType('deep')}
+                            className={cn(
+                                "px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1",
+                                scanType === 'deep' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground",
+                                !canRunDeepScan && scanType !== 'deep' ? "opacity-50 cursor-not-allowed" : ""
+                            )}
+                        >
+                            Full Portfolio
+                            {!canRunDeepScan && <Badge variant="outline" className="text-[10px] h-4 px-1 ml-1 opacity-70">1/day</Badge>}
+                        </button>
+                    </div>
+
                     <Link href="/dashboard/alerts/setup">
-                        <Button variant="outline">
+                        <Button variant="outline" size="sm">
                             <Settings className="w-4 h-4 mr-2" />
-                            Configure Rules
+                            Rules
                         </Button>
                     </Link>
                     <Button onClick={handleRunScan} disabled={isScanning} className="bg-primary text-primary-foreground shadow-md hover:bg-primary/90">
                         {isScanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                        Run Market Scan
+                        {scanType === 'deep' ? 'Run Deep Scan' : 'Run Market Scan'}
                     </Button>
                 </div>
             </div>

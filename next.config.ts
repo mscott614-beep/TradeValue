@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
     serverActions: {
-      bodySizeLimit: '20mb',
+      bodySizeLimit: '10mb',
     },
   },
   typescript: {
@@ -46,6 +46,12 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  env: {
+    EBAY_CLIENT_ID: process.env.EBAY_CLIENT_ID,
+    EBAY_CLIENT_SECRET: process.env.EBAY_CLIENT_SECRET,
+    EBAY_ENV: process.env.EBAY_ENV,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   },
 };
 

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
-import { WandSparkles, Loader2, Info, Clock, BarChartBig, Users } from "lucide-react";
+import { WandSparkles, Loader2, Info, Clock, BarChartBig, Users, ExternalLink } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -76,22 +76,46 @@ function AuctionItem({ auction }: { auction: Auction }) {
     <Card className="overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-3">
         <div className="p-4 flex flex-col items-center justify-center bg-muted/50">
-          {auction.card.imageUrl?.startsWith('data:') ? (
-            <img src={auction.card.imageUrl} alt={auction.card.title} className="rounded-md object-contain w-[200px] h-[280px]" data-ai-hint={auction.card.imageHint} />
+          {auction.url ? (
+            <a href={auction.url} target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
+              {auction.card.imageUrl?.startsWith('data:') ? (
+                <img src={auction.card.imageUrl} alt={auction.card.title} className="rounded-md object-contain w-[200px] h-[280px]" />
+              ) : (
+                <Image
+                  src={auction.card.imageUrl || ''}
+                  alt={auction.card.title}
+                  width={200}
+                  height={280}
+                  className="rounded-md object-contain"
+                />
+              )}
+            </a>
           ) : (
-            <Image
-              src={auction.card.imageUrl || ''}
-              alt={auction.card.title}
-              width={200}
-              height={280}
-              className="rounded-md object-contain"
-              data-ai-hint={auction.card.imageHint}
-            />
+            auction.card.imageUrl?.startsWith('data:') ? (
+              <img src={auction.card.imageUrl} alt={auction.card.title} className="rounded-md object-contain w-[200px] h-[280px]" />
+            ) : (
+              <Image
+                src={auction.card.imageUrl || ''}
+                alt={auction.card.title}
+                width={200}
+                height={280}
+                className="rounded-md object-contain"
+              />
+            )
           )}
         </div>
         <div className="md:col-span-2">
           <CardHeader>
-            <CardTitle>{auction.card.title}</CardTitle>
+            <CardTitle>
+              {auction.url ? (
+                <a href={auction.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary flex items-center gap-2">
+                  {auction.card.title}
+                  <ExternalLink className="w-4 h-4 opacity-50" />
+                </a>
+              ) : (
+                auction.card.title
+              )}
+            </CardTitle>
             <CardDescription>From {auction.card.brand} - {auction.card.year}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

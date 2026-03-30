@@ -82,14 +82,18 @@ export class EbayService {
         return this.accessToken;
     }
 
-    async searchActiveAuctions(query: string, limit: number = 4): Promise<EbayAuctionResponse> {
+    /**
+     * Search for active items using the Browse API.
+     */
+    async searchActiveItems(query: string, limit: number = 10, sort: string = 'price'): Promise<EbayAuctionResponse> {
         const token = await this.getAccessToken();
         
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '212'); 
-        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
+        url.searchParams.append('category_ids', '261328'); // Trading Card Singles
+        url.searchParams.append('sort', sort); // price (Ascending) by default
+        url.searchParams.append('fieldGroups', 'EXTENDED');
 
         const response = await fetch(url.toString(), {
             headers: {
@@ -102,6 +106,35 @@ export class EbayService {
         if (!response.ok) {
             const error = await response.text();
             throw new Error(`eBay ${this.env} API search failed: ${error}`);
+        }
+
+        return await response.json() as EbayAuctionResponse;
+    }
+
+    /**
+     * Search specifically for active auctions.
+     */
+    async searchActiveAuctions(query: string, limit: number = 10): Promise<EbayAuctionResponse> {
+        const token = await this.getAccessToken();
+        
+        const url = new URL(this.BASE_URLS[this.env].browse);
+        url.searchParams.append('q', query);
+        url.searchParams.append('limit', limit.toString());
+        url.searchParams.append('category_ids', '261328');
+        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
+        url.searchParams.append('fieldGroups', 'EXTENDED');
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`eBay ${this.env} Auction API search failed: ${error}`);
         }
 
         return await response.json() as EbayAuctionResponse;

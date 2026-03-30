@@ -24,7 +24,7 @@ import { PageHeader } from "@/components/page-header";
 import PortfolioChart from "@/components/dashboard/portfolio-chart";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 import { useDemo } from "@/context/demo-context";
 import type { Portfolio } from "@/lib/types";
 
@@ -133,7 +133,7 @@ export default function DashboardPage() {
         const tValue = cards.reduce((acc, card) => acc + (card.currentMarketValue || 0), 0);
         const tGain = cards.reduce((acc, card) => acc + ((card.currentMarketValue || 0) - (card.purchasePrice || 0)), 0);
 
-        // We don't have historical price snapshots tracked in DB yet, so change is static 0 for now.
+        // Portfolio-wide 24h change based on individual card metrics
         const c24h = cards.reduce((acc, card) => acc + (card.valueChange24h || 0), 0);
 
         const tGainers = [...cards]
@@ -156,36 +156,37 @@ export default function DashboardPage() {
         return { totalValue: tValue, totalGain: tGain, change24h: c24h, topGainers: tGainers, uniqueBrands: uBrands, rawCount: rCount, gradedCount: gCount };
     }, [cards]);
 
+    const portfolioHistoryQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return query(
+            collection(firestore, `users/${user.uid}/portfolioHistory`),
+            orderBy('__name__', 'asc'),
+            limit(30)
+        );
+    }, [firestore, user]);
+
+    const { data: historyDocs, isLoading: isLoadingHistory } = useCollection<{ totalValue: number }>(portfolioHistoryQuery);
+
     const historyData = useMemo(() => {
-        if (!cards || cards.length === 0) return [];
-
-        const result = [];
-        const now = new Date();
-
-        // Generate data for the last 6 months
-        for (let i = 5; i >= 0; i--) {
-            // End of the month
-            const d = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
-            const monthName = d.toLocaleString('default', { month: 'short' });
-
-            const endOfMonthDateString = d.toISOString();
-
-            let totalValueForMonth = 0;
-            cards.forEach(card => {
-                const dateAdded = card.dateAdded || now.toISOString();
-                if (dateAdded <= endOfMonthDateString) {
-                    totalValueForMonth += (card.currentMarketValue || 0);
-                }
-            });
-
-            result.push({
-                month: monthName,
-                value: totalValueForMonth
-            });
+        if (!historyDocs || historyDocs.length === 0) {
+            // If no history yet, return empty but with a future-looking placeholder if not in demo
+            if (isDemo) return []; 
+            return [];
         }
 
-        return result;
-    }, [cards]);
+        return historyDocs.map((doc: any) => {
+            const dateStr = doc.id;
+            const parts = dateStr.split('-');
+            const label = parts.length === 3
+                ? new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : dateStr;
+            
+            return {
+                month: label,
+                value: doc.totalValue
+            };
+        });
+    }, [historyDocs, isDemo]);
 
 
     if (isLoading) {
@@ -271,8 +272,26 @@ export default function DashboardPage() {
                             <CardTitle>Portfolio Value History</CardTitle>
                             <CardDescription>Estimated performance over time.</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <PortfolioChart data={historyData} />
+                        <CardContent className="h-[300px] flex flex-col justify-center">
+                            {isLoadingHistory ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
+                                </div>
+                            ) : historyData.length > 0 ? (
+                                <PortfolioChart data={historyData} />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                                        <TrendingUp className="h-6 w-6 text-muted-foreground opacity-40" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-sm">Portfolio tracking started</p>
+                                        <p className="text-xs text-muted-foreground mt-1 px-8">
+                                            We'll track your total value daily. Your first performance data point will appear tomorrow.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                     <Card className="lg:col-span-2">
@@ -306,7 +325,7 @@ export default function DashboardPage() {
                                                                     width={40}
                                                                     height={56}
                                                                     className="rounded-sm object-cover h-[56px]"
-                                                                    unoptimized={card.imageUrl.includes('psacard.com') || card.imageUrl.includes('ebayimg.com')}
+                                                                    unoptimized
                                                                 />
                                                             )
                                                         ) : (

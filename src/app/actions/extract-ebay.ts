@@ -70,7 +70,7 @@ export async function extractEbayListingAction(url: string) {
         ${itemSpecifics}
         `;
 
-        if (compiledText.trim() === '') {
+        if (!title && !metaDescription && !itemSpecifics && !price) {
             throw new Error("Could not extract any meaningful text from the page.");
         }
 

@@ -20,6 +20,13 @@ export type Portfolio = {
   parallel?: string;
   grader?: string;
   lastMarketValueUpdate?: string;
+  url?: string;
+  marketPrices?: {
+    median: number;
+    activeItems: any[];
+    soldItems?: any[];
+    lastUpdated: string;
+  };
 };
 
 export type Auction = {
@@ -29,6 +36,7 @@ export type Auction = {
   bids: number;
   timeLeft: string;
   watchlist: boolean;
+  url?: string;
 };
 
 export type PortfolioHistory = {
