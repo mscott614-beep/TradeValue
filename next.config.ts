@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  serverExternalPackages: ['firebase-admin'],
   typescript: {
     ignoreBuildErrors: true,
   },
