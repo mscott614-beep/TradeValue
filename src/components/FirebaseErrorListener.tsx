@@ -37,7 +37,18 @@ export const FirebaseErrorListener = () => {
     // Global catch-all for unhandled rejections (often where native Firestore errors end up)
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
-      if (reason?.message?.includes('permission') || reason?.code === 'permission-denied') {
+      const isPermissionError = reason?.message?.includes('permission') || reason?.code === 'permission-denied';
+      
+      if (isPermissionError) {
+        // SILENCE: If this is an initial fetch for a new user, do not show the global toast
+        const path = reason?.path || reason?.message || '';
+        const isInitialCollection = path.includes('marketAlerts') || path.includes('portfolios') || path.includes('alertsConfig');
+        
+        if (isInitialCollection) {
+            console.log('[FirebaseErrorListener] Suppressing initial-load permission error for path:', path);
+            return;
+        }
+
         console.error('Caught Unhandled Firestore Permission Error:', reason);
         
         toast({
