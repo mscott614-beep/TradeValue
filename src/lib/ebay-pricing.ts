@@ -26,11 +26,6 @@ const FEATURE_KEYWORDS = [
     'jumbo', 'glossy'
 ];
 
-const NEGATIVE_BASE_KEYWORDS = [
-    '-parallel', '-refractor', '-silver', '-prizm', '-auto', '-jersey', 
-    '-patch', '-jumbo', '-glossy', '-portraits', '-ahl', '-canvas', '-sticker'
-];
-
 const RAW_EXCLUSIONS = [
     '-psa', '-bgs', '-sgc', '-cgc', '-csg'
 ];
