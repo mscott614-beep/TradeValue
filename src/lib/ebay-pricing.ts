@@ -13,20 +13,28 @@ export interface CardDescriptor {
     title?: string;
 }
 
-const FEATURE_KEYWORDS = [
+const TRUE_PARALLEL_KEYWORDS = [
     'silver', 'prizm', 'refractor', 'holo', '/#', 'auto', 'patch', 
     'mojo', 'cracked ice', 'atomic', 'superfractor', 'young guns', 
-    'canvas', 'jumbo', 'glossy', 'rookie card', 'rc'
+    'canvas', 'jumbo', 'glossy', 'rookie card', 'rc', 'parallel',
+    'numbered', 'variation', 'short print', 'sp', 'ssp'
 ];
+
+const GRADE_KEYWORDS = ['psa', 'bgs', 'sgc', 'cgc', 'graded', 'gem mt', 'mint'];
+
 
 /**
  * Step 1: Classification Logic
  * Step 2: Search String Construction
  */
 export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel', query: string } {
-    const combinedText = `${card.parallel || ''} ${card.title || ''}`.toLowerCase();
-    const hasFeature = FEATURE_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) || 
-                       (card.parallel && card.parallel.toLowerCase() !== 'base');
+    const parallelText = (card.parallel || '').toLowerCase();
+    const titleText = (card.title || '').toLowerCase();
+    const combinedText = `${parallelText} ${titleText}`;
+    
+    // Check if this is a "True Parallel" (a variant that changes the card type)
+    const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) || 
+                           (parallelText && parallelText !== 'base' && !GRADE_KEYWORDS.some(g => parallelText.includes(g)));
     
     const year = card.year || '';
     const brand = card.brand || '';
@@ -35,19 +43,22 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     // Formatting: Ensure card number has a '#' for vintage matching on eBay
     const rawNumber = (card.cardNumber || '').replace('#', '');
     const cardNumber = rawNumber ? `#${rawNumber}` : '';
+    const parallel = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
 
-    if (!hasFeature) {
+    if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
-        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch';
-        let query = `${year} ${brand} ${player} ${cardNumber} ${negativeKeywords}`.trim();
+        // Added -reprint and -digital as standard protection
+        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
+        let query = `${year} ${brand} ${player} ${parallel} ${cardNumber} ${negativeKeywords}`.trim();
         return { type: 'Base', query };
     } else {
         // Parallel Query: Feature name is a mandatory inclusion
-        const feature = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : 'insert';
-        let query = `${year} ${brand} ${player} ${feature} ${cardNumber} -sold -completed`.trim();
+        const feature = parallel || 'insert';
+        let query = `${year} ${brand} ${player} ${feature} ${cardNumber} -sold -completed -reprint -digital`.trim();
         return { type: 'Parallel', query };
     }
 }
+
 
 /**
  * Step 4: Value Calculation (The TradeValue Rule)

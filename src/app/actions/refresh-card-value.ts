@@ -29,9 +29,10 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         let rawItems = activeResponse.itemSummaries || [];
         
         // Self-Healing Logic: If the ultra-precise query returns 0, try a slightly broader search 
-        // to ensure we get a valuation for vintage cards where # might be inconsistent.
+        // while still preserving the specific parallel/grade if it exists.
         if (rawItems.length === 0) {
-            const secondaryQuery = `${card.year} ${card.brand} ${card.player} ${card.cardNumber}`.trim();
+            const parallel = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
+            const secondaryQuery = `${card.year} ${card.brand} ${card.player} ${parallel} ${card.cardNumber} -reprint -digital`.replace(/\s+/g, ' ').trim();
             console.log(`[Refresh] Precision query returned 0. Trying broad fallback: "${secondaryQuery}"`);
             activeResponse = await ebayService.searchActiveItems(secondaryQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
