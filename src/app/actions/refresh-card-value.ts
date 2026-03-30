@@ -28,9 +28,10 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             finalQuery += EXCLUSIONS;
         }
 
-        console.log(`[Refresh] Lead Architect Query (${type}): "${finalQuery}"`);
+        console.log(`[Refresh] Query (${type}): "${finalQuery}"`);
         let activeResponse = await ebayService.searchActiveItems(finalQuery, 10);
         let rawItems = activeResponse.itemSummaries || [];
+        console.log(`[Refresh] eBay Tier 1 results: ${rawItems.length}`);
 
         // 2. Soft Query Fallback (Tier 2): Player + Parallel + Number (Removes Year/Brand noise)
         if (rawItems.length === 0) {
@@ -42,6 +43,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             console.log(`[Refresh] Tier 1 failed. Trying Tier 2 Soft Fallback: "${softQuery}"`);
             activeResponse = await ebayService.searchActiveItems(softQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
+            console.log(`[Refresh] eBay Tier 2 results: ${rawItems.length}`);
         }
 
         // 3. Post-Fetch Filter: Eliminate misidentified subsets
@@ -53,7 +55,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
 
         if (rawItems.length > 0) {
             const initialCount = rawItems.length;
-            rawItems = rawItems.filter(item => {
+            const filteredItems = rawItems.filter(item => {
                 const title = item.title.toLowerCase();
                 if (needsYoungGuns && !title.includes('young guns')) return false;
                 if (needsJumbo && !title.includes('jumbo')) return false;
@@ -65,8 +67,15 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
 
                 return true;
             });
-            if (rawItems.length < initialCount) {
-                console.log(`[Refresh] Filtered out ${initialCount - rawItems.length} misidentified listings (Subset mismatch).`);
+
+            // Self-Healing Logic: If filtering zeroed us out, keep the originals to avoid $0.00
+            if (filteredItems.length === 0 && initialCount > 0) {
+                console.warn(`[Refresh] Subset filter zeroed results. Reverting to unfiltered set (${initialCount} items) to ensure valuation.`);
+            } else {
+                rawItems = filteredItems;
+                if (rawItems.length < initialCount) {
+                    console.log(`[Refresh] Filtered out ${initialCount - rawItems.length} misidentified listings (Subset mismatch).`);
+                }
             }
         }
 
