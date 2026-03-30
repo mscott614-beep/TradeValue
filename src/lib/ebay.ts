@@ -106,7 +106,8 @@ class EbayService {
 
         if (!response.ok) {
             const error = await response.text();
-            throw new Error(`eBay ${this.env} API search failed: ${error}`);
+            const diag = `(ENV: ${this.env}, EBAY_ENV: ${process.env.EBAY_ENV}, NODE_ENV: ${process.env.NODE_ENV})`;
+            throw new Error(`eBay ${this.env} API search failed ${diag}: ${error}`);
         }
 
         return await response.json();
