@@ -5,10 +5,14 @@ import { Portfolio } from "@/lib/types";
 import { buildEbayQuery, calculateTradeValue } from "@/lib/ebay-pricing";
 import { getAdminDb } from "@/lib/firebase-server";
 
+/**
+ * Refreshes the card value using a simple, broad eBay search.
+ * [Hybrid Revert Build: Admin SDK Infrastructure + Simple Search Logic]
+ */
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
-        // 1. Classification and Initial Query Construction
-        const { type, query: primaryQuery } = buildEbayQuery({
+        // 1. Build a simple, broad query
+        const { type, query } = buildEbayQuery({
             year: card.year,
             brand: card.brand,
             player: card.player,
@@ -17,73 +21,18 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             title: card.title
         });
 
-        const isChecklist = card.title?.toLowerCase().includes('checklist') || 
-                            (card.player || '').toLowerCase().includes('checklist');
+        console.log(`[Refresh] Simple Query (${type}): "${query}"`);
         
-        // Expanded exclusions to catch noise from AHL, Portraits, and Graded variants
-        const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale -portrait -ahl -glossy -sticker -non-auto -rp';
+        // 2. Fetch from eBay (Limit to 10 for speed)
+        const activeResponse = await ebayService.searchActiveItems(query, 10);
+        const rawItems = activeResponse.itemSummaries || [];
+        
+        console.log(`[Refresh] Found ${rawItems.length} items on eBay.`);
 
-        let finalQuery = primaryQuery;
-        if (!isChecklist && !finalQuery.includes('-checklist')) {
-            finalQuery += EXCLUSIONS;
-        }
-
-        console.log(`[Refresh] Query (${type}): "${finalQuery}"`);
-        let activeResponse = await ebayService.searchActiveItems(finalQuery, 10);
-        let rawItems = activeResponse.itemSummaries || [];
-        console.log(`[Refresh] eBay Tier 1 results: ${rawItems.length}`);
-
-        // 2. Soft Query Fallback (Tier 2): Player + Parallel + Number (Removes Year/Brand noise)
-        if (rawItems.length === 0) {
-            const cleanNumber = (card.cardNumber || '').replace('#', '');
-            const parallelStr = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
-            let softQuery = `${card.player} ${parallelStr} ${cleanNumber}`.trim();
-            if (!isChecklist) softQuery += EXCLUSIONS;
-            
-            console.log(`[Refresh] Tier 1 failed. Trying Tier 2 Soft Fallback: "${softQuery}"`);
-            activeResponse = await ebayService.searchActiveItems(softQuery, 10);
-            rawItems = activeResponse.itemSummaries || [];
-            console.log(`[Refresh] eBay Tier 2 results: ${rawItems.length}`);
-        }
-
-        // 3. Post-Fetch Filter: Eliminate misidentified subsets
-        // If we are looking for Young Guns, the result title *must* contain "Young Guns"
-        const combinedSpec = `${card.parallel || ''} ${card.title || ''}`.toLowerCase();
-        const needsYoungGuns = combinedSpec.includes('young guns');
-        const needsJumbo = combinedSpec.includes('jumbo');
-        const needsGlossy = combinedSpec.includes('glossy');
-
-        if (rawItems.length > 0) {
-            const initialCount = rawItems.length;
-            const filteredItems = rawItems.filter(item => {
-                const title = item.title.toLowerCase();
-                if (needsYoungGuns && !title.includes('young guns')) return false;
-                if (needsJumbo && !title.includes('jumbo')) return false;
-                if (needsGlossy && !title.includes('glossy')) return false;
-                
-                // If it's a base search, explicitly exclude the big features
-                if (!needsYoungGuns && title.includes('young guns')) return false;
-                if (!needsJumbo && title.includes('jumbo')) return false;
-
-                return true;
-            });
-
-            // Self-Healing Logic: If filtering zeroed us out, keep the originals to avoid $0.00
-            if (filteredItems.length === 0 && initialCount > 0) {
-                console.warn(`[Refresh] Subset filter zeroed results. Reverting to unfiltered set (${initialCount} items) to ensure valuation.`);
-            } else {
-                rawItems = filteredItems;
-                if (rawItems.length < initialCount) {
-                    console.log(`[Refresh] Filtered out ${initialCount - rawItems.length} misidentified listings (Subset mismatch).`);
-                }
-            }
-        }
-
-        // 4. Calculate TradeValue using the "Floor Median" Rule
+        // 3. Simple Calculation
         const calc = calculateTradeValue(rawItems);
 
-        // 5. Atomic Authorized Update (Admin SDK)
-        // This bypasses client-side security rules to ensure persistence
+        // 4. Atomic Authorized Update (Admin SDK)
         const db = getAdminDb();
         const timestamp = new Date().toISOString();
         
@@ -102,16 +51,12 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             timestamp: timestamp
         });
 
-        const diagnostics = `Query: "${finalQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value} | Outliers: ${calc.outliersCount}`;
-        console.log(`[Refresh] Final Diagnostic: ${diagnostics}`);
-
         return { 
             success: true, 
             newPrice: calc.value, 
             avgActivePrice: calc.value,
             avgSoldPrice: 0, 
-            diagnostics,
-            top5: rawItems.slice(0, 10).map(item => ({
+            top5: rawItems.map(item => ({
                 title: item.title,
                 price: parseFloat(item.price.value),
                 url: item.itemWebUrl,

@@ -339,14 +339,7 @@ export default function CardDetailsPage() {
                 });
                 toast({
                     title: "Market Price Updated",
-                    description: (
-                        <div className="flex flex-col gap-1">
-                            <div>Average Asking Price: ${response.newPrice.toFixed(2)}</div>
-                            <div className="text-[10px] opacity-50 font-mono mt-1 break-all bg-black/20 p-1 rounded">
-                                {response.diagnostics}
-                            </div>
-                        </div>
-                    ),
+                    description: `Average Asking Price: $${response.newPrice.toFixed(2)}`,
                 });
             } else {
                 toast({
