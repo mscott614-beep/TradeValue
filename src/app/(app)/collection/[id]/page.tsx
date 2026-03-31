@@ -109,14 +109,14 @@ export default function CardDetailsPage() {
         }
         if (card && !isEditingInfo) {
             setInfoInput({
-                player: card.player || '',
-                year: card.year || '',
-                brand: card.brand || '',
-                cardNumber: card.cardNumber || '',
-                parallel: card.parallel || '',
-                condition: card.condition || '',
-                grader: card.grader || '',
-                estimatedGrade: card.estimatedGrade || ''
+                player: (card.player || '').toString(),
+                year: (card.year || '').toString(),
+                brand: (card.brand || '').toString(),
+                cardNumber: (card.cardNumber || '').toString(),
+                parallel: (card.parallel || '').toString(),
+                condition: (card.condition || '').toString(),
+                grader: (card.grader || '').toString(),
+                estimatedGrade: (card.estimatedGrade || '').toString()
             });
         }
         // Sync market data from Firestore
@@ -215,14 +215,14 @@ export default function CardDetailsPage() {
 
         try {
             updateDocumentNonBlocking(cardDocRef, {
-                player: infoInput.player.trim(),
-                year: infoInput.year.trim(),
-                brand: infoInput.brand.trim(),
-                cardNumber: infoInput.cardNumber.trim(),
-                parallel: infoInput.parallel.trim(),
-                condition: infoInput.condition.trim(),
-                grader: infoInput.grader.trim(),
-                estimatedGrade: infoInput.estimatedGrade.trim()
+                player: (infoInput.player || '').toString().trim(),
+                year: (infoInput.year || '').toString().trim(),
+                brand: (infoInput.brand || '').toString().trim(),
+                cardNumber: (infoInput.cardNumber || '').toString().trim(),
+                parallel: (infoInput.parallel || '').toString().trim(),
+                condition: (infoInput.condition || '').toString().trim(),
+                grader: (infoInput.grader || '').toString().trim(),
+                estimatedGrade: (infoInput.estimatedGrade || '').toString().trim()
             });
 
             setIsEditingInfo(false);
