@@ -33,7 +33,16 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
     const [isLoading, setIsLoading] = useState(true);
 
     const workerRef = useRef<Worker | null>(null);
+    const allCardsRef = useRef<Portfolio[]>([]);
+    const filterRef = useRef<'all' | 'missing' | 'outdated'>(filter);
     const logScrollRef = useRef<HTMLDivElement>(null);
+    const processingQueueSizeRef = useRef<number>(0);
+
+    // Keep refs in sync for the worker callback
+    useEffect(() => {
+        allCardsRef.current = allCards;
+        filterRef.current = filter;
+    }, [allCards, filter]);
 
     // Initial load of pool
     useEffect(() => {
@@ -49,9 +58,10 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         fetchPool();
     }, [userId]);
 
-    // Initialize Web Worker
+    // Initialize Web Worker ONCE
     useEffect(() => {
         // High-Stability Module Worker (ESM Version)
+        console.log("[Dashboard] Initializing persistent worker.");
         workerRef.current = new Worker(
             new URL('../../workers/enrichment-worker', import.meta.url),
             { type: 'module' }
@@ -63,7 +73,7 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
             if (type === 'LOG_UPDATE') {
                 addLog(payload.message, payload.type);
             } else if (type === 'GET_CARD_DATA') {
-                const card = allCards.find(c => c.id === payload.cardId);
+                const card = allCardsRef.current.find(c => c.id === payload.cardId);
                 workerRef.current?.postMessage({ type: 'CARD_DATA_RESULT', payload: card });
             } else if (type === 'GET_PRICE') {
                 addLog(`🔍 Fetching current market value...`, 'info');
@@ -81,7 +91,8 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                     addLog(log, 'success');
                     setProcessedCount(prev => {
                         const newCount = prev + 1;
-                        setProgress(Math.round((newCount / filteredCards.length) * 100));
+                        const total = processingQueueSizeRef.current || 1;
+                        setProgress(Math.round((newCount / total) * 100));
                         return newCount;
                     });
                 } else {
@@ -91,7 +102,8 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                 addLog(payload.log, 'error');
                 setProcessedCount(prev => {
                     const newCount = prev + 1;
-                    setProgress(Math.round((newCount / filteredCards.length) * 100));
+                    const total = processingQueueSizeRef.current || 1;
+                    setProgress(Math.round((newCount / total) * 100));
                     return newCount;
                 });
             } else if (type === 'ENRICHMENT_COMPLETE') {
@@ -103,9 +115,10 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         };
 
         return () => {
+            console.log("[Dashboard] Terminating worker.");
             workerRef.current?.terminate();
         };
-    }, [allCards, filter]);
+    }, []); // Empty dependency array to avoid re-initializing on state changes
 
     // Filtering logic
     const filteredCards = allCards.filter(card => {
@@ -129,7 +142,7 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
             type,
             timestamp: new Date().toLocaleTimeString()
         };
-        setLogs(prev => [newLog, ...prev].slice(0, 50));
+        setLogs(prev => Array.isArray(prev) ? [newLog, ...prev].slice(0, 50) : [newLog]);
     };
 
     const handleStart = async () => {
@@ -142,18 +155,22 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         setProcessedCount(0);
         setProgress(0);
         setLogs([]);
-        addLog(`🚀 Starting high-stability serial enrichment...`, 'info');
+        processingQueueSizeRef.current = filteredCards.length;
         
-        // Fetch API Key
-        const { apiKey } = await getGeminiConfigAction();
-
-        workerRef.current?.postMessage({
-            type: 'START_ENRICHMENT',
-            payload: {
-                cardIds: filteredCards.map(c => c.id),
-                apiKey
-            }
-        });
+        try {
+            const { apiKey } = await getGeminiConfigAction();
+            
+            workerRef.current?.postMessage({ 
+                type: 'START_ENRICHMENT', 
+                payload: { 
+                    apiKey,
+                    cardIds: filteredCards.map(c => c.id)
+                } 
+            });
+        } catch (error) {
+            addLog("❌ Failed to initialize enrichment.", 'error');
+            setIsProcessing(false);
+        }
     };
 
     const handlePause = () => {
@@ -307,7 +324,7 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                                 </div>
                             )}
                             <div className="space-y-2">
-                                {logs.map((log) => (
+                                {Array.isArray(logs) && logs.map((log) => (
                                     <div key={log.id} className="text-xs transition-all animate-in fade-in slide-in-from-top-1">
                                         <span className="text-muted-foreground mr-2">[{log.timestamp}]</span>
                                         <span className={
