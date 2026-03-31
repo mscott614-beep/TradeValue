@@ -104,15 +104,15 @@ export default function CollectionPage() {
   };
 
   const filterOptions = useMemo(() => {
-    if (!cards) return { years: [], brands: [], conditions: [] };
-    const years = Array.from(new Set(cards.map(c => c.year.toString()))).sort((a, b) => b.localeCompare(a));
-    const brands = Array.from(new Set(cards.map(c => c.brand))).sort();
-    const conditions = Array.from(new Set(cards.map(c => c.condition))).sort();
+    if (!cards || !Array.isArray(cards)) return { years: [], brands: [], conditions: [] };
+    const years = Array.from(new Set(cards.map(c => (c.year || 'Unknown').toString()))).sort((a, b) => b.localeCompare(a));
+    const brands = Array.from(new Set(cards.map(c => c.brand || 'Unknown'))).sort();
+    const conditions = Array.from(new Set(cards.map(c => c.condition || 'Raw'))).sort();
     return { years, brands, conditions };
   }, [cards]);
 
   const filteredAndSortedCards = useMemo(() => {
-    if (!cards) return [];
+    if (!cards || !Array.isArray(cards)) return [];
 
     const filtered = cards.filter(card => {
       const textMatch =
@@ -244,7 +244,7 @@ export default function CollectionPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Years</SelectItem>
-              {filterOptions.years.map(year => (
+              {Array.isArray(filterOptions.years) && filterOptions.years.map(year => (
                 <SelectItem key={year} value={year}>{year}</SelectItem>
               ))}
             </SelectContent>
@@ -256,7 +256,7 @@ export default function CollectionPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Brands</SelectItem>
-              {filterOptions.brands.map(brand => (
+              {Array.isArray(filterOptions.brands) && filterOptions.brands.map(brand => (
                 <SelectItem key={brand} value={brand}>{brand}</SelectItem>
               ))}
             </SelectContent>
@@ -268,7 +268,7 @@ export default function CollectionPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Conditions</SelectItem>
-              {filterOptions.conditions.map(cond => (
+              {Array.isArray(filterOptions.conditions) && filterOptions.conditions.map(cond => (
                 <SelectItem key={cond} value={cond}>{cond}</SelectItem>
               ))}
             </SelectContent>
@@ -310,7 +310,7 @@ export default function CollectionPage() {
                       <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     </TableCell>
                   </TableRow>
-                ) : filteredAndSortedCards.length > 0 ? (
+                ) : (Array.isArray(filteredAndSortedCards) && filteredAndSortedCards.length > 0) ? (
                   filteredAndSortedCards.map(card => (
                     <TableRow key={card.id}>
                       <TableCell>
@@ -338,7 +338,7 @@ export default function CollectionPage() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           <Badge variant="secondary">{card.condition}</Badge>
-                          {card.features?.map(feature => (
+                          {Array.isArray(card.features) && card.features.map(feature => (
                             <Badge key={feature} variant="outline">{feature}</Badge>
                           ))}
                           {card.parallel && <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>}
@@ -390,7 +390,7 @@ export default function CollectionPage() {
             <div className="col-span-full py-12 flex justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : filteredAndSortedCards.length > 0 ? (
+          ) : (Array.isArray(filteredAndSortedCards) && filteredAndSortedCards.length > 0) ? (
             filteredAndSortedCards.map((card, index) => (
               <Link key={card.id || index} href={`/collection/${card.id}`}>
                 <Card className="overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer relative">
