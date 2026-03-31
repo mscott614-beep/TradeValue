@@ -51,7 +51,11 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
 
     // Initialize Web Worker
     useEffect(() => {
-        workerRef.current = new Worker(new URL("/workers/enrichment-worker.js", window.location.origin));
+        // High-Stability Module Worker (ESM Version)
+        workerRef.current = new Worker(
+            new URL('../../workers/enrichment-worker', import.meta.url),
+            { type: 'module' }
+        );
 
         workerRef.current.onmessage = async (e) => {
             const { type, payload } = e.data;

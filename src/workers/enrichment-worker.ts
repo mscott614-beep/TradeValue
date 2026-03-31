@@ -1,50 +1,42 @@
 /**
- * Bulk Enrichment Worker (High-Stability 120s Version)
- * Processes cards one-by-one with:
- * 1. 120s Gemini SDK Timeout (Client-Side)
- * 2. 5s Pre-check Breather
- * 3. Smart Error Serialization (No 'undefined')
- * 4. 20s 'Still Thinking' UI coordination
+ * Bulk Enrichment Worker (ESM Module Version)
+ * Ported to src/workers/ for Next.js bundling compatibility.
  */
-
-// Import Gemini SDK via CDN
-importScripts('https://cdn.jsdelivr.net/npm/@google/generative-ai/dist/index.min.js');
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 let isRunning = false;
-let cardIds = [];
+let cardIds: string[] = [];
 let currentIndex = 0;
-let apiKey = null;
-let currentTimeout = null;
-let genAI = null;
+let apiKey: string | null = null;
+let genAI: any = null;
 
 // Pricing Bridge State
-let pricingResolver = null;
+let pricingResolver: ((value: any) => void) | null = null;
 
-self.onmessage = function(e) {
+self.onmessage = async (e: MessageEvent) => {
     const { type, payload } = e.data;
 
     switch (type) {
         case 'START_ENRICHMENT':
-            console.log("[Worker] Starting high-stability enrichment.");
+            console.log("[Worker] Starting ESM Module enrichment.");
             cardIds = payload.cardIds;
             apiKey = payload.apiKey;
             currentIndex = 0;
             isRunning = true;
             
-            // Initialize Gemini
+            // Initialize Gemini with Error Boundary
             if (apiKey) {
                 try {
-                    // The CDN script usually exposes 'GoogleGenerativeAI' on the global scope
-                    if (typeof GoogleGenerativeAI !== 'undefined') {
-                        genAI = new GoogleGenerativeAI(apiKey);
-                    } else if (self.GoogleGenerativeAI) {
-                        genAI = new self.GoogleGenerativeAI(apiKey);
-                    } else {
-                        throw new Error("GoogleGenerativeAI SDK not found in global scope.");
-                    }
-                } catch (initErr) {
+                    genAI = new GoogleGenerativeAI(apiKey);
+                    console.log("[Worker] SDK Initialized successfully.");
+                } catch (initErr: any) {
                     console.error("[Worker] SDK Init Error:", initErr);
-                    self.postMessage({ type: 'LOG_UPDATE', payload: { message: `❌ SDK Init Error: ${initErr.message}`, type: 'error' } });
+                    self.postMessage({ 
+                        type: 'LOG_UPDATE', 
+                        payload: { message: `❌ Worker Initialization Failed: SDK not found.`, type: 'error' } 
+                    });
+                    isRunning = false;
+                    return;
                 }
             }
             
@@ -60,10 +52,6 @@ self.onmessage = function(e) {
 
         case 'STOP_ENRICHMENT':
             isRunning = false;
-            if (currentTimeout) {
-                clearTimeout(currentTimeout);
-                currentTimeout = null;
-            }
             break;
 
         case 'RESUME_ENRICHMENT':
@@ -75,19 +63,14 @@ self.onmessage = function(e) {
             isRunning = false;
             currentIndex = 0;
             cardIds = [];
-            if (currentTimeout) {
-                clearTimeout(currentTimeout);
-                currentTimeout = null;
-            }
             break;
     }
 };
 
 /**
  * Bridge for the pricing engine.
- * Sends a request to the main thread and waits for the result.
  */
-async function fetchCurrentPrice(card) {
+async function fetchCurrentPrice(card: any) {
     return new Promise((resolve) => {
         pricingResolver = resolve;
         self.postMessage({ 
@@ -117,14 +100,11 @@ async function processNextCard() {
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     try {
-        // Request FULL card data from main thread if not already provided
-        // (For this version, we'll assume the main thread provides the card object in the next step
-        // OR we just request it now).
+        // Request FULL card data from main thread
         self.postMessage({ type: 'GET_CARD_DATA', payload: { cardId } });
         
-        // We need the data before proceeding. We'll reuse the pricing resolver pattern
-        const cardData = await new Promise(resolve => {
-            const listener = (e) => {
+        const cardData: any = await new Promise(resolve => {
+            const listener = (e: MessageEvent) => {
                 if (e.data.type === 'CARD_DATA_RESULT') {
                     self.removeEventListener('message', listener);
                     resolve(e.data.payload);
@@ -140,7 +120,7 @@ async function processNextCard() {
 
         // 2. Call Gemini with 120s Timeout
         self.postMessage({ 
-            type: 'PROCESS_BATCH', // Maintain UI compatibility
+            type: 'PROCESS_BATCH', 
             payload: { 
                 batchIds: [cardId],
                 currentIndex,
@@ -151,7 +131,6 @@ async function processNextCard() {
 
         if (!genAI) throw new Error("Gemini API Key missing or SDK not loaded.");
 
-        // Requested 120s timeout configuration
         const model = genAI.getGenerativeModel(
             { model: "gemini-3.1-flash-lite-preview" },
             { timeout: 120000 }
@@ -162,7 +141,6 @@ async function processNextCard() {
         ${useSearch ? 'Also find a high-res image URL.' : 'Image exists, skip search.'}
         Return JSON.`;
 
-        // Start 'Still Thinking' timer
         const heartbeat = setTimeout(() => {
             self.postMessage({ 
                 type: 'LOG_UPDATE', 
@@ -172,18 +150,18 @@ async function processNextCard() {
 
         const result = await model.generateContent(prompt);
         clearTimeout(heartbeat);
+        
         const response = await result.response;
         const text = response.text();
         
-        // Minimal JSON extraction
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("AI returned invalid data format.");
         const aiOutput = JSON.parse(jsonMatch[0]);
 
         // 3. Call Pricing Bridge
-        const priceResult = await fetchCurrentPrice({ ...cardData, ...aiOutput });
+        const priceResult: any = await fetchCurrentPrice({ ...cardData, ...aiOutput });
 
-        // 4. Post Result to Main Thread for Firestore Commit
+        // 4. Post Result to Main Thread
         self.postMessage({
             type: 'CARD_ENRICHED',
             payload: {
@@ -199,10 +177,9 @@ async function processNextCard() {
         currentIndex++;
         processNextCard();
 
-    } catch (err) {
+    } catch (err: any) {
         console.error("[Worker Error]", err);
-        // Robust Error Serialization (Fix for 'undefined')
-        const errorMessage = err.message || (typeof err === 'string' ? err : JSON.stringify(err)) || 'Request Timed Out';
+        const errorMessage = err.message || "Request Timed Out";
         
         self.postMessage({
             type: 'CARD_ERROR',
