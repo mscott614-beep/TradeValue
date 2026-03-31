@@ -132,14 +132,22 @@ async function processNextCard() {
         if (!genAI) throw new Error("Gemini API Key missing or SDK not loaded.");
 
         const model = genAI.getGenerativeModel(
-            { model: "gemini-3.1-flash-lite-preview" },
+            { 
+                model: "gemini-3.1-flash-lite-preview",
+                generationConfig: { responseMimeType: "application/json" }
+            },
             { timeout: 120000 }
         );
 
         const prompt = `Find metadata for this trading card: "${cardData.title}".
-        Manufacturer (brand), Set Name, Year, Card Number.
-        ${useSearch ? 'Also find a high-res image URL.' : 'Image exists, skip search.'}
-        Return JSON.`;
+        Return a JSON object with these EXACT keys:
+        - brand: Manufacturer name (e.g., Upper Deck, Topps)
+        - set: Set Name (e.g., Series 1, Honor Roll)
+        - year: Release Year
+        - cardNumber: Card Number String
+        ${useSearch ? '- imageUrl: A high-resolution public photo URL or null' : ''}
+        
+        Strict JSON only. No markdown.`;
 
         const heartbeat = setTimeout(() => {
             self.postMessage({ 
@@ -154,9 +162,18 @@ async function processNextCard() {
         const response = await result.response;
         const text = response.text();
         
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("AI returned invalid data format.");
-        const aiOutput = JSON.parse(jsonMatch[0]);
+        // Robust JSON Parsing
+        let aiOutput;
+        try {
+            // 1. Try direct parse (standard for JSON mode)
+            aiOutput = JSON.parse(text);
+        } catch (e) {
+            // 2. Fallback: Clean text of markdown or extra padding
+            const cleaned = text.replace(/```json|```/g, '').trim();
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error("AI returned invalid data format.");
+            aiOutput = JSON.parse(jsonMatch[0]);
+        }
 
         // 3. Call Pricing Bridge
         const priceResult: any = await fetchCurrentPrice({ ...cardData, ...aiOutput });
