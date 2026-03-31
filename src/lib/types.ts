@@ -21,6 +21,9 @@ export type Portfolio = {
   grader?: string;
   lastMarketValueUpdate?: string;
   url?: string;
+  lastEnriched?: string; // ISO timestamp
+  dataFlags?: string[]; // e.g. ["MISSING_IMAGE", "OUTDATED"]
+  set?: string; // Manufacturer Set name (e.g. "Base Set", "Young Guns")
   marketPrices?: {
     median: number;
     activeItems: any[];
