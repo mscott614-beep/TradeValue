@@ -1,13 +1,13 @@
 /**
- * Bulk Enrichment Worker (Batch Version)
- * Manages chunking of cards into batches of 5 and coordinates with the main thread.
+ * Bulk Enrichment Worker (Serial Reliability Version)
+ * Processes cards one-by-one with a mandatory 5s delay to stay under grounding limits.
  */
 
 let isRunning = false;
 let cardIds = [];
 let currentIndex = 0;
-let batchSize = 5;
-let delay = 3000; // Increased to 3s between batches
+let batchSize = 1; // Force Serial
+let delay = 5000; // Mandatory 5s Breather
 let currentTimeout = null;
 
 self.onmessage = function(e) {
@@ -15,10 +15,9 @@ self.onmessage = function(e) {
 
     switch (type) {
         case 'START_ENRICHMENT':
-            console.log("[Worker] Starting batch enrichment for " + payload.cardIds.length + " cards.");
+            console.log("[Worker] Starting serial enrichment for " + payload.cardIds.length + " cards.");
             cardIds = payload.cardIds;
-            delay = payload.batchDelay || 3000;
-            batchSize = payload.batchSize || 5;
+            // Ignore payload delay/batchSize to enforce reliability defaults
             currentIndex = 0;
             isRunning = true;
             processNextBatch();
@@ -26,24 +25,12 @@ self.onmessage = function(e) {
 
         case 'BATCH_SUCCESS':
             if (isRunning) {
-                // Wait the prescribed delay after a success before starting next batch
-                currentTimeout = setTimeout(processNextBatch, delay);
+                // Wait exactly 5s before the next card
+                currentTimeout = setTimeout(processNextBatch, 5000);
             }
             break;
 
-        case 'RETRY_ALERT':
-            // Main thread informs worker that a rate limit retry is happening
-            self.postMessage({ 
-                type: 'PROGRESS_UPDATE', 
-                payload: { 
-                    message: `⚠️ Rate limit hit. Retrying in ${payload.seconds} seconds...`,
-                    status: 'warning'
-                } 
-            });
-            break;
-
         case 'STOP_ENRICHMENT':
-            console.log("[Worker] Stopping enrichment.");
             isRunning = false;
             if (currentTimeout) {
                 clearTimeout(currentTimeout);
@@ -52,13 +39,11 @@ self.onmessage = function(e) {
             break;
 
         case 'RESUME_ENRICHMENT':
-            console.log("[Worker] Resuming enrichment.");
             isRunning = true;
             processNextBatch();
             break;
             
         case 'RESET_ENRICHMENT':
-            console.log("[Worker] Resetting enrichment.");
             isRunning = false;
             currentIndex = 0;
             cardIds = [];
@@ -74,29 +59,24 @@ function processNextBatch() {
     if (!isRunning) return;
 
     if (currentIndex >= cardIds.length) {
-        console.log("[Worker] All cards processed.");
         self.postMessage({ type: 'ENRICHMENT_COMPLETE' });
         isRunning = false;
         return;
     }
 
-    const end = Math.min(currentIndex + batchSize, cardIds.length);
-    const batch = cardIds.slice(currentIndex, end);
-    const batchRangeText = `(Cards ${currentIndex + 1} - ${end} of ${cardIds.length})`;
-
-    console.log(`[Worker] Processing Batch: ${batchRangeText}`);
+    const batch = [cardIds[currentIndex]];
     
-    // Notify Main Thread to process this batch
+    // Notify Main Thread to process this single card
     self.postMessage({ 
         type: 'PROCESS_BATCH', 
         payload: { 
             batchIds: batch,
             currentIndex: currentIndex,
-            endIndex: end,
+            endIndex: currentIndex + 1,
             total: cardIds.length,
-            message: `Processing Batch of ${batch.length}... ${batchRangeText}`
+            message: `Processing Card ${currentIndex + 1} of ${cardIds.length}...`
         } 
     });
 
-    currentIndex = end;
+    currentIndex++;
 }

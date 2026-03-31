@@ -22,12 +22,11 @@ interface EnrichmentLog {
 }
 
 export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
+    const [isQuotaLimit, setIsQuotaLimit] = useState(false);
     const [allCards, setAllCards] = useState<Portfolio[]>([]);
     const [filter, setFilter] = useState<'all' | 'missing' | 'outdated'>('all');
-    const [speed, setSpeed] = useState<number>(3000); // Default to Safe/Standard (3s)
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [currentCardIndex, setCurrentCardIndex] = useState(0);
     const [processedCount, setProcessedCount] = useState(0);
     const [logs, setLogs] = useState<EnrichmentLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -61,19 +60,15 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                 const batchCards = filteredCards.filter(c => batchIds.includes(c.id));
                 
                 if (batchCards.length > 0) {
-                    addLog(`📦 ${message}`, 'info');
+                    addLog(`⏳ ${message}`, 'info');
                     
-                    // Call the batch server action
+                    // Call the server action
                     const result = await enrichCardsBatchAction(userId, batchCards);
                     
                     if (result.success && result.batchResults) {
-                        let successCount = 0;
+                        setIsQuotaLimit(false);
                         result.batchResults.forEach((res: any) => {
-                            if (res.success) successCount++;
-                            addLog(
-                                res.success ? `✅ ${res.title} enriched.` : `❌ ${res.title} failed: ${res.error || 'Unknown error'}`,
-                                res.success ? 'success' : 'error'
-                            );
+                            addLog(res.log || (res.success ? `✅ ${res.title} enriched.` : `❌ ${res.title} failed`), res.success ? 'success' : 'error');
                         });
 
                         // Update overall progress
@@ -84,15 +79,22 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                         // Signal worker that batch is done and it can start the cooldown timer
                         workerRef.current?.postMessage({ type: 'BATCH_SUCCESS' });
                     } else {
-                        addLog(`❌ Batch failed: ${result.error}`, 'error');
-                        // Even on failure, we signal worker to potentially continue or stop
-                        workerRef.current?.postMessage({ type: 'BATCH_SUCCESS' });
+                        if (result.isRateLimit) {
+                            setIsQuotaLimit(true);
+                            addLog(`⚠️ [Quota Limit] Waiting 15s to retry...`, 'error');
+                            // Wait 15s then retry this same batch
+                            setTimeout(() => {
+                                workerRef.current?.postMessage({ type: 'RESUME_ENRICHMENT' });
+                            }, 15000);
+                        } else {
+                            addLog(`❌ Error: ${result.error}`, 'error');
+                            workerRef.current?.postMessage({ type: 'BATCH_SUCCESS' });
+                        }
                     }
                 }
-            } else if (type === 'PROGRESS_UPDATE') {
-                addLog(payload.message, payload.status === 'warning' ? 'error' : 'info');
             } else if (type === 'ENRICHMENT_COMPLETE') {
                 setIsProcessing(false);
+                setIsQuotaLimit(false);
                 addLog("✨ Bulk enrichment complete!", 'info');
                 toast.success("Enrichment complete!");
             }
@@ -101,17 +103,15 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         return () => {
             workerRef.current?.terminate();
         };
-    }, [allCards, filter]); // Re-init if filter changes (simplified for now)
+    }, [allCards, filter]);
 
     // Filtering logic
     const filteredCards = allCards.filter(card => {
         if (filter === 'all') return true;
         if (filter === 'missing') {
-            // Check for placeholder images
             return !card.imageUrl || card.imageUrl.includes("picsum.photos") || card.imageUrl.includes("placeholder");
         }
         if (filter === 'outdated') {
-            // Check if last enriched > 30 days or never enriched
             if (!card.lastEnriched) return true;
             const lastEnriched = new Date(card.lastEnriched);
             const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -127,7 +127,7 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
             type,
             timestamp: new Date().toLocaleTimeString()
         };
-        setLogs(prev => [newLog, ...prev].slice(0, 50)); // Keep last 50 logs
+        setLogs(prev => [newLog, ...prev].slice(0, 50));
     };
 
     const handleStart = () => {
@@ -139,14 +139,12 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         setProcessedCount(0);
         setProgress(0);
         setLogs([]);
-        addLog(`🚀 Starting enrichment at ${speed}ms interval...`, 'info');
+        addLog(`🚀 Starting high-stability serial enrichment...`, 'info');
         
         workerRef.current?.postMessage({
             type: 'START_ENRICHMENT',
             payload: {
-                cardIds: filteredCards.map(c => c.id),
-                batchSize: 5,
-                batchDelay: speed // Use the user-selected speed as the gap between batches (default 3s)
+                cardIds: filteredCards.map(c => c.id)
             }
         });
     };
@@ -159,12 +157,14 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
 
     const handleResume = () => {
         setIsProcessing(true);
+        setIsQuotaLimit(false);
         workerRef.current?.postMessage({ type: 'RESUME_ENRICHMENT' });
         addLog("▶ Enrichment resumed.", 'info');
     };
 
     const handleReset = () => {
         setIsProcessing(false);
+        setIsQuotaLimit(false);
         setProgress(0);
         setProcessedCount(0);
         setLogs([]);
@@ -236,32 +236,20 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle>Bulk Enrichment Engine</CardTitle>
+                            <CardTitle className="flex items-center gap-3">
+                                Bulk Enrichment Engine
+                                {isQuotaLimit && (
+                                    <Badge variant="destructive" className="animate-pulse bg-orange-600 hover:bg-orange-600">
+                                        QUOTA COOL-DOWN
+                                    </Badge>
+                                )}
+                            </CardTitle>
                             <CardDescription>
-                                Currently processing: <Badge variant="outline">{filter.toUpperCase()}</Badge> ({filteredCards.length} candidates)
+                                High-Stability Serial Mode | <Badge variant="outline">{filter.toUpperCase()}</Badge> ({filteredCards.length} candidates)
                             </CardDescription>
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="flex flex-col gap-1.5 min-w-[140px]">
-                                <Label htmlFor="speed" className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
-                                    <Gauge className="h-3 w-3" /> Processing Speed
-                                </Label>
-                                <Select 
-                                    value={speed.toString()} 
-                                    onValueChange={(v) => setSpeed(parseInt(v))}
-                                    disabled={isProcessing}
-                                >
-                                    <SelectTrigger id="speed" className="h-8 text-xs">
-                                        <SelectValue placeholder="Select speed" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="1000">Turbo (1s)</SelectItem>
-                                        <SelectItem value="3000">Standard (3s)</SelectItem>
-                                        <SelectItem value="5000">Safe (5s)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center gap-2 pt-5">
+                            <div className="flex items-center gap-2">
                                 {isProcessing ? (
                                     <Button variant="outline" size="sm" onClick={handlePause} className="h-8">
                                         <Pause className="h-4 w-4 mr-2" /> Pause
@@ -287,12 +275,19 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Processing Queue</span>
+                            <span className="flex items-center gap-2">
+                                {isProcessing && !isQuotaLimit && <Loader2 className="h-3 w-3 animate-spin" />}
+                                {isQuotaLimit ? "Quota Limit Active - Waiting 15s..." : "Status: Active"}
+                            </span>
                             <span>{progress}%</span>
                         </div>
-                        <Progress value={progress} className="h-3" />
+                        <Progress 
+                            value={progress} 
+                            className={`h-3 transition-all duration-500 ${isQuotaLimit ? "[&>div]:bg-orange-500" : ""}`} 
+                        />
                         <div className="flex justify-between text-xs font-mono">
                             <span>Card {processedCount} of {filteredCards.length}</span>
+                            <span className="text-muted-foreground italic">Target: 12 RPM (Stability Lock)</span>
                         </div>
                     </div>
 
