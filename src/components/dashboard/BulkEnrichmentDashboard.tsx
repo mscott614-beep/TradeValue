@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Portfolio } from "@/lib/types";
 import { getEnrichmentPool } from "@/app/actions/get-enrichment-pool";
-import { enrichCardAction } from "@/app/actions/enrich-card";
+import { enrichCardsBatchAction } from "@/app/actions/enrich-card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -56,24 +56,41 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         workerRef.current.onmessage = async (e) => {
             const { type, payload } = e.data;
 
-            if (type === 'PROCESS_CARD_ID') {
-                const { cardId, index, total } = payload;
-                const card = filteredCards.find(c => c.id === cardId);
+            if (type === 'PROCESS_BATCH') {
+                const { batchIds, currentIndex: batchStart, total, message } = payload;
+                const batchCards = filteredCards.filter(c => batchIds.includes(c.id));
                 
-                if (card) {
-                    // Call the server action
-                    const result = await enrichCardAction(userId, card);
+                if (batchCards.length > 0) {
+                    addLog(`📦 ${message}`, 'info');
                     
-                    // Update state
-                    setProcessedCount(prev => prev + 1);
-                    setCurrentCardIndex(index + 1);
-                    setProgress(Math.round(((index + 1) / total) * 100));
+                    // Call the batch server action
+                    const result = await enrichCardsBatchAction(userId, batchCards);
                     
-                    addLog(
-                        result.log || (result.success ? `✅ ${card.title} enriched.` : `❌ ${card.title} failed.`),
-                        result.success ? 'success' : 'error'
-                    );
+                    if (result.success && result.batchResults) {
+                        let successCount = 0;
+                        result.batchResults.forEach((res: any) => {
+                            if (res.success) successCount++;
+                            addLog(
+                                res.success ? `✅ ${res.title} enriched.` : `❌ ${res.title} failed: ${res.error || 'Unknown error'}`,
+                                res.success ? 'success' : 'error'
+                            );
+                        });
+
+                        // Update overall progress
+                        const totalProcessed = batchStart + batchIds.length;
+                        setProcessedCount(totalProcessed);
+                        setProgress(Math.round((totalProcessed / total) * 100));
+
+                        // Signal worker that batch is done and it can start the cooldown timer
+                        workerRef.current?.postMessage({ type: 'BATCH_SUCCESS' });
+                    } else {
+                        addLog(`❌ Batch failed: ${result.error}`, 'error');
+                        // Even on failure, we signal worker to potentially continue or stop
+                        workerRef.current?.postMessage({ type: 'BATCH_SUCCESS' });
+                    }
                 }
+            } else if (type === 'PROGRESS_UPDATE') {
+                addLog(payload.message, payload.status === 'warning' ? 'error' : 'info');
             } else if (type === 'ENRICHMENT_COMPLETE') {
                 setIsProcessing(false);
                 addLog("✨ Bulk enrichment complete!", 'info');
@@ -128,7 +145,8 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
             type: 'START_ENRICHMENT',
             payload: {
                 cardIds: filteredCards.map(c => c.id),
-                delay: speed 
+                batchSize: 5,
+                batchDelay: speed // Use the user-selected speed as the gap between batches (default 3s)
             }
         });
     };
