@@ -15,6 +15,35 @@ const EnrichmentOutputSchema = z.object({
 });
 
 /**
+ * Helper to call AI with exponential backoff for 429 errors.
+ */
+async function generateWithBackoff(prompt: string, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await ai.generate({
+                prompt,
+                output: { schema: EnrichmentOutputSchema },
+                config: {
+                    temperature: 0.1,
+                    // @ts-ignore
+                    googleSearchRetrieval: {},
+                },
+            });
+        } catch (error: any) {
+            const isRateLimit = error.message?.includes("429") || error.message?.includes("RESOURCE_EXHAUSTED");
+            if (isRateLimit && i < maxRetries - 1) {
+                const waitTime = Math.pow(2, i + 1) * 1000;
+                console.warn(`[Enrich] Rate limit hit. Retrying in ${waitTime}ms... (Attempt ${i + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw new Error("Max retries exceeded for AI generation.");
+}
+
+/**
  * Enriches a single card using Gemini 3.1 Flash with Google Search Retrieval.
  * Implements Smart Update: Only overwrites null/empty fields.
  */
@@ -22,21 +51,13 @@ export async function enrichCardAction(userId: string, card: Portfolio) {
     try {
         console.log(`[Enrich] Starting enrichment for: ${card.title} (${card.id})`);
 
-        // 1. AI Search via Gemini with Google Search tool
+        // 1. AI Search via Gemini with Google Search tool (Resilient)
         const prompt = `Find the following metadata and a high-resolution image URL for this trading card: "${card.title}".
         Metadata needed: Manufacturer (brand), Set Name, Year, Card Number.
         If the current card already has some details like year "${card.year}" or brand "${card.brand}", verify them.
         Provide a direct link to a high-quality image of the front of the card.`;
 
-        const { output } = await ai.generate({
-            prompt,
-            output: { schema: EnrichmentOutputSchema },
-            config: {
-                temperature: 0.1,
-                // @ts-ignore - googleSearchRetrieval is a special feature of Gemini in Genkit
-                googleSearchRetrieval: {},
-            },
-        });
+        const { output } = await generateWithBackoff(prompt);
 
         if (!output) {
             throw new Error("AI failed to return enrichment data.");

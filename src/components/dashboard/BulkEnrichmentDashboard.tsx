@@ -9,8 +9,10 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Play, Pause, RotateCcw, ImageIcon, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { Play, Pause, RotateCcw, ImageIcon, AlertCircle, CheckCircle2, Loader2, Gauge } from "lucide-react";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface EnrichmentLog {
     id: string;
@@ -22,6 +24,7 @@ interface EnrichmentLog {
 export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
     const [allCards, setAllCards] = useState<Portfolio[]>([]);
     const [filter, setFilter] = useState<'all' | 'missing' | 'outdated'>('all');
+    const [speed, setSpeed] = useState<number>(3000); // Default to Safe/Standard (3s)
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -119,13 +122,13 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         setProcessedCount(0);
         setProgress(0);
         setLogs([]);
-        addLog(`🚀 Starting enrichment for ${filteredCards.length} cards...`, 'info');
+        addLog(`🚀 Starting enrichment at ${speed}ms interval...`, 'info');
         
         workerRef.current?.postMessage({
             type: 'START_ENRICHMENT',
             payload: {
                 cardIds: filteredCards.map(c => c.id),
-                delay: 1000 // 1-second delay as requested
+                delay: speed 
             }
         });
     };
@@ -220,25 +223,46 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                                 Currently processing: <Badge variant="outline">{filter.toUpperCase()}</Badge> ({filteredCards.length} candidates)
                             </CardDescription>
                         </div>
-                        <div className="flex items-center gap-2">
-                            {isProcessing ? (
-                                <Button variant="outline" size="sm" onClick={handlePause}>
-                                    <Pause className="h-4 w-4 mr-2" /> Pause
-                                </Button>
-                            ) : (
-                                (processedCount > 0 && processedCount < filteredCards.length) ? (
-                                    <Button variant="default" size="sm" onClick={handleResume}>
-                                        <Play className="h-4 w-4 mr-2" /> Resume
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col gap-1.5 min-w-[140px]">
+                                <Label htmlFor="speed" className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold flex items-center gap-1">
+                                    <Gauge className="h-3 w-3" /> Processing Speed
+                                </Label>
+                                <Select 
+                                    value={speed.toString()} 
+                                    onValueChange={(v) => setSpeed(parseInt(v))}
+                                    disabled={isProcessing}
+                                >
+                                    <SelectTrigger id="speed" className="h-8 text-xs">
+                                        <SelectValue placeholder="Select speed" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="1000">Turbo (1s)</SelectItem>
+                                        <SelectItem value="3000">Standard (3s)</SelectItem>
+                                        <SelectItem value="5000">Safe (5s)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex items-center gap-2 pt-5">
+                                {isProcessing ? (
+                                    <Button variant="outline" size="sm" onClick={handlePause} className="h-8">
+                                        <Pause className="h-4 w-4 mr-2" /> Pause
                                     </Button>
                                 ) : (
-                                    <Button variant="default" size="sm" onClick={handleStart} disabled={filteredCards.length === 0}>
-                                        <Play className="h-4 w-4 mr-2" /> Start Enrichment
-                                    </Button>
-                                )
-                            )}
-                            <Button variant="ghost" size="sm" onClick={handleReset} disabled={isProcessing || processedCount === 0}>
-                                <RotateCcw className="h-4 w-4" />
-                            </Button>
+                                    (processedCount > 0 && processedCount < filteredCards.length) ? (
+                                        <Button variant="default" size="sm" onClick={handleResume} className="h-8">
+                                            <Play className="h-4 w-4 mr-2" /> Resume
+                                        </Button>
+                                    ) : (
+                                        <Button variant="default" size="sm" onClick={handleStart} disabled={filteredCards.length === 0} className="h-8">
+                                            <Play className="h-4 w-4 mr-2" /> Start Enrichment
+                                        </Button>
+                                    )
+                                )}
+                                <Button variant="ghost" size="sm" onClick={handleReset} disabled={isProcessing || processedCount === 0} className="h-8">
+                                    <RotateCcw className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </CardHeader>
