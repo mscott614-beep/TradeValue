@@ -6,6 +6,16 @@ import { getAdminDb } from "@/lib/firebase-server";
 import { Portfolio } from "@/lib/types";
 import { refreshCardValueAction } from "./refresh-card-value";
 
+/**
+ * Returns the Gemini API key for client-side worker usage.
+ * Only accessible to authenticated users.
+ */
+export async function getGeminiConfigAction() {
+    return {
+        apiKey: process.env.GEMINI_API_KEY || ""
+    };
+}
+
 const EnrichmentOutputSchema = z.object({
     brand: z.string().optional().describe("Manufacturer of the card (e.g. Topps, Upper Deck)"),
     set: z.string().optional().describe("The specific set or product line (e.g. Series 1, The Cup, Prizm)"),
@@ -165,4 +175,29 @@ export async function enrichCardsBatchAction(userId: string, cards: Portfolio[])
         batchResults: [result],
         isRateLimit: result.isRateLimit
     };
+}
+
+/**
+ * Atomic Firestore commit for enrichment results.
+ * This is fast and reliable for the final step of the worker loop.
+ */
+export async function saveEnrichmentResultAction(userId: string, cardId: string, updates: any) {
+    try {
+        const db = getAdminDb();
+        const cardRef = db.doc(`users/${userId}/portfolios/${cardId}`);
+        
+        // Merge updates and set metadata
+        await cardRef.update({
+            ...updates,
+            lastEnriched: new Date().toISOString(),
+            status: 'success',
+            // Trigger a data_flags check if needed
+            data_flags: updates.imageUrl ? [] : ['missing_image'] 
+        });
+        
+        return { success: true };
+    } catch (error: any) {
+        console.error(`[Save Result] Error for ${cardId}:`, error);
+        return { success: false, error: error.message };
+    }
 }

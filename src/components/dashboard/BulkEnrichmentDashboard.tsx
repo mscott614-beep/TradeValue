@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Portfolio } from "@/lib/types";
 import { getEnrichmentPool } from "@/app/actions/get-enrichment-pool";
-import { enrichCardsBatchAction } from "@/app/actions/enrich-card";
+import { saveEnrichmentResultAction, getGeminiConfigAction } from "@/app/actions/enrich-card";
+import { refreshCardValueAction } from "@/app/actions/refresh-card-value";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -55,43 +56,40 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         workerRef.current.onmessage = async (e) => {
             const { type, payload } = e.data;
 
-            if (type === 'PROCESS_BATCH') {
-                const { batchIds, currentIndex: batchStart, total, message } = payload;
-                const batchCards = filteredCards.filter(c => batchIds.includes(c.id));
-                
-                if (batchCards.length > 0) {
-                    addLog(`⏳ ${message}`, 'info');
-                    
-                    // Call the server action
-                    const result = await enrichCardsBatchAction(userId, batchCards);
-                    
-                    if (result.success && result.batchResults) {
-                        setIsQuotaLimit(false);
-                        result.batchResults.forEach((res: any) => {
-                            addLog(res.log || (res.success ? `✅ ${res.title} enriched.` : `❌ ${res.title} failed`), res.success ? 'success' : 'error');
-                        });
+            if (type === 'LOG_UPDATE') {
+                addLog(payload.message, payload.type);
+            } else if (type === 'GET_CARD_DATA') {
+                const card = allCards.find(c => c.id === payload.cardId);
+                workerRef.current?.postMessage({ type: 'CARD_DATA_RESULT', payload: card });
+            } else if (type === 'GET_PRICE') {
+                addLog(`🔍 Fetching current market value...`, 'info');
+                const result = await refreshCardValueAction(userId, payload.card);
+                workerRef.current?.postMessage({ type: 'PRICING_RESULT', payload: result });
+            } else if (type === 'CARD_ENRICHED') {
+                // Atomic Commit
+                const { cardId, metadata, price, log } = payload;
+                const saveResult = await saveEnrichmentResultAction(userId, cardId, {
+                    ...metadata,
+                    currentMarketValue: price
+                });
 
-                        // Update overall progress
-                        const totalProcessed = batchStart + batchIds.length;
-                        setProcessedCount(totalProcessed);
-                        setProgress(Math.round((totalProcessed / total) * 100));
-
-                        // Signal worker that batch is done and it can start the cooldown timer
-                        workerRef.current?.postMessage({ type: 'BATCH_SUCCESS' });
-                    } else {
-                        if (result.isRateLimit) {
-                            setIsQuotaLimit(true);
-                            addLog(`⚠️ [Quota Limit] Waiting 15s to retry...`, 'error');
-                            // Wait 15s then retry this same batch
-                            setTimeout(() => {
-                                workerRef.current?.postMessage({ type: 'RESUME_ENRICHMENT' });
-                            }, 15000);
-                        } else {
-                            addLog(`❌ Error: ${result.error}`, 'error');
-                            workerRef.current?.postMessage({ type: 'BATCH_SUCCESS' });
-                        }
-                    }
+                if (saveResult.success) {
+                    addLog(log, 'success');
+                    setProcessedCount(prev => {
+                        const newCount = prev + 1;
+                        setProgress(Math.round((newCount / filteredCards.length) * 100));
+                        return newCount;
+                    });
+                } else {
+                    addLog(`❌ Failed to save ${payload.title}: ${saveResult.error}`, 'error');
                 }
+            } else if (type === 'CARD_ERROR') {
+                addLog(payload.log, 'error');
+                setProcessedCount(prev => {
+                    const newCount = prev + 1;
+                    setProgress(Math.round((newCount / filteredCards.length) * 100));
+                    return newCount;
+                });
             } else if (type === 'ENRICHMENT_COMPLETE') {
                 setIsProcessing(false);
                 setIsQuotaLimit(false);
@@ -130,21 +128,26 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         setLogs(prev => [newLog, ...prev].slice(0, 50));
     };
 
-    const handleStart = () => {
+    const handleStart = async () => {
         if (filteredCards.length === 0) {
             toast.error("No cards found for this filter.");
             return;
         }
+
         setIsProcessing(true);
         setProcessedCount(0);
         setProgress(0);
         setLogs([]);
         addLog(`🚀 Starting high-stability serial enrichment...`, 'info');
         
+        // Fetch API Key
+        const { apiKey } = await getGeminiConfigAction();
+
         workerRef.current?.postMessage({
             type: 'START_ENRICHMENT',
             payload: {
-                cardIds: filteredCards.map(c => c.id)
+                cardIds: filteredCards.map(c => c.id),
+                apiKey
             }
         });
     };
@@ -283,7 +286,7 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                         </div>
                         <Progress 
                             value={progress} 
-                            className={`h-3 transition-all duration-500 ${isQuotaLimit ? "[&>div]:bg-orange-500" : ""}`} 
+                            className={`h-3 transition-all duration-300 ${isQuotaLimit ? "[&>div]:bg-orange-500" : ""}`} 
                         />
                         <div className="flex justify-between text-xs font-mono">
                             <span>Card {processedCount} of {filteredCards.length}</span>
