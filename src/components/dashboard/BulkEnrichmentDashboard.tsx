@@ -174,7 +174,7 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
 
                 if (imageUrl) {
                     // ── Pre-fetch the image server-side BEFORE showing dialog ──
-                    addLog(`📥 Verifying image for ${title}...`, 'info');
+                    addLog(`📥 Verifying candidate image for ${title}...`, 'info');
                     const fetchResult = await fetchAndEncodeImageAction(imageUrl);
 
                     if (fetchResult.success && fetchResult.dataUrl) {
@@ -191,13 +191,17 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                         // Worker waits for CARD_COMMITTED from the dialog handler
                     } else {
                         // Dead URL — skip dialog, auto-commit without image
-                        addLog(`⚠️ Image unreachable (${fetchResult.error}). Saving without image.`, 'error');
-                        await commitAndContinue(cardId, metadata, price, log, null);
+                        // Use a specific log so the user knows the image failed, not the whole card
+                        const noImageLog = `⚡ ${title} — metadata saved (image URL unreachable: ${fetchResult.error})`;
+                        addLog(noImageLog, 'error');
+                        await commitAndContinue(cardId, metadata, price, noImageLog, null);
                     }
                 } else {
-                    // No image found by AI — commit immediately
-                    await commitAndContinue(cardId, metadata, price, log, null);
+                    // AI found no image URL at all — commit with clear "metadata only" note
+                    const noImageLog = `⚡ ${title} — metadata saved (no image found by AI)`;
+                    await commitAndContinue(cardId, metadata, price, noImageLog, null);
                 }
+
 
             } else if (type === 'CARD_ERROR') {
                 addLog(payload.log, 'error');
