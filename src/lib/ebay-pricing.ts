@@ -7,6 +7,7 @@
 export interface CardDescriptor {
     year?: string;
     brand?: string;
+    set?: string; // e.g. "Star Rookies", "Young Guns"
     player?: string;
     cardNumber?: string;
     parallel?: string;
@@ -46,6 +47,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     const year = card.year || '';
     const brand = card.brand || '';
+    const set = card.set ? `"${card.set}"` : '';
     const player = card.player || '';
 
     // Formatting: Ensure card number has a '#' for vintage matching on eBay
@@ -64,12 +66,12 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         // If not graded, also exclude graded terms to avoid price inflation
         const gradingExclusions = !isGraded ? '-psa -bgs -sgc -cgc -graded -slab' : '';
 
-        let query = `${gradeString} ${year} ${brand} ${player} ${parallel} ${cardNumber} ${negativeKeywords} ${gradingExclusions}`.replace(/\s+/g, ' ').trim();
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${parallel} ${cardNumber} ${negativeKeywords} ${gradingExclusions}`.replace(/\s+/g, ' ').trim();
         return { type: 'Base', query };
     } else {
         // Parallel Query: Feature name is a mandatory inclusion
         const feature = parallel || 'insert';
-        let query = `${gradeString} ${year} ${brand} ${player} ${feature} ${cardNumber} -sold -completed -reprint -digital`.replace(/\s+/g, ' ').trim();
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} -sold -completed -reprint -digital`.replace(/\s+/g, ' ').trim();
         return { type: 'Parallel', query };
     }
 }

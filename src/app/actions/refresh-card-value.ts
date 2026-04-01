@@ -16,6 +16,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         const { type, query: primaryQuery } = buildEbayQuery({
             year: card.year,
             brand: card.brand,
+            set: card.set,
             player: card.player,
             cardNumber: card.cardNumber,
             parallel: card.parallel,
@@ -24,7 +25,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         });
 
         // 2. Step 3: API Request Configuration (FIXED_PRICE Priority / EXTENDED Fields)
-        console.log(`[Refresh] Lead Architect Query (${type}): "${primaryQuery}"`);
+        console.log(`[Refresh] Lead Data Architect Query (${type}): "${primaryQuery}"`);
 
         let activeResponse = await ebayService.searchActiveItems(primaryQuery, 10);
         let rawItems = activeResponse.itemSummaries || [];
@@ -33,7 +34,8 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         // while still preserving the specific parallel/grade if it exists.
         if (rawItems.length === 0) {
             const parallel = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
-            const secondaryQuery = `${card.year} ${card.brand} ${card.player} ${parallel} ${card.cardNumber} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            const set = card.set || '';
+            const secondaryQuery = `${card.year} ${card.brand} ${set} ${card.player} ${parallel} ${card.cardNumber} -reprint -digital`.replace(/\s+/g, ' ').trim();
             console.log(`[Refresh] Precision query returned 0. Trying broad fallback: "${secondaryQuery}"`);
             activeResponse = await ebayService.searchActiveItems(secondaryQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
