@@ -207,6 +207,14 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     if (GENERIC_SET_STOPWORDS.some(stop => setRaw.toLowerCase().trim() === stop)) {
         setRaw = '';
     }
+    // Filter out sets that are just the brand name repeated (e.g. "1990-91 Upper Deck Hockey", "2007-08 O-Pee-Chee")
+    // A real subset should NOT contain the card's year or the brand name
+    if (setRaw && year && setRaw.includes(year.split('-')[0])) {
+        setRaw = '';
+    }
+    if (setRaw && brand && setRaw.toLowerCase().includes(brand.toLowerCase().replace(/"/g, ''))) {
+        setRaw = '';
+    }
     // Apply abbreviations to set name too
     Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
         if (setRaw.toLowerCase().includes(key)) setRaw = val;
@@ -254,6 +262,11 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         }
     });
 
+    // Extract serial number from title (e.g. "/299", "/25") for numbered cards
+    // This is included in parallel queries since numbered cards are parallels by definition
+    const serialMatch = (effectiveCard.title || '').match(/\/(?!\/)\s*(\d+)\b/);
+    const serialNumber = serialMatch ? `/${serialMatch[1]}` : '';
+
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
         const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
@@ -264,8 +277,11 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         return { type: 'Base', query };
     } else {
         // Parallel Query: Feature name is a mandatory inclusion
-        const feature = parallel || 'insert';
-        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${autoExclusions} -reprint -digital`.replace(/\s+/g, ' ').trim();
+        // For numbered cards with no color name, use the serial number as the differentiator
+        // Do NOT use 'insert' as a fallback — it's too generic and rarely in eBay titles
+        const feature = parallel;
+        const serialPart = serialNumber ? serialNumber : '';
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${serialPart} ${autoExclusions} -reprint -digital`.replace(/\s+/g, ' ').trim();
         return { type: 'Parallel', query };
     }
 }
