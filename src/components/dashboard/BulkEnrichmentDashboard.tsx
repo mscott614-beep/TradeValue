@@ -6,6 +6,7 @@ import { getEnrichmentPool } from "@/app/actions/get-enrichment-pool";
 import { saveEnrichmentResultAction, getGeminiConfigAction } from "@/app/actions/enrich-card";
 import { refreshCardValueAction } from "@/app/actions/refresh-card-value";
 import { fetchAndEncodeImageAction } from "@/app/actions/fetch-image";
+import { auditImageLinksAction, AuditResult } from "@/app/actions/audit-images";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +20,17 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Play, Pause, RotateCcw, ImageIcon, AlertCircle, CheckCircle2, Loader2, SkipForward } from "lucide-react";
+import {
+    Play,
+    Pause,
+    RotateCcw,
+    ImageIcon,
+    AlertCircle,
+    CheckCircle2,
+    Loader2,
+    SkipForward,
+    SearchCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface EnrichmentLog {
@@ -32,17 +43,18 @@ interface EnrichmentLog {
 interface PendingImageConfirmation {
     cardId: string;
     cardTitle: string;
-    imageUrl: string;
+    /** Already-fetched base64 data URL — safe to render in <img> */
+    previewDataUrl: string;
     metadata: any;
     price: number;
     log: string;
 }
 
 export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
-    const [isQuotaLimit, setIsQuotaLimit] = useState(false);
     const [allCards, setAllCards] = useState<Portfolio[]>([]);
     const [filter, setFilter] = useState<'all' | 'missing' | 'outdated'>('all');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isQuotaLimit, setIsQuotaLimit] = useState(false);
     const [progress, setProgress] = useState(0);
     const [processedCount, setProcessedCount] = useState(0);
     const [logs, setLogs] = useState<EnrichmentLog[]>([]);
@@ -50,20 +62,19 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
 
     // Image confirmation state
     const [pendingConfirmation, setPendingConfirmation] = useState<PendingImageConfirmation | null>(null);
-    const [isFetchingImage, setIsFetchingImage] = useState(false);
+    const [isSavingConfirm, setIsSavingConfirm] = useState(false);
+
+    // Dead link audit state
+    const [isAuditing, setIsAuditing] = useState(false);
+    const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
 
     const workerRef = useRef<Worker | null>(null);
     const allCardsRef = useRef<Portfolio[]>([]);
-    const filterRef = useRef<'all' | 'missing' | 'outdated'>(filter);
     const processingQueueSizeRef = useRef<number>(0);
 
-    // Keep refs in sync for worker callbacks
-    useEffect(() => {
-        allCardsRef.current = allCards;
-        filterRef.current = filter;
-    }, [allCards, filter]);
+    useEffect(() => { allCardsRef.current = allCards; }, [allCards]);
 
-    // Initial load of pool
+    // Initial pool load
     useEffect(() => {
         const fetchPool = async () => {
             const result = await getEnrichmentPool(userId);
@@ -77,93 +88,68 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         fetchPool();
     }, [userId]);
 
-    const addLog = (message: string, type: 'info' | 'success' | 'error') => {
-        const newLog: EnrichmentLog = {
-            id: Math.random().toString(36).substring(2, 11),
-            message,
-            type,
-            timestamp: new Date().toLocaleTimeString()
-        };
-        setLogs(prev => Array.isArray(prev) ? [newLog, ...prev].slice(0, 50) : [newLog]);
-    };
+    const addLog = useCallback((message: string, type: 'info' | 'success' | 'error') => {
+        setLogs(prev => {
+            const newLog: EnrichmentLog = {
+                id: Math.random().toString(36).substring(2, 11),
+                message,
+                type,
+                timestamp: new Date().toLocaleTimeString(),
+            };
+            return Array.isArray(prev) ? [newLog, ...prev].slice(0, 50) : [newLog];
+        });
+    }, []);
 
-    /**
-     * Commits an enrichment result to Firestore and signals the worker to continue.
-     */
+    /** Commits enrichment result and signals the worker to advance. */
     const commitAndContinue = useCallback(async (
         cardId: string,
         metadata: any,
         price: number,
         log: string,
-        resolvedImageUrl?: string | null
+        resolvedImageUrl: string | null
     ) => {
         const updates: any = { ...metadata, currentMarketValue: price };
-
-        if (resolvedImageUrl) {
-            updates.imageUrl = resolvedImageUrl;
-        }
+        if (resolvedImageUrl) updates.imageUrl = resolvedImageUrl;
 
         const saveResult = await saveEnrichmentResultAction(userId, cardId, updates);
-
         if (saveResult.success) {
             addLog(log, 'success');
             setProcessedCount(prev => {
                 const newCount = prev + 1;
-                const total = processingQueueSizeRef.current || 1;
-                setProgress(Math.round((newCount / total) * 100));
+                setProgress(Math.round((newCount / (processingQueueSizeRef.current || 1)) * 100));
                 return newCount;
             });
         } else {
             addLog(`❌ Failed to save: ${saveResult.error}`, 'error');
         }
-
-        // Signal worker to advance to the next card
         workerRef.current?.postMessage({ type: 'CARD_COMMITTED' });
-    }, [userId]);
+    }, [userId, addLog]);
 
-    /**
-     * Handles "Use This Image" confirmation — fetches image server-side, encodes it, then saves.
-     */
+    // ─── Image Confirmation Handlers ────────────────────────────────────────
+
     const handleConfirmImage = useCallback(async () => {
         if (!pendingConfirmation) return;
-        const { cardId, cardTitle, imageUrl, metadata, price, log } = pendingConfirmation;
-
-        setIsFetchingImage(true);
-        addLog(`📥 Copying image for ${cardTitle}...`, 'info');
-
+        const { cardId, previewDataUrl, metadata, price, log } = pendingConfirmation;
+        setIsSavingConfirm(true);
         try {
-            const fetchResult = await fetchAndEncodeImageAction(imageUrl);
-
-            if (fetchResult.success && fetchResult.dataUrl) {
-                addLog(`✅ Image copied successfully.`, 'success');
-                await commitAndContinue(cardId, metadata, price, log, fetchResult.dataUrl);
-            } else {
-                addLog(`⚠️ Image copy failed (${fetchResult.error}). Saving without image.`, 'error');
-                await commitAndContinue(cardId, metadata, price, log, null);
-            }
-        } catch (err: any) {
-            addLog(`⚠️ Image copy error: ${err.message}. Saving without image.`, 'error');
-            await commitAndContinue(cardId, metadata, price, log, null);
+            await commitAndContinue(cardId, metadata, price, log, previewDataUrl);
         } finally {
-            setIsFetchingImage(false);
+            setIsSavingConfirm(false);
             setPendingConfirmation(null);
         }
     }, [pendingConfirmation, commitAndContinue]);
 
-    /**
-     * Handles "Skip Image" — saves the card without an image.
-     */
     const handleSkipImage = useCallback(async () => {
         if (!pendingConfirmation) return;
         const { cardId, metadata, price, log } = pendingConfirmation;
         addLog(`⏭ Image skipped. Saving metadata only.`, 'info');
         setPendingConfirmation(null);
         await commitAndContinue(cardId, metadata, price, log, null);
-    }, [pendingConfirmation, commitAndContinue]);
+    }, [pendingConfirmation, commitAndContinue, addLog]);
 
-    // Initialize Web Worker ONCE
+    // ─── Worker Initialization ───────────────────────────────────────────────
+
     useEffect(() => {
-        console.log("[Dashboard] Initializing persistent worker.");
         workerRef.current = new Worker(
             new URL('../../workers/enrichment-worker', import.meta.url),
             { type: 'module' }
@@ -174,36 +160,54 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
 
             if (type === 'LOG_UPDATE') {
                 addLog(payload.message, payload.type);
+
             } else if (type === 'GET_CARD_DATA') {
                 const card = allCardsRef.current.find(c => c.id === payload.cardId);
                 workerRef.current?.postMessage({ type: 'CARD_DATA_RESULT', payload: card });
+
             } else if (type === 'GET_PRICE') {
-                addLog(`🔍 Fetching current market value...`, 'info');
                 const result = await refreshCardValueAction(userId, payload.card);
                 workerRef.current?.postMessage({ type: 'PRICING_RESULT', payload: result });
+
             } else if (type === 'CARD_ENRICHED') {
                 const { cardId, title, metadata, price, log, imageUrl } = payload;
-                const hasNewImage = !!imageUrl;
 
-                if (hasNewImage) {
-                    // Pause worker: show confirmation dialog to user
-                    addLog(`🖼️ Found candidate image for ${title}. Awaiting confirmation...`, 'info');
-                    setPendingConfirmation({ cardId, cardTitle: title, imageUrl, metadata, price, log });
-                    // Worker is now paused waiting for CARD_COMMITTED
+                if (imageUrl) {
+                    // ── Pre-fetch the image server-side BEFORE showing dialog ──
+                    addLog(`📥 Verifying image for ${title}...`, 'info');
+                    const fetchResult = await fetchAndEncodeImageAction(imageUrl);
+
+                    if (fetchResult.success && fetchResult.dataUrl) {
+                        // Image is downloadable — show dialog with working base64 preview
+                        addLog(`🖼️ Image verified. Awaiting your confirmation...`, 'info');
+                        setPendingConfirmation({
+                            cardId,
+                            cardTitle: title,
+                            previewDataUrl: fetchResult.dataUrl,
+                            metadata,
+                            price,
+                            log,
+                        });
+                        // Worker waits for CARD_COMMITTED from the dialog handler
+                    } else {
+                        // Dead URL — skip dialog, auto-commit without image
+                        addLog(`⚠️ Image unreachable (${fetchResult.error}). Saving without image.`, 'error');
+                        await commitAndContinue(cardId, metadata, price, log, null);
+                    }
                 } else {
-                    // No image found — commit immediately without dialog
+                    // No image found by AI — commit immediately
                     await commitAndContinue(cardId, metadata, price, log, null);
                 }
+
             } else if (type === 'CARD_ERROR') {
                 addLog(payload.log, 'error');
                 setProcessedCount(prev => {
                     const newCount = prev + 1;
-                    const total = processingQueueSizeRef.current || 1;
-                    setProgress(Math.round((newCount / total) * 100));
+                    setProgress(Math.round((newCount / (processingQueueSizeRef.current || 1)) * 100));
                     return newCount;
                 });
-                // Signal worker to continue even on error
                 workerRef.current?.postMessage({ type: 'CARD_COMMITTED' });
+
             } else if (type === 'ENRICHMENT_COMPLETE') {
                 setIsProcessing(false);
                 setIsQuotaLimit(false);
@@ -212,49 +216,73 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
             }
         };
 
-        return () => {
-            console.log("[Dashboard] Terminating worker.");
-            workerRef.current?.terminate();
-        };
+        return () => { workerRef.current?.terminate(); };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Filtering logic
-    const filteredCards = (Array.isArray(allCards) ? allCards : []).filter(card => {
+    // ─── Dead Link Audit ─────────────────────────────────────────────────────
+
+    const handleAudit = useCallback(async () => {
+        setIsAuditing(true);
+        setAuditResult(null);
+        addLog("🔍 Scanning collection for dead image links...", 'info');
+
+        const result = await auditImageLinksAction(userId);
+
+        if (result.success && result.result) {
+            setAuditResult(result.result);
+            const { total, copied, fixed } = result.result;
+            addLog(`✅ Audit complete: ${copied} images permanently copied, ${fixed} dead links cleared (${total} external URLs scanned).`, 'success');
+            toast.success(`Audit complete! ${copied} saved, ${fixed} dead links removed.`);
+        } else {
+            addLog(`❌ Audit failed: ${result.error}`, 'error');
+            toast.error("Audit failed. Check the activity log.");
+        }
+        setIsAuditing(false);
+    }, [userId, addLog]);
+
+    // ─── Filtering ───────────────────────────────────────────────────────────
+
+    const safeCards = Array.isArray(allCards) ? allCards : [];
+
+    const filteredCards = safeCards.filter(card => {
         if (filter === 'all') return true;
         if (filter === 'missing') {
-            return !card.imageUrl || card.imageUrl.includes("picsum.photos") || card.imageUrl.includes("placeholder");
+            const url = card.imageUrl;
+            return !url || url.includes("picsum.photos") || url.includes("placeholder") || (url.startsWith('http') && !url.startsWith('data:'));
         }
         if (filter === 'outdated') {
             if (!card.lastEnriched) return true;
-            const lastEnriched = new Date(card.lastEnriched);
-            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-            return lastEnriched < thirtyDaysAgo;
+            return new Date(card.lastEnriched) < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         }
         return true;
     });
 
-    const handleStart = async () => {
-        if (filteredCards.length === 0) {
-            toast.error("No cards found for this filter.");
-            return;
-        }
+    const missingCount = safeCards.filter(c => {
+        const url = c.imageUrl;
+        return !url || url.includes("picsum.photos") || url.includes("placeholder") || (!!url && url.startsWith('http') && !url.startsWith('data:'));
+    }).length;
 
+    const outdatedCount = safeCards.filter(c => {
+        if (!c.lastEnriched) return true;
+        return new Date(c.lastEnriched) < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }).length;
+
+    // ─── Control Handlers ────────────────────────────────────────────────────
+
+    const handleStart = async () => {
+        if (filteredCards.length === 0) { toast.error("No cards found for this filter."); return; }
         setIsProcessing(true);
         setProcessedCount(0);
         setProgress(0);
         setLogs([]);
         processingQueueSizeRef.current = filteredCards.length;
-
         try {
             const { apiKey } = await getGeminiConfigAction();
             workerRef.current?.postMessage({
                 type: 'START_ENRICHMENT',
-                payload: {
-                    apiKey,
-                    cardIds: filteredCards.map(c => c.id)
-                }
+                payload: { apiKey, cardIds: filteredCards.map(c => c.id) }
             });
-        } catch (error) {
+        } catch {
             addLog("❌ Failed to initialize enrichment.", 'error');
             setIsProcessing(false);
         }
@@ -280,9 +308,12 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         setProcessedCount(0);
         setLogs([]);
         setPendingConfirmation(null);
+        setAuditResult(null);
         workerRef.current?.postMessage({ type: 'RESET_ENRICHMENT' });
         toast.info("Enrichment reset.");
     };
+
+    // ─── Render ──────────────────────────────────────────────────────────────
 
     if (isLoading) {
         return (
@@ -295,7 +326,8 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
 
     return (
         <div className="space-y-6">
-            {/* Image Confirmation Dialog */}
+
+            {/* ── Image Confirmation Dialog ─────────────────────────────── */}
             <Dialog open={!!pendingConfirmation} onOpenChange={() => {}}>
                 <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
                     <DialogHeader>
@@ -304,26 +336,25 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                             Image Confirmation
                         </DialogTitle>
                         <DialogDescription>
-                            Gemini found this image for <strong>{pendingConfirmation?.cardTitle}</strong>. Is this the correct card?
+                            Found a verified image for <strong>{pendingConfirmation?.cardTitle}</strong>.
+                            Is this the correct card?
                         </DialogDescription>
                     </DialogHeader>
 
                     {pendingConfirmation && (
-                        <div className="flex flex-col items-center gap-4 py-4">
+                        <div className="flex flex-col items-center gap-3 py-4">
                             <div className="relative w-48 h-64 rounded-lg overflow-hidden border border-border bg-muted/30 shadow-md">
+                                {/* Uses base64 preview — guaranteed to load */}
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                    src={pendingConfirmation.imageUrl}
+                                    src={pendingConfirmation.previewDataUrl}
                                     alt={pendingConfirmation.cardTitle}
                                     className="w-full h-full object-contain"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
                                 />
                             </div>
-                            <p className="text-xs text-muted-foreground break-all text-center max-w-xs">
-                                {pendingConfirmation.imageUrl}
-                            </p>
+                            <Badge variant="outline" className="text-xs text-green-600 border-green-400">
+                                ✅ Image verified & ready to save
+                            </Badge>
                         </div>
                     )}
 
@@ -331,7 +362,7 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                         <Button
                             variant="outline"
                             onClick={handleSkipImage}
-                            disabled={isFetchingImage}
+                            disabled={isSavingConfirm}
                             className="flex-1"
                         >
                             <SkipForward className="h-4 w-4 mr-2" />
@@ -339,31 +370,28 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                         </Button>
                         <Button
                             onClick={handleConfirmImage}
-                            disabled={isFetchingImage}
+                            disabled={isSavingConfirm}
                             className="flex-1"
                         >
-                            {isFetchingImage ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                            )}
-                            {isFetchingImage ? "Copying..." : "Use This Image"}
+                            {isSavingConfirm
+                                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                : <CheckCircle2 className="h-4 w-4 mr-2" />
+                            }
+                            {isSavingConfirm ? "Saving..." : "Use This Image"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Control Header */}
+            {/* ── Filter Cards ──────────────────────────────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card
                     className={`cursor-pointer transition-all hover:shadow-md ${filter === 'all' ? 'border-primary ring-1 ring-primary' : ''}`}
                     onClick={() => !isProcessing && setFilter('all')}
                 >
                     <CardHeader className="p-4">
-                        <CardTitle className="text-sm font-medium flex items-center gap-2 text-primary">
-                            All Cards
-                        </CardTitle>
-                        <CardDescription className="text-2xl font-bold">{allCards.length}</CardDescription>
+                        <CardTitle className="text-sm font-medium text-primary">All Cards</CardTitle>
+                        <CardDescription className="text-2xl font-bold">{safeCards.length}</CardDescription>
                     </CardHeader>
                 </Card>
                 <Card
@@ -372,12 +400,9 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                 >
                     <CardHeader className="p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-500">
-                            <ImageIcon className="h-4 w-4" />
-                            Missing Images
+                            <ImageIcon className="h-4 w-4" /> Missing / External Images
                         </CardTitle>
-                        <CardDescription className="text-2xl font-bold">
-                            {(Array.isArray(allCards) ? allCards : []).filter(c => !c.imageUrl || c.imageUrl.includes("picsum.photos") || c.imageUrl.includes("placeholder")).length}
-                        </CardDescription>
+                        <CardDescription className="text-2xl font-bold">{missingCount}</CardDescription>
                     </CardHeader>
                 </Card>
                 <Card
@@ -386,22 +411,48 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                 >
                     <CardHeader className="p-4">
                         <CardTitle className="text-sm font-medium flex items-center gap-2 text-rose-500">
-                            <AlertCircle className="h-4 w-4" />
-                            Outdated Data
+                            <AlertCircle className="h-4 w-4" /> Outdated Data
                         </CardTitle>
-                        <CardDescription className="text-2xl font-bold">
-                            {(Array.isArray(allCards) ? allCards : []).filter(c => {
-                                if (!c.lastEnriched) return true;
-                                const lastEnriched = new Date(c.lastEnriched);
-                                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-                                return lastEnriched < thirtyDaysAgo;
-                            }).length}
-                        </CardDescription>
+                        <CardDescription className="text-2xl font-bold">{outdatedCount}</CardDescription>
                     </CardHeader>
                 </Card>
             </div>
 
-            {/* Processing UI */}
+            {/* ── Dead Link Audit ───────────────────────────────────────── */}
+            <Card className="border border-dashed border-amber-500/40 bg-amber-500/5">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                        <SearchCheck className="h-4 w-4" />
+                        Dead Link Audit
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                        Scans all cards with external image URLs (e.g. COMC, TCDB). Live images are permanently copied to your database; dead links are cleared so cards show a clean placeholder.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-center gap-4">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAudit}
+                        disabled={isAuditing || isProcessing}
+                        className="border-amber-500/50 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                    >
+                        {isAuditing
+                            ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning...</>
+                            : <><SearchCheck className="h-4 w-4 mr-2" /> Run Audit</>
+                        }
+                    </Button>
+                    {auditResult && (
+                        <div className="text-xs text-muted-foreground space-x-3">
+                            <span className="text-green-600 font-medium">✅ {auditResult.copied} copied</span>
+                            <span className="text-rose-600 font-medium">🗑️ {auditResult.fixed} dead links cleared</span>
+                            <span className="text-muted-foreground">{auditResult.total} external URLs scanned</span>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* ── Enrichment Engine ─────────────────────────────────────── */}
             <Card className="border-2">
                 <CardHeader>
                     <div className="flex items-center justify-between">
@@ -415,31 +466,35 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                                 )}
                                 {pendingConfirmation && (
                                     <Badge variant="outline" className="animate-pulse border-amber-400 text-amber-400">
-                                        ⏸ AWAITING IMAGE REVIEW
+                                        ⏸ IMAGE REVIEW
                                     </Badge>
                                 )}
                             </CardTitle>
                             <CardDescription>
-                                High-Stability Serial Mode | <Badge variant="outline">{filter.toUpperCase()}</Badge> ({filteredCards.length} candidates)
+                                High-Stability Serial Mode &nbsp;|&nbsp;
+                                <Badge variant="outline">{filter.toUpperCase()}</Badge> ({filteredCards.length} candidates)
                             </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
                             {isProcessing ? (
-                                <Button variant="outline" size="sm" onClick={handlePause} className="h-8" disabled={!!pendingConfirmation}>
+                                <Button variant="outline" size="sm" onClick={handlePause}
+                                    disabled={!!pendingConfirmation} className="h-8">
                                     <Pause className="h-4 w-4 mr-2" /> Pause
                                 </Button>
                             ) : (
-                                (processedCount > 0 && processedCount < filteredCards.length) ? (
+                                processedCount > 0 && processedCount < filteredCards.length ? (
                                     <Button variant="default" size="sm" onClick={handleResume} className="h-8">
                                         <Play className="h-4 w-4 mr-2" /> Resume
                                     </Button>
                                 ) : (
-                                    <Button variant="default" size="sm" onClick={handleStart} disabled={filteredCards.length === 0} className="h-8">
+                                    <Button variant="default" size="sm" onClick={handleStart}
+                                        disabled={filteredCards.length === 0} className="h-8">
                                         <Play className="h-4 w-4 mr-2" /> Start Enrichment
                                     </Button>
                                 )
                             )}
-                            <Button variant="ghost" size="sm" onClick={handleReset} disabled={isProcessing || processedCount === 0} className="h-8">
+                            <Button variant="ghost" size="sm" onClick={handleReset}
+                                disabled={isProcessing || processedCount === 0} className="h-8">
                                 <RotateCcw className="h-4 w-4" />
                             </Button>
                         </div>
@@ -449,8 +504,15 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                     <div className="space-y-2">
                         <div className="flex justify-between text-xs text-muted-foreground">
                             <span className="flex items-center gap-2">
-                                {isProcessing && !isQuotaLimit && !pendingConfirmation && <Loader2 className="h-3 w-3 animate-spin" />}
-                                {pendingConfirmation ? "Paused — review the image above to continue." : isQuotaLimit ? "Quota Limit Active - Waiting 15s..." : "Status: Active"}
+                                {isProcessing && !pendingConfirmation && !isQuotaLimit &&
+                                    <Loader2 className="h-3 w-3 animate-spin" />}
+                                {pendingConfirmation
+                                    ? "⏸ Paused — confirm the image above to continue."
+                                    : isQuotaLimit
+                                        ? "⏳ Quota cool-down (15s)..."
+                                        : isProcessing
+                                            ? "Running..."
+                                            : "Ready"}
                             </span>
                             <span>{progress}%</span>
                         </div>
@@ -474,7 +536,8 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                             )}
                             <div className="space-y-2">
                                 {Array.isArray(logs) && logs.map((log) => (
-                                    <div key={log.id} className="text-xs transition-all animate-in fade-in slide-in-from-top-1">
+                                    <div key={log.id}
+                                        className="text-xs transition-all animate-in fade-in slide-in-from-top-1">
                                         <span className="text-muted-foreground mr-2">[{log.timestamp}]</span>
                                         <span className={
                                             log.type === 'success' ? 'text-green-600' :
