@@ -178,17 +178,30 @@ async function processNextCard() {
         // 3. Call Pricing Bridge
         const priceResult: any = await fetchCurrentPrice({ ...cardData, ...aiOutput });
 
-        // 4. Post Result to Main Thread
+        // 4. Post Result to Main Thread and wait for commit acknowledgment
         self.postMessage({
             type: 'CARD_ENRICHED',
             payload: {
                 cardId,
                 title: cardData.title,
                 metadata: aiOutput,
+                imageUrl: useSearch ? (aiOutput.imageUrl || null) : null, // Only pass imageUrl if we searched for it
                 price: priceResult.success ? priceResult.newPrice : cardData.currentMarketValue,
                 success: true,
                 log: `✅ ${cardData.title} enriched.${!useSearch ? ' (Search skipped)' : ''}`
             }
+        });
+
+        // Wait for main thread to confirm the card has been committed
+        // (This pause is used for image confirmation dialog)
+        await new Promise<void>(resolve => {
+            const listener = (e: MessageEvent) => {
+                if (e.data.type === 'CARD_COMMITTED') {
+                    self.removeEventListener('message', listener);
+                    resolve();
+                }
+            };
+            self.addEventListener('message', listener);
         });
 
         currentIndex++;
