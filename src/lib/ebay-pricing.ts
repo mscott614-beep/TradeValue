@@ -22,10 +22,24 @@ const TRUE_PARALLEL_KEYWORDS = [
     'numbered', 'variation', 'short print', 'sp', 'ssp'
 ];
 
+/**
+ * GRADER_KEYWORDS: Used to DETECT if a card is graded.
+ * These are grading company names. If any appear in condition/title with a number, card is graded.
+ */
+const GRADER_KEYWORDS = [
+    'psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'csa', 'isa', 'ace', 'fcg'
+];
+
+/**
+ * NON_GRADED_EXCLUSIONS: Injected into ungraded card queries to filter out slabs.
+ * Must include ALL graders, not just the major 4.
+ */
+const NON_GRADED_EXCLUSIONS = '-psa -bgs -sgc -cgc -bccg -gma -hga -graded -slab';
+
+/** Legacy alias for compatibility */
 const BASE_LIKE_KEYWORDS = [
-    'psa', 'bgs', 'sgc', 'cgc', 'graded', 'gem mt', 'mint',
-    'young guns', 'canvas', 'rookie card', 'rc', 'rookie',
-    'bccg', 'gma', 'hga', 'csa', 'isa', 'slab', 'auth'
+    ...GRADER_KEYWORDS,
+    'graded', 'gem mt', 'mint', 'young guns', 'canvas', 'rookie card', 'rc', 'rookie', 'slab', 'auth'
 ];
 
 
@@ -67,6 +81,17 @@ function parseTitleIntoFields(title: string): Partial<CardDescriptor> {
     // Extract card number (e.g. "#102", "#M-14", "/300")
     const numMatch = title.match(/#([A-Z0-9\-]+)/i) || title.match(/\/(\d+)/);
     if (numMatch) result.cardNumber = numMatch[1];
+
+    // Extract grading from title (e.g. "BCCG 10", "PSA 9", "BGS 9.5")
+    // Must find grader name followed by a numeric grade
+    const lcTitle = title.toLowerCase();
+    for (const grader of GRADER_KEYWORDS) {
+        const gradeMatch = lcTitle.match(new RegExp(`\\b${grader}\\s+(\\d+(?:\\.\\d+)?)\\b`));
+        if (gradeMatch) {
+            result.condition = `${grader.toUpperCase()} ${gradeMatch[1]}`;
+            break;
+        }
+    }
 
     // Extract brand/series  
     // Order matters: check longer phrases first
@@ -184,9 +209,27 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const cardNumber = rawNumber ? `#${rawNumber}` : '';
     const parallel = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
 
-    // Grading Logic: Extract grade if present
-    const isGraded = BASE_LIKE_KEYWORDS.some(k => conditionText.includes(k)) && /\d+/.test(conditionText);
-    const gradeString = isGraded ? effectiveCard.condition : '';
+    // Grading Logic: Use GRADER_KEYWORDS for precise detection.
+    // Checks both the condition field AND the title (for legacy cards without a condition field).
+    const gradingSource = conditionText || titleText;
+    const isGraded = GRADER_KEYWORDS.some(k => gradingSource.includes(k)) && /\d+/.test(gradingSource);
+    // For graded cards, include the grader+grade in the query (e.g. "BCCG 10", "PSA 9")
+    // If condition isn't set but title has grading, extract it from title
+    let gradeString = '';
+    if (isGraded) {
+        if (effectiveCard.condition) {
+            gradeString = effectiveCard.condition;
+        } else {
+            // Extract grade string from title
+            for (const grader of GRADER_KEYWORDS) {
+                const gradeMatch = titleText.match(new RegExp(`\\b${grader}\\s+(\\d+(?:\\.\\d+)?)\\b`));
+                if (gradeMatch) {
+                    gradeString = `${grader.toUpperCase()} ${gradeMatch[1]}`;
+                    break;
+                }
+            }
+        }
+    }
 
     // Parallel-specific exclusions (e.g. if searching 'Gold', exclude 'Silver')
     let autoExclusions = '';
@@ -199,7 +242,9 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
         const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
-        const gradingExclusions = !isGraded ? '-psa -bgs -sgc -cgc -graded -slab' : '';
+        // For ungraded cards: block ALL graders (psa, bgs, sgc, cgc, bccg, gma, hga, etc.)
+        // For graded cards: include the grader+grade instead
+        const gradingExclusions = !isGraded ? NON_GRADED_EXCLUSIONS : '';
         let query = `${gradeString} ${year} ${brand} ${set} ${player} ${cardNumber} ${negativeKeywords} ${gradingExclusions} ${autoExclusions}`.replace(/\s+/g, ' ').trim();
         return { type: 'Base', query };
     } else {
