@@ -203,8 +203,26 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     }
 
     let setRaw = effectiveCard.set || '';
+
+    // === Brand / Set Merge Logic ===
+    // Some cards store the sub-brand (product line) as the 'set' field (e.g. brand="In The Game", set="Be A Player")
+    // When we detect a brand-level name in 'set', it should REPLACE the brand in the query, not stack alongside it.
+    // This prevents the notorious "ITG BAP" double-brand issue.
+    const BRAND_LEVEL_SET_NAMES = [
+        { match: 'be a player', brand90s: '"Be A Player"', brand00s: 'BAP' },
+        { match: 'between the pipes', brand90s: 'BTP', brand00s: 'BTP' },
+    ];
+    for (const entry of BRAND_LEVEL_SET_NAMES) {
+        if (setRaw.toLowerCase().includes(entry.match)) {
+            // The set IS the real brand — replace the brand with the correct era name
+            brand = numericYear < 2000 ? entry.brand90s : entry.brand00s;
+            setRaw = ''; // Clear the set — it was really the brand
+            break;
+        }
+    }
+
     // Filter out generic/placeholder set names — they add noise, not signal
-    if (GENERIC_SET_STOPWORDS.some(stop => setRaw.toLowerCase().trim() === stop)) {
+    if (setRaw && GENERIC_SET_STOPWORDS.some(stop => setRaw.toLowerCase().trim() === stop)) {
         setRaw = '';
     }
     // Filter out sets that are just the brand name repeated (e.g. "1990-91 Upper Deck Hockey", "2007-08 O-Pee-Chee")
@@ -222,6 +240,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     // Smart Quoting for Sets: Quote if more than 1 word (subset name like "The Mask", "Gold Auto")
     const set = setRaw.split(' ').length >= 2 ? `"${setRaw}"` : setRaw;
+
     
     const player = effectiveCard.player || '';
 
