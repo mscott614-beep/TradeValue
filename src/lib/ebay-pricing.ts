@@ -66,13 +66,20 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
 
 
+    // Fix: Preserve full season years (e.g. 1998-99)
     const year = card.year || '';
+    const numericYear = parseInt(year.split('-')[0]);
     
-    // Apply Hobby Abbreviations
+    // Apply Hobby Abbreviations with age-based logic
     let brand = card.brand || '';
-    Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
-        if (brand.toLowerCase().includes(key)) brand = val;
-    });
+    if (brand.toLowerCase().includes('itg be a player') || brand.toLowerCase().includes('be a player')) {
+        // For 90s BAP, full name is often better. For 2000s, BAP is the standard.
+        brand = numericYear < 2000 ? '"Be A Player"' : 'BAP';
+    } else {
+        Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
+            if (brand.toLowerCase().includes(key)) brand = val;
+        });
+    }
 
     let setRaw = card.set || '';
     Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
@@ -103,6 +110,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
+        // Note: Removed -sold -completed as they are not needed for Browse API and can be buggy
         const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
 
         // If not graded, also exclude graded terms to avoid price inflation
@@ -113,7 +121,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     } else {
         // Parallel Query: Feature name is a mandatory inclusion
         const feature = parallel || 'insert';
-        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${autoExclusions} -sold -completed -reprint -digital`.replace(/\s+/g, ' ').trim();
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${autoExclusions} -reprint -digital`.replace(/\s+/g, ' ').trim();
         return { type: 'Parallel', query };
     }
 }
