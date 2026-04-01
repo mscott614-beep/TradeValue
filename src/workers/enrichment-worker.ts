@@ -145,9 +145,15 @@ async function processNextCard() {
         - set: Set Name (e.g., Series 1, Honor Roll)
         - year: Release Year
         - cardNumber: Card Number String
-        ${useSearch ? '- imageUrl: A high-resolution public photo URL or null' : ''}
+        ${useSearch ? `- imageUrl: A direct URL to a high-resolution image of the FRONT of this card.
+          RULES FOR imageUrl:
+          * Prefer open image hosts: Wikipedia, Wikimedia Commons, SportsCardForum.com, PWCC Marketplace, Goldin Auctions, or PSA Card Facts.
+          * AVOID COMC (img.comc.com) and TCDB (tcdb.com) — they block server-side image access with 403 errors.
+          * The URL must end in .jpg, .jpeg, .png, or .webp and point directly to the image file.
+          * If no open-access image is available, return null.` : ''}
         
         Strict JSON only. No markdown.`;
+
 
         const heartbeat = setTimeout(() => {
             self.postMessage({ 
