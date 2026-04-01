@@ -146,11 +146,12 @@ async function processNextCard() {
         - year: Release Year
         - cardNumber: Card Number String
         ${useSearch ? `- imageUrl: A direct URL to a high-resolution image of the FRONT of this card.
-          RULES FOR imageUrl:
-          * Prefer open image hosts: Wikipedia, Wikimedia Commons, SportsCardForum.com, PWCC Marketplace, Goldin Auctions, or PSA Card Facts.
-          * AVOID COMC (img.comc.com) and TCDB (tcdb.com) — they block server-side image access with 403 errors.
+          HOW TO FIND THE BEST IMAGE:
+          1. BEST: Search eBay sold listings for this card. eBay image URLs start with "https://i.ebayimg.com/" and are ALWAYS publicly accessible with no restrictions. This is the preferred source.
+          2. GOOD: PWCC Marketplace (pwccmarketplace.com) or Goldin Auctions sold listings.
+          3. OK: COMC (img.comc.com) or TCDB (tcdb.com) as a last resort.
           * The URL must end in .jpg, .jpeg, .png, or .webp and point directly to the image file.
-          * If no open-access image is available, return null.` : ''}
+          * If no image URL can be found, return null.` : ''}
         
         Strict JSON only. No markdown.`;
 
@@ -184,19 +185,8 @@ async function processNextCard() {
         // 3. Call Pricing Bridge
         const priceResult: any = await fetchCurrentPrice({ ...cardData, ...aiOutput });
 
-        // 4. Blocklist filter: drop URLs from known hotlink-protected domains before they waste a fetch attempt
-        const BLOCKED_DOMAINS = ['img.comc.com', 'www.comc.com', 'tcdb.com', 'cdn.comc.com'];
-        const rawImageUrl: string | null = useSearch ? (aiOutput.imageUrl || null) : null;
-        const safeImageUrl = rawImageUrl && BLOCKED_DOMAINS.some(d => rawImageUrl.includes(d))
-            ? null
-            : rawImageUrl;
-
-        if (rawImageUrl && !safeImageUrl) {
-            self.postMessage({
-                type: 'LOG_UPDATE',
-                payload: { message: `🚫 Blocked image URL from known restricted domain — skipping fetch.`, type: 'info' }
-            });
-        }
+        // 4. Forward imageUrl only when search was used (don't overwrite existing images)
+        const safeImageUrl: string | null = useSearch ? (aiOutput.imageUrl || null) : null;
 
         // 5. Post Result to Main Thread and wait for commit acknowledgment
         self.postMessage({
@@ -211,6 +201,7 @@ async function processNextCard() {
                 log: `✅ ${cardData.title} enriched.${!useSearch ? ' (Search skipped)' : ''}`
             }
         });
+
 
         // Wait for main thread to confirm the card has been committed
         // (This pause is used for image confirmation dialog)
