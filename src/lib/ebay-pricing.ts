@@ -66,6 +66,15 @@ const PARALLEL_EXCLUSIONS: Record<string, string> = {
 };
 
 /**
+ * Generic placeholder set names that bloat the eBay query without helping match.
+ * "Base Set", "Base", "Hockey", "NHL" are not real subset names.
+ */
+const GENERIC_SET_STOPWORDS = [
+    'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
+    'regular', 'common', 'standard issue', 'insert'
+];
+
+/**
  * Title-Based Fallback Parser
  * For legacy cards that only have a 'title' field and no structured data.
  * Extracts year, brand, subset, parallel, player, and card number from the full title string.
@@ -194,6 +203,10 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     }
 
     let setRaw = effectiveCard.set || '';
+    // Filter out generic/placeholder set names — they add noise, not signal
+    if (GENERIC_SET_STOPWORDS.some(stop => setRaw.toLowerCase().trim() === stop)) {
+        setRaw = '';
+    }
     // Apply abbreviations to set name too
     Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
         if (setRaw.toLowerCase().includes(key)) setRaw = val;
@@ -209,18 +222,20 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const cardNumber = rawNumber ? `#${rawNumber}` : '';
     const parallel = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
 
-    // Grading Logic: Use GRADER_KEYWORDS for precise detection.
-    // Checks both the condition field AND the title (for legacy cards without a condition field).
-    const gradingSource = conditionText || titleText;
-    const isGraded = GRADER_KEYWORDS.some(k => gradingSource.includes(k)) && /\d+/.test(gradingSource);
-    // For graded cards, include the grader+grade in the query (e.g. "BCCG 10", "PSA 9")
-    // If condition isn't set but title has grading, extract it from title
+    // Grading Logic: Always check BOTH condition field AND title.
+    // This handles legacy cards where grading info is embedded in the title but not in a separate condition field.
+    const conditionHasGrade = GRADER_KEYWORDS.some(k => conditionText.includes(k)) && /\d+/.test(conditionText);
+    const titleHasGrade = GRADER_KEYWORDS.some(k => titleText.includes(k)) && /\d+/.test(titleText);
+    const isGraded = conditionHasGrade || titleHasGrade;
+    
+    // Build the grade string for insertion into the query (e.g. "BCCG 10", "PSA 9")
     let gradeString = '';
     if (isGraded) {
-        if (effectiveCard.condition) {
+        if (effectiveCard.condition && conditionHasGrade) {
+            // Prefer explicit condition field if it has grading info
             gradeString = effectiveCard.condition;
         } else {
-            // Extract grade string from title
+            // Fall back to extracting from title — covers legacy cards scanned as a full title string
             for (const grader of GRADER_KEYWORDS) {
                 const gradeMatch = titleText.match(new RegExp(`\\b${grader}\\s+(\\d+(?:\\.\\d+)?)\\b`));
                 if (gradeMatch) {
