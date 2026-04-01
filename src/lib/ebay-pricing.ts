@@ -52,71 +52,155 @@ const PARALLEL_EXCLUSIONS: Record<string, string> = {
 };
 
 /**
+ * Title-Based Fallback Parser
+ * For legacy cards that only have a 'title' field and no structured data.
+ * Extracts year, brand, subset, parallel, player, and card number from the full title string.
+ */
+function parseTitleIntoFields(title: string): Partial<CardDescriptor> {
+    if (!title) return {};
+    const result: Partial<CardDescriptor> = {};
+
+    // Extract year / season (e.g. "1998-99" or "2001-02")
+    const yearMatch = title.match(/\b(\d{4}-\d{2}|\d{4})\b/);
+    if (yearMatch) result.year = yearMatch[1];
+
+    // Extract card number (e.g. "#102", "#M-14", "/300")
+    const numMatch = title.match(/#([A-Z0-9\-]+)/i) || title.match(/\/(\d+)/);
+    if (numMatch) result.cardNumber = numMatch[1];
+
+    // Extract brand/series  
+    // Order matters: check longer phrases first
+    const brandMap: [string, string][] = [
+        ['be a player', 'Be A Player'],
+        ['between the pipes', 'Between the Pipes'],
+        ['in the game', 'In The Game'],
+        ['upper deck', 'Upper Deck'],
+        ['o-pee-chee', "O-Pee-Chee"],
+        ['sp authentic', 'SP Authentic'],
+        ['topps chrome', 'Topps Chrome'],
+        ['panini prizm', 'Panini Prizm'],
+        ['donruss', 'Donruss'],
+        ['fleer', 'Fleer'],
+        ['parkhurst', 'Parkhurst'],
+        ['score', 'Score'],
+        ['pro set', 'Pro Set'],
+    ];
+    const lc = title.toLowerCase();
+    for (const [key, val] of brandMap) {
+        if (lc.includes(key)) {
+            result.brand = val;
+            break;
+        }
+    }
+
+    // Extract known subsets (multi-word)
+    const subsetMap: [string, string][] = [
+        ['the mask ii', 'The Mask II'],
+        ['the mask iii', 'The Mask III'],
+        ['the mask', 'The Mask'],
+        ['star rookies', 'Star Rookies'],
+        ['young guns', 'Young Guns'],
+        ['gold auto', 'Gold Auto'],
+        ['silver auto', 'Silver Auto'],
+        ['die cut', 'Die Cut'],
+    ];
+    for (const [key, val] of subsetMap) {
+        if (lc.includes(key)) {
+            result.set = val;
+            break;
+        }
+    }
+
+    // Extract parallel color
+    const parallelColors = ['gold', 'silver', 'blue', 'red', 'green', 'emerald', 'ruby', 'sapphire', 'black', 'purple', 'orange', 'bronze'];
+    for (const color of parallelColors) {
+        if (lc.includes(color)) {
+            result.parallel = color.charAt(0).toUpperCase() + color.slice(1);
+            break;
+        }
+    }
+
+    return result;
+}
+
+/**
  * Step 1: Classification Logic
  * Step 2: Search String Construction
+ * 
+ * Important: If the card lacks structured fields (brand/set/player), 
+ * we fall back to parsing them from the title.
  */
 export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel', query: string } {
-    const parallelText = (card.parallel || '').toLowerCase();
-    const conditionText = (card.condition || '').toLowerCase();
-    const titleText = (card.title || '').toLowerCase();
+    // === Title-Based Field Enrichment ===
+    // If key fields are missing, parse them from the title
+    const hasStructuredData = card.brand || card.player || card.set;
+    const titleParsed = !hasStructuredData ? parseTitleIntoFields(card.title || '') : {};
+    
+    // Merge: explicit card fields take priority over parsed title fields
+    const effectiveCard: CardDescriptor = {
+        ...titleParsed,
+        ...Object.fromEntries(Object.entries(card).filter(([, v]) => v != null && v !== '')),
+    };
+
+    const parallelText = (effectiveCard.parallel || '').toLowerCase();
+    const conditionText = (effectiveCard.condition || '').toLowerCase();
+    const titleText = (effectiveCard.title || '').toLowerCase();
     const combinedText = `${parallelText} ${conditionText} ${titleText}`;
 
     // Check if this is a "True Parallel" (a variant that changes the card type)
     const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) ||
         (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
 
-
     // Fix: Preserve full season years (e.g. 1998-99)
-    const year = card.year || '';
+    const year = effectiveCard.year || '';
     const numericYear = parseInt(year.split('-')[0]);
     
     // Apply Hobby Abbreviations with age-based logic
-    let brand = card.brand || '';
-    if (brand.toLowerCase().includes('itg be a player') || brand.toLowerCase().includes('be a player')) {
+    let brand = effectiveCard.brand || '';
+    if (brand.toLowerCase().includes('be a player')) {
         // For 90s BAP, full name is often better. For 2000s, BAP is the standard.
         brand = numericYear < 2000 ? '"Be A Player"' : 'BAP';
+    } else if (brand.toLowerCase().includes('in the game') || brand.toLowerCase().includes('itg')) {
+        brand = 'ITG';
     } else {
         Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
             if (brand.toLowerCase().includes(key)) brand = val;
         });
     }
 
-    let setRaw = card.set || '';
+    let setRaw = effectiveCard.set || '';
+    // Apply abbreviations to set name too
     Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
         if (setRaw.toLowerCase().includes(key)) setRaw = val;
     });
 
-    // Smart Quoting for Sets: Quote if more than 2 words (usually a subset name like "The Mask")
+    // Smart Quoting for Sets: Quote if more than 1 word (subset name like "The Mask", "Gold Auto")
     const set = setRaw.split(' ').length >= 2 ? `"${setRaw}"` : setRaw;
     
-    const player = card.player || '';
+    const player = effectiveCard.player || '';
 
     // Formatting: Ensure card number has a '#' for vintage matching on eBay
-    const rawNumber = (card.cardNumber || '').replace('#', '');
+    const rawNumber = (effectiveCard.cardNumber || '').replace('#', '');
     const cardNumber = rawNumber ? `#${rawNumber}` : '';
-    const parallel = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
+    const parallel = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
 
     // Grading Logic: Extract grade if present
     const isGraded = BASE_LIKE_KEYWORDS.some(k => conditionText.includes(k)) && /\d+/.test(conditionText);
-    const gradeString = isGraded ? card.condition : '';
+    const gradeString = isGraded ? effectiveCard.condition : '';
 
     // Parallel-specific exclusions (e.g. if searching 'Gold', exclude 'Silver')
     let autoExclusions = '';
     Object.entries(PARALLEL_EXCLUSIONS).forEach(([key, val]) => {
-        if (parallel.toLowerCase().includes(key) || titleText.includes(key)) {
+        if (parallel.toLowerCase().includes(key) || setRaw.toLowerCase().includes(key)) {
             autoExclusions = val;
         }
     });
 
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
-        // Note: Removed -sold -completed as they are not needed for Browse API and can be buggy
         const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
-
-        // If not graded, also exclude graded terms to avoid price inflation
         const gradingExclusions = !isGraded ? '-psa -bgs -sgc -cgc -graded -slab' : '';
-
-        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${parallel} ${cardNumber} ${negativeKeywords} ${gradingExclusions} ${autoExclusions}`.replace(/\s+/g, ' ').trim();
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${cardNumber} ${negativeKeywords} ${gradingExclusions} ${autoExclusions}`.replace(/\s+/g, ' ').trim();
         return { type: 'Base', query };
     } else {
         // Parallel Query: Feature name is a mandatory inclusion
