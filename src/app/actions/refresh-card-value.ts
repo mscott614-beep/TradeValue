@@ -25,10 +25,10 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
 
         // 2. Step 3: API Request Configuration (FIXED_PRICE Priority / EXTENDED Fields)
         console.log(`[Refresh] Lead Architect Query (${type}): "${primaryQuery}"`);
-        
+
         let activeResponse = await ebayService.searchActiveItems(primaryQuery, 10);
         let rawItems = activeResponse.itemSummaries || [];
-        
+
         // Self-Healing Logic: If the ultra-precise query returns 0, try a slightly broader search 
         // while still preserving the specific parallel/grade if it exists.
         if (rawItems.length === 0) {
@@ -47,7 +47,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         // 4. Atomic Authorized Update (Admin SDK - Permissions Fix)
         const db = getAdminDb();
         const timestamp = new Date().toISOString();
-        
+
         // Update the card reference
         const cardRef = db.doc(`users/${userId}/portfolios/${card.id}`);
         await cardRef.update({
@@ -66,11 +66,11 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         const diagnostics = `Query: "${primaryQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value} | Outliers: ${calc.outliersCount}`;
         console.log(`[Refresh] Final Diagnostic: ${diagnostics}`);
 
-        return { 
-            success: true, 
-            newPrice: calc.value, 
+        return {
+            success: true,
+            newPrice: calc.value,
             avgActivePrice: calc.value,
-            avgSoldPrice: 0, 
+            avgSoldPrice: 0,
             diagnostics,
             top5: rawItems.map(item => ({
                 title: item.title,
@@ -78,7 +78,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 url: item.itemWebUrl,
                 imageUrl: item.image?.imageUrl,
             })),
-            soldItems: [], 
+            soldItems: [],
             lastUpdated: timestamp,
             searchType: type,
             logic: calc.logic

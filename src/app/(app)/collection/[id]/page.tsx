@@ -96,6 +96,7 @@ export default function CardDetailsPage() {
         player: '',
         year: '',
         brand: '',
+        set: '',
         cardNumber: '',
         parallel: '',
         condition: '',
@@ -120,6 +121,7 @@ export default function CardDetailsPage() {
                 player: (card.player || '').toString(),
                 year: (card.year || '').toString(),
                 brand: (card.brand || '').toString(),
+                set: (card.set || '').toString(),
                 cardNumber: (card.cardNumber || '').toString(),
                 parallel: (card.parallel || '').toString(),
                 condition: (card.condition || '').toString(),
@@ -226,6 +228,7 @@ export default function CardDetailsPage() {
                 player: (infoInput.player || '').toString().trim(),
                 year: (infoInput.year || '').toString().trim(),
                 brand: (infoInput.brand || '').toString().trim(),
+                set: (infoInput.set || '').toString().trim(),
                 cardNumber: (infoInput.cardNumber || '').toString().trim(),
                 parallel: (infoInput.parallel || '').toString().trim(),
                 condition: (infoInput.condition || '').toString().trim(),
@@ -485,7 +488,7 @@ export default function CardDetailsPage() {
                         </Button>
                     </div>
                 )}
-                <p className="text-muted-foreground mt-1.5">{`Details for your ${card.year} ${card.brand} ${card.player} card.`}</p>
+                <p className="text-muted-foreground mt-1.5">{`Details for your ${card.year} ${card.brand} ${card.set} ${card.player} card.`}</p>
             </div>
 
             <Tabs defaultValue="overview" className="space-y-6">
@@ -772,6 +775,15 @@ export default function CardDetailsPage() {
                                             <p className="text-lg font-semibold">{card.brand}</p>
                                         </div>
                                     </div>
+                                    {card.set && (
+                                        <div className="flex items-start gap-3">
+                                            <ShoppingCart className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Set</p>
+                                                <p className="text-lg font-semibold">{card.set}</p>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex items-start gap-3">
                                         <Hash className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                         <div>
@@ -1174,6 +1186,16 @@ export default function CardDetailsPage() {
                                 value={infoInput.brand} 
                                 className="col-span-3" 
                                 onChange={(e) => setInfoInput({...infoInput, brand: e.target.value})}
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="set" className="text-right">Set</Label>
+                            <Input 
+                                id="set" 
+                                value={infoInput.set} 
+                                className="col-span-3" 
+                                placeholder="e.g. Young Guns, Star Rookies"
+                                onChange={(e) => setInfoInput({...infoInput, set: e.target.value})}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">

@@ -15,7 +15,7 @@ export interface CardDescriptor {
 }
 
 const TRUE_PARALLEL_KEYWORDS = [
-    'silver', 'prizm', 'refractor', 'holo', '/#', 'auto', 'patch', 
+    'silver', 'prizm', 'refractor', 'holo', '/#', 'auto', 'patch',
     'mojo', 'cracked ice', 'atomic', 'superfractor',
     'jumbo', 'glossy', 'parallel',
     'numbered', 'variation', 'short print', 'sp', 'ssp'
@@ -38,16 +38,16 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const conditionText = (card.condition || '').toLowerCase();
     const titleText = (card.title || '').toLowerCase();
     const combinedText = `${parallelText} ${conditionText} ${titleText}`;
-    
-    // Check if this is a "True Parallel" (a variant that changes the card type)
-    const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) || 
-                           (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
 
-    
+    // Check if this is a "True Parallel" (a variant that changes the card type)
+    const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) ||
+        (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
+
+
     const year = card.year || '';
     const brand = card.brand || '';
     const player = card.player || '';
-    
+
     // Formatting: Ensure card number has a '#' for vintage matching on eBay
     const rawNumber = (card.cardNumber || '').replace('#', '');
     const cardNumber = rawNumber ? `#${rawNumber}` : '';
@@ -60,10 +60,10 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
         const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
-        
+
         // If not graded, also exclude graded terms to avoid price inflation
         const gradingExclusions = !isGraded ? '-psa -bgs -sgc -cgc -graded -slab' : '';
-        
+
         let query = `${gradeString} ${year} ${brand} ${player} ${parallel} ${cardNumber} ${negativeKeywords} ${gradingExclusions}`.replace(/\s+/g, ' ').trim();
         return { type: 'Base', query };
     } else {
@@ -84,7 +84,7 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
 
     // 1. Fixed Price Priority: Prioritize FIXED_PRICE over auctions to avoid low-bid noise
     let processedItems = items.filter(i => i.buyingOptions?.includes('FIXED_PRICE'));
-    
+
     // Fallback only if NO fixed price found
     if (processedItems.length === 0) {
         processedItems = items;
@@ -100,7 +100,7 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
 
     // 2. Identify the Floor: Select top 3 lowest
     let floorPool = sortedPrices.slice(0, 3);
-    
+
     // 3. Outlier Protection: Discard any listing that is >50% lower than the average of others
     let outliersCount = 0;
     if (floorPool.length >= 2) {
@@ -113,7 +113,7 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
             if (isScam) outliersCount++;
             return !isScam;
         });
-        
+
         // If outliers removed, refill from next lowest if available
         if (outliersCount > 0 && sortedPrices.length > initialPoolCount) {
             const refill = sortedPrices.slice(initialPoolCount, initialPoolCount + outliersCount);
@@ -126,13 +126,13 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
 
     // 4. Final TradeValue: Median of the remaining "Floor Pool"
     const mid = Math.floor(floorPool.length / 2);
-    const median = floorPool.length % 2 !== 0 
-        ? floorPool[mid] 
+    const median = floorPool.length % 2 !== 0
+        ? floorPool[mid]
         : (floorPool[mid - 1] + floorPool[mid]) / 2;
 
-    return { 
-        value: median, 
-        outliersCount, 
+    return {
+        value: median,
+        outliersCount,
         logic: `Median of ${floorPool.length} lowest Fixed Price items (Floor detection). ${outliersCount} outliers rejected.`
     };
 }
