@@ -23,7 +23,7 @@ self.onmessage = async (e: MessageEvent) => {
             apiKey = payload.apiKey;
             currentIndex = 0;
             isRunning = true;
-            
+
             // Initialize Gemini with Error Boundary
             if (apiKey) {
                 try {
@@ -31,15 +31,15 @@ self.onmessage = async (e: MessageEvent) => {
                     console.log("[Worker] SDK Initialized successfully.");
                 } catch (initErr: any) {
                     console.error("[Worker] SDK Init Error:", initErr);
-                    self.postMessage({ 
-                        type: 'LOG_UPDATE', 
-                        payload: { message: `❌ Worker Initialization Failed: SDK not found.`, type: 'error' } 
+                    self.postMessage({
+                        type: 'LOG_UPDATE',
+                        payload: { message: `❌ Worker Initialization Failed: SDK not found.`, type: 'error' }
                     });
                     isRunning = false;
                     return;
                 }
             }
-            
+
             processNextCard();
             break;
 
@@ -58,7 +58,7 @@ self.onmessage = async (e: MessageEvent) => {
             isRunning = true;
             processNextCard();
             break;
-            
+
         case 'RESET_ENRICHMENT':
             isRunning = false;
             currentIndex = 0;
@@ -73,9 +73,9 @@ self.onmessage = async (e: MessageEvent) => {
 async function fetchCurrentPrice(card: any) {
     return new Promise((resolve) => {
         pricingResolver = resolve;
-        self.postMessage({ 
-            type: 'GET_PRICE', 
-            payload: { card } 
+        self.postMessage({
+            type: 'GET_PRICE',
+            payload: { card }
         });
     });
 }
@@ -90,19 +90,19 @@ async function processNextCard() {
     }
 
     const cardId = cardIds[currentIndex];
-    
+
     // 1. Pre-check Delay (5s Breather)
-    self.postMessage({ 
-        type: 'LOG_UPDATE', 
-        payload: { message: `⏳ Initializing Card ${currentIndex + 1}... (5s Breather)`, type: 'info' } 
+    self.postMessage({
+        type: 'LOG_UPDATE',
+        payload: { message: `⏳ Initializing Card ${currentIndex + 1}... (5s Breather)`, type: 'info' }
     });
-    
+
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     try {
         // Request FULL card data from main thread
         self.postMessage({ type: 'GET_CARD_DATA', payload: { cardId } });
-        
+
         const cardData: any = await new Promise(resolve => {
             const listener = (e: MessageEvent) => {
                 if (e.data.type === 'CARD_DATA_RESULT') {
@@ -119,20 +119,20 @@ async function processNextCard() {
         const useSearch = isPlaceholder;
 
         // 2. Call Gemini with 120s Timeout
-        self.postMessage({ 
-            type: 'PROCESS_BATCH', 
-            payload: { 
+        self.postMessage({
+            type: 'PROCESS_BATCH',
+            payload: {
                 batchIds: [cardId],
                 currentIndex,
                 total: cardIds.length,
                 message: `Searching Grounding for ${cardData.title}...`
-            } 
+            }
         });
 
         if (!genAI) throw new Error("Gemini API Key missing or SDK not loaded.");
 
         const model = genAI.getGenerativeModel(
-            { 
+            {
                 model: "gemini-3.1-flash-lite-preview",
                 generationConfig: { responseMimeType: "application/json" }
             },
@@ -157,18 +157,18 @@ async function processNextCard() {
 
 
         const heartbeat = setTimeout(() => {
-            self.postMessage({ 
-                type: 'LOG_UPDATE', 
-                payload: { message: `🔍 [Still Thinking...] Search Grounding usually takes 30-40s`, type: 'info' } 
+            self.postMessage({
+                type: 'LOG_UPDATE',
+                payload: { message: `🔍 [Still Thinking...] Search Grounding usually takes 30-40s`, type: 'info' }
             });
         }, 20000);
 
         const result = await model.generateContent(prompt);
         clearTimeout(heartbeat);
-        
+
         const response = await result.response;
         const text = response.text();
-        
+
         // Robust JSON Parsing
         let aiOutput;
         try {
@@ -221,7 +221,7 @@ async function processNextCard() {
     } catch (err: any) {
         console.error("[Worker Error]", err);
         const errorMessage = err.message || "Request Timed Out";
-        
+
         self.postMessage({
             type: 'CARD_ERROR',
             payload: {
