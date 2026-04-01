@@ -35,6 +35,7 @@ import { Progress } from "@/components/ui/progress";
 import { analyzeCardAction } from "@/app/actions/analyze-card";
 import { refreshCardValueAction } from "@/app/actions/refresh-card-value";
 import { getSimilarCardsAction, type SimilarCard } from "@/app/actions/get-similar-cards";
+import { fetchAndEncodeImageAction } from "@/app/actions/fetch-image";
 import type { CardAnalysisResult } from "@/lib/types";
 import { BarChart3, LineChart as LineChartIcon, BrainCircuit, CheckCircle2, TrendingDown, Edit3, X, Check, Upload, Image as ImageIcon } from "lucide-react";
 import { CARD_ATTRIBUTES, CARD_PARALLELS, CARD_CONDITIONS, CARD_GRADERS, CARD_GRADES } from "@/lib/constants";
@@ -84,6 +85,13 @@ export default function CardDetailsPage() {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [titleInput, setTitleInput] = useState<string>('');
     const [isEditingInfo, setIsEditingInfo] = useState(false);
+
+    // Listing image context menu
+    const [listingContextMenu, setListingContextMenu] = useState<{
+        x: number; y: number; imageUrl: string; title: string;
+    } | null>(null);
+    const [isSavingListingImage, setIsSavingListingImage] = useState(false);
+
     const [infoInput, setInfoInput] = useState({
         player: '',
         year: '',
@@ -299,6 +307,14 @@ export default function CardDetailsPage() {
         return () => { cancelled = true; };
     }, [card?.id]);
 
+    // Close context menu on outside click
+    useEffect(() => {
+        if (!listingContextMenu) return;
+        const close = () => setListingContextMenu(null);
+        document.addEventListener('click', close);
+        return () => document.removeEventListener('click', close);
+    }, [listingContextMenu]);
+
     if (isLoading) {
         return (
             <div className="flex h-[400px] w-full items-center justify-center">
@@ -393,7 +409,33 @@ export default function CardDetailsPage() {
         }
     };
 
-    // Replace the return block starting from <div className="space-y-6"> with:
+    const handleListingContextMenu = (e: React.MouseEvent, imageUrl: string, title: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setListingContextMenu({ x: e.clientX, y: e.clientY, imageUrl, title });
+    };
+
+    const handleUseListingImage = async () => {
+        if (!listingContextMenu || !cardDocRef) return;
+        setIsSavingListingImage(true);
+        try {
+            const result = await fetchAndEncodeImageAction(listingContextMenu.imageUrl);
+            if (result.success && result.dataUrl) {
+                updateDocumentNonBlocking(cardDocRef, { imageUrl: result.dataUrl });
+                toast({ title: "✅ Image Saved", description: "Card image updated from listing photo." });
+            } else {
+                // eBay CDN works in the browser even if blocked server-side — save the URL as fallback
+                updateDocumentNonBlocking(cardDocRef, { imageUrl: listingContextMenu.imageUrl });
+                toast({ title: "Image URL Saved", description: `Saved as external link. (${result.error})` });
+            }
+        } catch {
+            toast({ title: "Failed", description: "Could not save this image.", variant: "destructive" });
+        } finally {
+            setIsSavingListingImage(false);
+            setListingContextMenu(null);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between mb-2">
@@ -464,7 +506,7 @@ export default function CardDetailsPage() {
                                     <Tag className="h-3 w-3" />
                                     Top Active Listings
                                 </CardTitle>
-                                <CardDescription className="text-[10px]">Current market availability and listing prices.</CardDescription>
+                                <CardDescription className="text-[10px]">Current market availability · <span className="text-primary/70 font-medium">Right-click any image to use it as this card&apos;s photo</span></CardDescription>
                             </div>
                             {avgPrices && (
                                 <Badge variant="outline" className="h-6 text-[10px] bg-background/50">
@@ -483,7 +525,10 @@ export default function CardDetailsPage() {
                                             rel="noopener noreferrer"
                                             className="group cursor-pointer"
                                         >
-                                            <div className="relative aspect-[3/4] bg-muted/50 rounded-lg overflow-hidden border border-border group-hover:border-primary/50 transition-all shadow-sm">
+                                            <div
+                                                className="relative aspect-[3/4] bg-muted/50 rounded-lg overflow-hidden border border-border group-hover:border-primary/50 transition-all shadow-sm"
+                                                onContextMenu={listing.imageUrl ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl, listing.title); } : undefined}
+                                            >
                                                 {listing.imageUrl ? (
                                                     <Image 
                                                         src={listing.imageUrl} 
@@ -540,7 +585,10 @@ export default function CardDetailsPage() {
                                 <div className="grid grid-cols-5 gap-3 p-4">
                                     {soldListings.map((listing, i) => (
                                         <div key={i} className="group flex flex-col">
-                                            <div className="relative aspect-[3/4] bg-muted/30 rounded-lg overflow-hidden border border-border group-hover:border-green-500/30 transition-all shadow-sm">
+                                        <div
+                                            className="relative aspect-[3/4] bg-muted/30 rounded-lg overflow-hidden border border-border group-hover:border-green-500/30 transition-all shadow-sm"
+                                            onContextMenu={listing.imageUrl ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl, listing.title); } : undefined}
+                                        >
                                                 {listing.imageUrl ? (
                                                     <Image 
                                                         src={listing.imageUrl} 
@@ -1207,6 +1255,38 @@ export default function CardDetailsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Listing image right-click context menu */}
+            {listingContextMenu && (
+                <div
+                    className="fixed z-50 bg-background border border-border rounded-xl shadow-2xl py-1.5 min-w-[200px] animate-in fade-in-0 zoom-in-95"
+                    style={{ top: listingContextMenu.y, left: listingContextMenu.x }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="px-3 py-1.5 border-b border-border/60 mb-1">
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Listing Image</p>
+                        <p className="text-xs font-semibold truncate max-w-[180px]" title={listingContextMenu.title}>{listingContextMenu.title}</p>
+                    </div>
+                    <button
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-primary/10 hover:text-primary flex items-center gap-2.5 transition-colors"
+                        onClick={handleUseListingImage}
+                        disabled={isSavingListingImage}
+                    >
+                        {isSavingListingImage
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <ImageIcon className="h-3.5 w-3.5" />
+                        }
+                        {isSavingListingImage ? "Saving..." : "Use as Card Image"}
+                    </button>
+                    <button
+                        className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 flex items-center gap-2.5 transition-colors"
+                        onClick={() => setListingContextMenu(null)}
+                    >
+                        <X className="h-3.5 w-3.5" />
+                        Cancel
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
