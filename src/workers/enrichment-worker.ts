@@ -184,14 +184,28 @@ async function processNextCard() {
         // 3. Call Pricing Bridge
         const priceResult: any = await fetchCurrentPrice({ ...cardData, ...aiOutput });
 
-        // 4. Post Result to Main Thread and wait for commit acknowledgment
+        // 4. Blocklist filter: drop URLs from known hotlink-protected domains before they waste a fetch attempt
+        const BLOCKED_DOMAINS = ['img.comc.com', 'www.comc.com', 'tcdb.com', 'cdn.comc.com'];
+        const rawImageUrl: string | null = useSearch ? (aiOutput.imageUrl || null) : null;
+        const safeImageUrl = rawImageUrl && BLOCKED_DOMAINS.some(d => rawImageUrl.includes(d))
+            ? null
+            : rawImageUrl;
+
+        if (rawImageUrl && !safeImageUrl) {
+            self.postMessage({
+                type: 'LOG_UPDATE',
+                payload: { message: `🚫 Blocked image URL from known restricted domain — skipping fetch.`, type: 'info' }
+            });
+        }
+
+        // 5. Post Result to Main Thread and wait for commit acknowledgment
         self.postMessage({
             type: 'CARD_ENRICHED',
             payload: {
                 cardId,
                 title: cardData.title,
                 metadata: aiOutput,
-                imageUrl: useSearch ? (aiOutput.imageUrl || null) : null, // Only pass imageUrl if we searched for it
+                imageUrl: safeImageUrl,
                 price: priceResult.success ? priceResult.newPrice : cardData.currentMarketValue,
                 success: true,
                 log: `✅ ${cardData.title} enriched.${!useSearch ? ' (Search skipped)' : ''}`
