@@ -106,14 +106,15 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
         metadata: any,
         price: number,
         log: string,
-        resolvedImageUrl: string | null
+        resolvedImageUrl: string | null,
+        logType: 'success' | 'error' | 'info' = 'success'
     ) => {
         const updates: any = { ...metadata, currentMarketValue: price };
         if (resolvedImageUrl) updates.imageUrl = resolvedImageUrl;
 
         const saveResult = await saveEnrichmentResultAction(userId, cardId, updates);
         if (saveResult.success) {
-            addLog(log, 'success');
+            addLog(log, logType);
             setProcessedCount(prev => {
                 const newCount = prev + 1;
                 setProgress(Math.round((newCount / (processingQueueSizeRef.current || 1)) * 100));
@@ -190,17 +191,17 @@ export function BulkEnrichmentDashboard({ userId }: { userId: string }) {
                         });
                         // Worker waits for CARD_COMMITTED from the dialog handler
                     } else {
-                        // Dead URL — skip dialog, auto-commit without image
-                        // Use a specific log so the user knows the image failed, not the whole card
+                        // Dead URL — skip dialog, auto-commit without image.
+                        // Pass logType='error' so commitAndContinue logs it in red (no duplicate addLog here).
                         const noImageLog = `⚡ ${title} — metadata saved (image URL unreachable: ${fetchResult.error})`;
-                        addLog(noImageLog, 'error');
-                        await commitAndContinue(cardId, metadata, price, noImageLog, null);
+                        await commitAndContinue(cardId, metadata, price, noImageLog, null, 'error');
                     }
                 } else {
-                    // AI found no image URL at all — commit with clear "metadata only" note
+                    // AI found no image URL at all
                     const noImageLog = `⚡ ${title} — metadata saved (no image found by AI)`;
-                    await commitAndContinue(cardId, metadata, price, noImageLog, null);
+                    await commitAndContinue(cardId, metadata, price, noImageLog, null, 'info');
                 }
+
 
 
             } else if (type === 'CARD_ERROR') {
