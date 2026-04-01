@@ -30,6 +30,27 @@ const BASE_LIKE_KEYWORDS = [
 
 
 
+const HOBBY_ABBREVIATIONS: Record<string, string> = {
+    'itg be a player': 'BAP',
+    'be a player': 'BAP',
+    'between the pipes': 'BTP',
+    'in the game': 'ITG',
+    'victory': 'UD Victory',
+    'sp authentic': 'SPA',
+    'spx': 'SPx',
+    'black diamond': 'Black Diamond',
+    'ice': 'UD Ice'
+};
+
+const PARALLEL_EXCLUSIONS: Record<string, string> = {
+    'gold': '-silver -bronze -base',
+    'silver': '-gold -bronze -base',
+    'blue': '-red -green -gold -silver',
+    'emerald': '-ruby -sapphire -gold -silver',
+    'ruby': '-emerald -sapphire -gold -silver',
+    'sapphire': '-emerald -ruby -gold -silver'
+};
+
 /**
  * Step 1: Classification Logic
  * Step 2: Search String Construction
@@ -46,8 +67,21 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
 
     const year = card.year || '';
-    const brand = card.brand || '';
-    const set = card.set ? `"${card.set}"` : '';
+    
+    // Apply Hobby Abbreviations
+    let brand = card.brand || '';
+    Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
+        if (brand.toLowerCase().includes(key)) brand = val;
+    });
+
+    let setRaw = card.set || '';
+    Object.entries(HOBBY_ABBREVIATIONS).forEach(([key, val]) => {
+        if (setRaw.toLowerCase().includes(key)) setRaw = val;
+    });
+
+    // Smart Quoting for Sets: Quote if more than 2 words (usually a subset name like "The Mask")
+    const set = setRaw.split(' ').length >= 2 ? `"${setRaw}"` : setRaw;
+    
     const player = card.player || '';
 
     // Formatting: Ensure card number has a '#' for vintage matching on eBay
@@ -59,6 +93,14 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const isGraded = BASE_LIKE_KEYWORDS.some(k => conditionText.includes(k)) && /\d+/.test(conditionText);
     const gradeString = isGraded ? card.condition : '';
 
+    // Parallel-specific exclusions (e.g. if searching 'Gold', exclude 'Silver')
+    let autoExclusions = '';
+    Object.entries(PARALLEL_EXCLUSIONS).forEach(([key, val]) => {
+        if (parallel.toLowerCase().includes(key) || titleText.includes(key)) {
+            autoExclusions = val;
+        }
+    });
+
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
         const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
@@ -66,12 +108,12 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         // If not graded, also exclude graded terms to avoid price inflation
         const gradingExclusions = !isGraded ? '-psa -bgs -sgc -cgc -graded -slab' : '';
 
-        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${parallel} ${cardNumber} ${negativeKeywords} ${gradingExclusions}`.replace(/\s+/g, ' ').trim();
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${parallel} ${cardNumber} ${negativeKeywords} ${gradingExclusions} ${autoExclusions}`.replace(/\s+/g, ' ').trim();
         return { type: 'Base', query };
     } else {
         // Parallel Query: Feature name is a mandatory inclusion
         const feature = parallel || 'insert';
-        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} -sold -completed -reprint -digital`.replace(/\s+/g, ' ').trim();
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${autoExclusions} -sold -completed -reprint -digital`.replace(/\s+/g, ' ').trim();
         return { type: 'Parallel', query };
     }
 }
