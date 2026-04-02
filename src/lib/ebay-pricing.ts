@@ -19,7 +19,8 @@ const TRUE_PARALLEL_KEYWORDS = [
     'silver', 'prizm', 'refractor', 'holo', '/#', 'auto', 'patch',
     'mojo', 'cracked ice', 'atomic', 'superfractor',
     'jumbo', 'glossy', 'parallel',
-    'numbered', 'variation', 'short print', 'sp', 'ssp'
+    'numbered', 'variation', 'short print', 'sp', 'ssp',
+    'jersey', 'swatch', 'relic', 'memorabilia', 'memo', 'piece', 'material'
 ];
 
 /**
@@ -53,7 +54,8 @@ const HOBBY_ABBREVIATIONS: Record<string, string> = {
     'sp authentic': 'SPA',
     'spx': 'SPx',
     'black diamond': 'Black Diamond',
-    'ice': 'UD Ice'
+    'ice': 'UD Ice',
+    'artifacts': 'Artifacts'
 };
 
 const PARALLEL_EXCLUSIONS: Record<string, string> = {
@@ -257,7 +259,8 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     // Formatting: Ensure card number has a '#' for vintage matching on eBay
     // Also strip generic prefixes like 'BM' or 'RC' which are often inconsistent in listings
     const rawNumber = (effectiveCard.cardNumber || '').replace('#', '').replace(/\b(?:BM|RC)\s*/gi, '');
-    const cardNumber = rawNumber ? `#${rawNumber}` : '';
+    // Lead Architect Update: Only prefix with # if it's purely numeric to avoid breaking subset codes like TS-NK
+    const cardNumber = rawNumber ? (rawNumber.match(/^\d+$/) ? `#${rawNumber}` : rawNumber) : '';
     const parallelRaw = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
     // Map 'Autograph' to 'Auto' (hobby standard for eBay)
     const parallel = parallelRaw.toLowerCase().replace('autograph', 'Auto');

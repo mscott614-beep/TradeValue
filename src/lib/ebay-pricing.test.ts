@@ -33,6 +33,22 @@ describe('Lead Data Architect: Query Construction', () => {
         expect(result.query).not.toContain('-psa');
         expect(result.query).toContain('-parallel -refractor');
     });
+
+    it('should identify memorabilia subsets like Treasured Swatches as Parallels to avoid base card exclusions', () => {
+        const card = { 
+            year: '2007-08', 
+            brand: 'Upper Deck Artifacts', 
+            set: 'Treasured Swatches', 
+            player: 'Nikolai Khabibulin', 
+            cardNumber: 'TS-NK' 
+        };
+        const result = buildEbayQuery(card);
+        expect(result.type).toBe('Parallel');
+        expect(result.query).not.toContain('-jersey'); // Vital: should not have negative exclusions
+        expect(result.query).toContain('Artifacts'); 
+        expect(result.query).toContain('TS-NK');
+        expect(result.query).not.toContain('#TS-NK'); // Should not have # prefix
+    });
 });
 
 describe('Lead Data Architect: Valuation Math (The TradeValue Rule)', () => {
