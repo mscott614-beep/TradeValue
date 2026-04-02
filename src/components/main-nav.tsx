@@ -21,7 +21,6 @@ const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/collection", label: "Digital Binder", icon: Layers },
   { href: "/scanner", label: "Scanner", icon: ScanLine },
-  { href: "/enrichment", label: "Enrichment", icon: Sparkles },
   { href: "/market", label: "Market", icon: Store },
   { href: "/dashboard/alerts", label: "Alerts", icon: Bell },
   { href: "/help", label: "Help Center", icon: HelpCircle },
