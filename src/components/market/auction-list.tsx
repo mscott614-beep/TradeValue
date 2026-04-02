@@ -197,7 +197,7 @@ export function AuctionList({
 }) {
   return (
     <div className="space-y-6">
-      {initialAuctions.map((auction) => (
+      {Array.isArray(initialAuctions) && initialAuctions.map((auction) => (
         <AuctionItem key={auction.id} auction={auction} />
       ))}
     </div>

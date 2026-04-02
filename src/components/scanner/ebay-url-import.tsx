@@ -133,7 +133,7 @@ export function EbayUrlImport() {
                             </p>
                         </div>
 
-                        {result.features && result.features.length > 0 && (
+                        {result.features && Array.isArray(result.features) && result.features.length > 0 && (
                             <div className="mt-4 pt-4 border-t border-border">
                                 <p className="text-xs text-muted-foreground mb-2">Features:</p>
                                 <div className="flex flex-wrap gap-1">

@@ -157,7 +157,7 @@ export default function InsightsPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    {insights.recommendations.map((rec, i) => (
+                                    {Array.isArray(insights.recommendations) && insights.recommendations.map((rec, i) => (
                                         <div key={i} className="p-4 border rounded-lg bg-card hover:border-primary/50 transition-colors">
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="font-bold text-sm">{rec.cardTitle}</span>
@@ -187,7 +187,7 @@ export default function InsightsPage() {
                             </CardHeader>
                             <CardContent>
                                 <ul className="space-y-3">
-                                    {insights.optimizationAdvice.map((advice, i) => (
+                                    {Array.isArray(insights.optimizationAdvice) && insights.optimizationAdvice.map((advice, i) => (
                                         <li key={i} className="flex items-start gap-3 text-sm">
                                             <div className="mt-1 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                                                 <span className="text-[10px] font-bold text-primary">{i + 1}</span>

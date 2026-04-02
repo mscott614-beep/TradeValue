@@ -338,7 +338,7 @@ export default function CollectionPage() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           <Badge variant="secondary">{card.condition}</Badge>
-                          {Array.isArray(card.features) && card.features.map(feature => (
+                          {card.features && Array.isArray(card.features) && card.features.map(feature => (
                             <Badge key={feature} variant="outline">{feature}</Badge>
                           ))}
                           {card.parallel && <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>}

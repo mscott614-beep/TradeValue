@@ -43,7 +43,7 @@ export function TickerComponent() {
   }
 
   // Build ticker items from the user's own portfolio
-  const tickerItems = (portfolioCards || [])
+  const tickerItems = (Array.isArray(portfolioCards) ? portfolioCards : [])
     .filter(card => card.currentMarketValue && card.currentMarketValue > 0)
     .map(card => {
       const change24h = card.valueChange24hPercent || 0;

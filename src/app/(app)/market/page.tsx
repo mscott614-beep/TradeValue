@@ -87,7 +87,7 @@ export default function MarketPage() {
     setIsLoadingAuctions(true);
     try {
       const response = await generateAuctionsAction(searchTopic);
-      if (response.success && response.result) {
+      if (response.success && response.result && Array.isArray(response.result)) {
         setAuctions(response.result.map(toAuction));
       } else {
         toast.error("Could not load AI auctions. Please refresh.");
@@ -253,7 +253,7 @@ export default function MarketPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {trending.map((item) => (
+                      {Array.isArray(trending) && trending.map((item) => (
                         <div key={item.id} className="flex items-start justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-lg gap-3 text-sm border border-transparent hover:border-border/50">
                           <div className="min-w-0">
                             <div className="font-bold truncate">{item.player}</div>
