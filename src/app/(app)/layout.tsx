@@ -58,7 +58,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <UserNav />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className={cn("pb-24 md:pb-0", paddingClass)}>
+      <SidebarInset className={cn("pb-36 sm:pb-24 md:pb-0", paddingClass)}>
         <AnonymousBanner />
         <div className="p-4 sm:p-6 lg:p-8">
             {children}

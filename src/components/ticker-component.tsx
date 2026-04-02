@@ -68,7 +68,7 @@ function TickerLayout({ items, isDemo, onExit }: { items: any[], isDemo?: boolea
   const displayItems = [...items, ...items];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#1e293b]/90 backdrop-blur-md py-3 border-t border-slate-800 overflow-hidden select-none flex items-center">
+    <div className="fixed bottom-20 sm:bottom-0 left-0 right-0 z-[100] bg-[#1e293b]/90 backdrop-blur-md py-3 border-t border-slate-800 overflow-hidden select-none flex items-center">
       <div className="flex-1 overflow-hidden relative">
         <div className="flex animate-marquee whitespace-nowrap">
           {displayItems.map((item, i) => (
