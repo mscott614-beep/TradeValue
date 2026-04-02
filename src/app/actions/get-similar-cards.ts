@@ -9,6 +9,7 @@ export interface SimilarCard {
     url: string;
     imageUrl?: string;
     type: 'parallel' | 'player';
+    listingType?: 'AUCTION' | 'FIXED_PRICE';
 }
 
 export async function getSimilarCardsAction(card: Portfolio) {
@@ -23,8 +24,8 @@ export async function getSimilarCardsAction(card: Portfolio) {
         const playerQuery = `${card.player} trading card`.trim();
 
         const [parallelsRes, playerRes] = await Promise.all([
-            ebayService.searchActiveAuctions(parallelsQuery, 6),
-            ebayService.searchActiveAuctions(playerQuery, 6)
+            ebayService.searchActiveItems(parallelsQuery, 6),
+            ebayService.searchActiveItems(playerQuery, 6)
         ]);
 
         const parallels = (parallelsRes.itemSummaries || [])
@@ -34,7 +35,8 @@ export async function getSimilarCardsAction(card: Portfolio) {
                 price: parseFloat(item.price.value),
                 url: item.itemWebUrl,
                 imageUrl: item.image?.imageUrl,
-                type: 'parallel' as const
+                type: 'parallel' as const,
+                listingType: item.buyingOptions?.[0] as 'AUCTION' | 'FIXED_PRICE'
             }));
 
         const playerMatches = (playerRes.itemSummaries || [])
@@ -44,7 +46,8 @@ export async function getSimilarCardsAction(card: Portfolio) {
                 price: parseFloat(item.price.value),
                 url: item.itemWebUrl,
                 imageUrl: item.image?.imageUrl,
-                type: 'player' as const
+                type: 'player' as const,
+                listingType: item.buyingOptions?.[0] as 'AUCTION' | 'FIXED_PRICE'
             }));
 
         // Combine and de-duplicate by title (rough)

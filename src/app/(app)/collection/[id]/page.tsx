@@ -673,6 +673,14 @@ export default function CardDetailsPage() {
                                                     <Badge variant="outline" className="text-[8px] h-3 px-1 leading-none uppercase tracking-tighter">
                                                         {sCard.type}
                                                     </Badge>
+                                                    {sCard.listingType && (
+                                                        <Badge variant="secondary" className={cn(
+                                                            "text-[7px] h-3 px-1 leading-none uppercase tracking-tighter border-none",
+                                                            sCard.listingType === 'AUCTION' ? "bg-amber-500/10 text-amber-600" : "bg-blue-500/10 text-blue-600"
+                                                        )}>
+                                                            {sCard.listingType === 'AUCTION' ? 'Auction' : 'Buy It Now'}
+                                                        </Badge>
+                                                    )}
                                                     <span className="text-[10px] text-muted-foreground font-mono">${sCard.price.toFixed(2)}</span>
                                                 </div>
                                             </div>
