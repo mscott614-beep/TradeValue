@@ -43,11 +43,13 @@ export default function DashboardPage() {
     const demoCards: Portfolio[] = useMemo(() => [
         {
             id: 'demo-1',
+            userId: 'demo',
+            cardId: 'demo-1',
             player: 'Mickey Mantle',
             title: '1952 Topps #311',
             brand: 'Topps',
-            year: 1952,
-            card_number: '311',
+            year: '1952',
+            cardNumber: '311',
             currentMarketValue: 12600000,
             purchasePrice: 50000,
             valueChange24h: 300000,
@@ -55,15 +57,18 @@ export default function DashboardPage() {
             imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1952-topps-mickey-mantle-311-psa-9.jpg',
             grader: 'PSA',
             condition: 'PSA 9',
+            estimatedGrade: 'PSA 9',
             dateAdded: new Date().toISOString()
         },
         {
             id: 'demo-2',
+            userId: 'demo',
+            cardId: 'demo-2',
             player: 'Wayne Gretzky',
             title: '1979 O-Pee-Chee RC',
             brand: 'O-Pee-Chee',
-            year: 1979,
-            card_number: '18',
+            year: '1979',
+            cardNumber: '18',
             currentMarketValue: 3750000,
             purchasePrice: 1000000,
             valueChange24h: 30000,
@@ -71,15 +76,18 @@ export default function DashboardPage() {
             imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1979-o-pee-chee-wayne-gretzky-18-psa-10.jpg',
             grader: 'PSA',
             condition: 'PSA 10',
+            estimatedGrade: 'PSA 10',
             dateAdded: new Date().toISOString()
         },
         {
             id: 'demo-3',
+            userId: 'demo',
+            cardId: 'demo-3',
             player: 'Honus Wagner',
             title: '1909-11 T206 Sweet Caporal',
             brand: 'T206',
-            year: 1909,
-            card_number: 'N/A',
+            year: '1909',
+            cardNumber: 'N/A',
             currentMarketValue: 7250000,
             purchasePrice: 6000000,
             valueChange24h: -87000,
@@ -87,15 +95,18 @@ export default function DashboardPage() {
             imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1909-11-t206-honus-wagner-psa-8.jpg',
             grader: 'PSA',
             condition: 'PSA 8',
+            estimatedGrade: 'PSA 8',
             dateAdded: new Date().toISOString()
         },
         {
             id: 'demo-4',
+            userId: 'demo',
+            cardId: 'demo-4',
             player: 'LeBron James',
             title: '2003 Exquisite Collection RPA /99',
             brand: 'Upper Deck',
-            year: 2003,
-            card_number: '78',
+            year: '2003',
+            cardNumber: '78',
             currentMarketValue: 5200000,
             purchasePrice: 1800000,
             valueChange24h: 234000,
@@ -103,15 +114,18 @@ export default function DashboardPage() {
             imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/2003-04-exquisite-collection-lebron-james-78-psa-10.jpg',
             grader: 'BGS',
             condition: 'BGS 9.5',
+            estimatedGrade: 'BGS 9.5',
             dateAdded: new Date().toISOString()
         },
         {
             id: 'demo-5',
+            userId: 'demo',
+            cardId: 'demo-5',
             player: 'Charizard',
             title: '1999 Base Set 1st Edition Shadowless',
             brand: 'Wizards of the Coast',
-            year: 1999,
-            card_number: '4',
+            year: '1999',
+            cardNumber: '4',
             currentMarketValue: 420000,
             purchasePrice: 150000,
             valueChange24h: 21840,
@@ -119,15 +133,16 @@ export default function DashboardPage() {
             imageUrl: 'https://images.psacard.com/s3/cu-psa/card-images/1999-base-set-charizard-4-psa-10.jpg',
             grader: 'PSA',
             condition: 'PSA 10',
+            estimatedGrade: 'PSA 10',
             dateAdded: new Date().toISOString()
         }
     ], []);
 
     const cards = isDemo ? demoCards : realCards;
 
-    const { totalValue, totalGain, change24h, topGainers, uniqueBrands, rawCount, gradedCount } = useMemo(() => {
+    const { totalValue, totalGain, change24h, topMovers, uniqueBrands, rawCount, gradedCount } = useMemo(() => {
         if (!cards || cards.length === 0) {
-            return { totalValue: 0, totalGain: 0, change24h: 0, topGainers: [], uniqueBrands: 0, rawCount: 0, gradedCount: 0 };
+            return { totalValue: 0, totalGain: 0, change24h: 0, topMovers: [], uniqueBrands: 0, rawCount: 0, gradedCount: 0 };
         }
 
         const tValue = cards.reduce((acc, card) => acc + (card.currentMarketValue || 0), 0);
@@ -136,9 +151,9 @@ export default function DashboardPage() {
         // Portfolio-wide 24h change based on individual card metrics
         const c24h = cards.reduce((acc, card) => acc + (card.valueChange24h || 0), 0);
 
-        const tGainers = [...cards]
-            .filter(c => (c.valueChange24hPercent || 0) > 0)
-            .sort((a, b) => (b.valueChange24hPercent || 0) - (a.valueChange24hPercent || 0))
+        const tMovers = [...cards]
+            .filter(c => Math.abs(c.valueChange24hPercent || 0) > 0)
+            .sort((a, b) => Math.abs(b.valueChange24hPercent || 0) - Math.abs(a.valueChange24hPercent || 0))
             .slice(0, 3);
 
         const uBrands = new Set(cards.map(c => c.brand)).size;
@@ -153,7 +168,7 @@ export default function DashboardPage() {
         const rCount = cards.filter(isRawCard).length;
         const gCount = cards.length - rCount;
 
-        return { totalValue: tValue, totalGain: tGain, change24h: c24h, topGainers: tGainers, uniqueBrands: uBrands, rawCount: rCount, gradedCount: gCount };
+        return { totalValue: tValue, totalGain: tGain, change24h: c24h, topMovers: tMovers, uniqueBrands: uBrands, rawCount: rCount, gradedCount: gCount };
     }, [cards]);
 
     const portfolioHistoryQuery = useMemoFirebase(() => {
@@ -310,8 +325,8 @@ export default function DashboardPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {topGainers.length > 0 ? (
-                                        topGainers.map((card) => (
+                                    {topMovers.length > 0 ? (
+                                        topMovers.map((card) => (
                                             <TableRow key={card.id}>
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
@@ -335,8 +350,8 @@ export default function DashboardPage() {
                                                         )}
 
                                                         <div>
-                                                            <div className="font-medium">{card.player}</div>
-                                                            <div className="hidden text-sm text-muted-foreground md:inline">
+                                                            <div className="font-medium truncate max-w-[120px]">{card.player}</div>
+                                                            <div className="hidden text-sm text-muted-foreground md:inline truncate max-w-[150px]">
                                                                 {card.title}
                                                             </div>
                                                         </div>
@@ -353,7 +368,10 @@ export default function DashboardPage() {
                                     ) : (
                                         <TableRow>
                                             <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
-                                                Not enough historical data to determine daily movers.
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <p>Not enough historical data.</p>
+                                                    <p className="text-[10px] opacity-70">Daily snapshots run at 00:00 UTC.</p>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     )}
