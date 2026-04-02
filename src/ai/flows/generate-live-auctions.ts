@@ -15,6 +15,7 @@ export const AuctionListingSchema = z.object({
     imageHint: z.string().describe('Short description for image generator or placeholder'),
     sport: z.string().describe('Sport'),
     url: z.string().optional().describe('eBay listing URL'),
+    imageUrl: z.string().optional().describe('Direct image URL'),
 });
 
 export type AuctionListing = z.infer<typeof AuctionListingSchema>;
@@ -64,6 +65,7 @@ export const generateLiveAuctions = ai.defineFlow(
                     ...item,
                     id: rawItems[idx].itemId,
                     url: rawItems[idx].itemWebUrl,
+                    imageUrl: rawItems[idx].image?.imageUrl,
                 }));
             }
         } catch (error) {

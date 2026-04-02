@@ -58,7 +58,7 @@ function toAuction(listing: AuctionListing) {
       purchasePrice: 0,
       currentMarketValue: listing.currentBid,
       dateAdded: new Date().toISOString().split('T')[0],
-      imageUrl: `https://picsum.photos/seed/${listing.id}/400/560`,
+      imageUrl: listing.imageUrl || `https://images.unsplash.com/photo-1620336655055-088d06e76fd0?q=80&w=400&h=560&auto=format&fit=crop`, // Use real image or generic card placeholder
       valueChange24h: 0,
       valueChange24hPercent: 0,
       imageHint: listing.imageHint,
