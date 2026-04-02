@@ -185,8 +185,12 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) ||
         (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
 
-    // Fix: Preserve full season years (e.g. 1998-99)
-    const year = effectiveCard.year || '';
+    // Fix: Preserve and normalize full season years (e.g. 1998-99)
+    // If year is "1998 99", normalize it to "1998-99" for eBay precision
+    let year = effectiveCard.year || '';
+    if (year.match(/^\d{4}\s\d{2}$/)) {
+        year = year.replace(' ', '-');
+    }
     const numericYear = parseInt(year.split('-')[0]);
     
     // Apply Hobby Abbreviations with age-based logic
@@ -211,6 +215,8 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const BRAND_LEVEL_SET_NAMES = [
         { match: 'be a player', brand90s: '"Be A Player"', brand00s: 'BAP' },
         { match: 'between the pipes', brand90s: 'BTP', brand00s: 'BTP' },
+        { match: 'o-pee-chee premier', brand90s: 'OPC Premier', brand00s: 'OPC Premier' },
+        { match: 'o-pee-chee', brand90s: 'OPC', brand00s: 'OPC' },
     ];
     for (const entry of BRAND_LEVEL_SET_NAMES) {
         if (setRaw.toLowerCase().includes(entry.match)) {
@@ -245,9 +251,12 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const player = effectiveCard.player || '';
 
     // Formatting: Ensure card number has a '#' for vintage matching on eBay
-    const rawNumber = (effectiveCard.cardNumber || '').replace('#', '');
+    // Also strip generic prefixes like 'BM' or 'RC' which are often inconsistent in listings
+    const rawNumber = (effectiveCard.cardNumber || '').replace('#', '').replace(/\b(?:BM|RC)\s*/gi, '');
     const cardNumber = rawNumber ? `#${rawNumber}` : '';
-    const parallel = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
+    const parallelRaw = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
+    // Map 'Autograph' to 'Auto' (hobby standard for eBay)
+    const parallel = parallelRaw.toLowerCase().replace('autograph', 'Auto');
 
     // Grading Logic: Always check BOTH condition field AND title.
     // This handles legacy cards where grading info is embedded in the title but not in a separate condition field.
@@ -299,7 +308,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         // For numbered cards with no color name, use the serial number as the differentiator
         // Do NOT use 'insert' as a fallback — it's too generic and rarely in eBay titles
         const feature = parallel;
-        const serialPart = serialNumber ? serialNumber : '';
+        const serialPart = serialNumber;
         let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${serialPart} ${autoExclusions} -reprint -digital`.replace(/\s+/g, ' ').trim();
         return { type: 'Parallel', query };
     }
