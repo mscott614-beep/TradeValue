@@ -1,0 +1,17 @@
+{
+  "name": "TradeValue",
+  "short_name": "TradeValue",
+  "description": "Professional sports card valuation and portfolio tracking.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

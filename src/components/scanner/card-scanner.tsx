@@ -70,6 +70,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         type="file"
         className="hidden"
         accept="image/png, image/jpeg, image/webp"
+        capture="environment"
         onChange={onFileChange}
       />
     </div>

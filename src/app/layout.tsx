@@ -17,6 +17,15 @@ const merriweather = Merriweather({
 export const metadata: Metadata = {
   title: 'TradeValue',
   description: 'AI-powered trading card portfolio tracking and valuation.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'TradeValue',
+  },
+  icons: {
+    apple: '/icon-512.png',
+  },
 };
 
 export default function RootLayout({
