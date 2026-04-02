@@ -27,14 +27,14 @@ const TRUE_PARALLEL_KEYWORDS = [
  * These are grading company names. If any appear in condition/title with a number, card is graded.
  */
 const GRADER_KEYWORDS = [
-    'psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'csa', 'isa', 'ace', 'fcg'
+    'psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'csa', 'isa', 'ace', 'fcg', 'ksa', 'mnt', 'csg', 'ags'
 ];
 
 /**
  * NON_GRADED_EXCLUSIONS: Injected into ungraded card queries to filter out slabs.
  * Must include ALL graders, not just the major 4.
  */
-const NON_GRADED_EXCLUSIONS = '-psa -bgs -sgc -cgc -bccg -gma -hga -graded -slab';
+const NON_GRADED_EXCLUSIONS = '-psa -bgs -sgc -cgc -bccg -gma -hga -ksa -mnt -csg -ags -graded -slab';
 
 /** Legacy alias for compatibility */
 const BASE_LIKE_KEYWORDS = [
@@ -182,7 +182,10 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const combinedText = `${parallelText} ${conditionText} ${titleText}`;
 
     // Check if this is a "True Parallel" (a variant that changes the card type)
+    // Also include serial numbers (e.g. /299) as parallels
+    let serialMatch = (effectiveCard.title || '').match(/\/(?!\/)\s*(\d+)\b/);
     const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) ||
+        !!serialMatch ||
         (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
 
     // Fix: Preserve and normalize full season years (e.g. 1998-99)
@@ -219,7 +222,8 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         { match: 'o-pee-chee', brand90s: 'OPC', brand00s: 'OPC' },
     ];
     for (const entry of BRAND_LEVEL_SET_NAMES) {
-        if (setRaw.toLowerCase().includes(entry.match)) {
+        if (setRaw.toLowerCase().includes(entry.match) || 
+           (brand.toLowerCase().includes('o-pee-chee') && setRaw.toLowerCase() === 'premier' && entry.match === 'o-pee-chee premier')) {
             // The set IS the real brand — replace the brand with the correct era name
             brand = numericYear < 2000 ? entry.brand90s : entry.brand00s;
             setRaw = ''; // Clear the set — it was really the brand
@@ -292,7 +296,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     // Extract serial number from title (e.g. "/299", "/25") for numbered cards
     // This is included in parallel queries since numbered cards are parallels by definition
-    const serialMatch = (effectiveCard.title || '').match(/\/(?!\/)\s*(\d+)\b/);
+    serialMatch = (effectiveCard.title || '').match(/\/(?!\/)\s*(\d+)\b/);
     const serialNumber = serialMatch ? `/${serialMatch[1]}` : '';
 
     if (!hasTrueParallel) {

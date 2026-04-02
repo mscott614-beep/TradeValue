@@ -110,7 +110,7 @@ export default function CardDetailsPage() {
             setPurchasePriceInput(card.purchasePrice?.toString() || '0');
         }
         if (card && !isEditingAttributes) {
-            setSelectedFeatures(card.features || []);
+            setSelectedFeatures(Array.isArray(card.features) ? card.features : (card.features ? [card.features as unknown as string] : []));
             setSelectedParallel(card.parallel || '');
         }
         if (card && !isEditingTitle) {
@@ -935,7 +935,7 @@ export default function CardDetailsPage() {
                                         </div>
                                     ) : (
                                         <div className="flex flex-wrap gap-2">
-                                            {card.features && card.features.length > 0 ? (
+                                            {Array.isArray(card.features) && card.features.length > 0 ? (
                                                 card.features.map((feature) => (
                                                     <Badge key={feature} variant="outline" className="px-3 py-1">
                                                         {feature}
