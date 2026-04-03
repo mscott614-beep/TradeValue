@@ -365,3 +365,117 @@ export const dailyPriceSnapshot = onSchedule(
     console.log(`[PriceSnapshot] Done. Snapshotted ${totalCards} cards for ${today}.`);
   }
 );
+
+// --- Morning Refresh: Updates Prices From eBay ---
+
+/**
+ * Triggered at 8:00 AM EST (12:00/13:00 UTC)
+ * Iterates through all cards and enqueues them for price refreshing.
+ */
+export const scheduledMarketRefresh = onSchedule(
+  {
+    schedule: "0 8 * * *", 
+    timeZone: "America/New_York",
+    region: "us-central1",
+  },
+  async () => {
+    const db = admin.firestore();
+    const usersSnap = await db.collection("users").listDocuments();
+    const queue = getFunctions().taskQueue("locations/us-central1/functions/refreshCardTask");
+
+    let totalEnqueued = 0;
+    for (const userDoc of usersSnap) {
+      const cardsSnap = await userDoc.collection("portfolios").listDocuments();
+      for (const cardDoc of cardsSnap) {
+        await queue.enqueue({
+          userId: userDoc.id,
+          cardId: cardDoc.id
+        });
+        totalEnqueued++;
+      }
+    }
+    console.log(`[MarketRefresh] Scheduled trigger complete. Enqueued ${totalEnqueued} cards across ${usersSnap.length} users.`);
+  }
+);
+
+/**
+ * Worker: Refreshes a single card's value from eBay.
+ * Using Task Queue to manage rate limits and long execution times for large portfolios.
+ */
+export const refreshCardTask = onTaskDispatched(
+  {
+    retryConfig: {
+      maxAttempts: 3,
+      minBackoffSeconds: 60,
+    },
+    rateLimits: {
+      maxConcurrentDispatches: 5,
+    },
+    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
+    region: "us-central1",
+    timeoutSeconds: 300,
+  },
+  async (request) => {
+    const { userId, cardId } = request.data as { userId: string, cardId: string };
+    const db = admin.firestore();
+    const cardRef = db.doc(`users/${userId}/portfolios/${cardId}`);
+    const cardSnap = await cardRef.get();
+
+    if (!cardSnap.exists) {
+      console.log(`[RefreshTask] Card ${cardId} for user ${userId} not found.`);
+      return;
+    }
+    const card = cardSnap.data()!;
+
+    try {
+      const EbayServiceClass = await loadEbay();
+      const ebay = new EbayServiceClass(
+        EBAY_CLIENT_ID.value(),
+        EBAY_CLIENT_SECRET.value(),
+        EBAY_ENV.value()
+      );
+
+      const { buildEbayQuery, calculateTradeValue } = await import("./ebay-pricing");
+
+      // Construct precise query for this card
+      const { query: searchQuery } = buildEbayQuery({
+        year: card.year,
+        brand: card.brand,
+        player: card.player,
+        cardNumber: card.cardNumber,
+        parallel: card.parallel,
+        title: card.title
+      });
+
+      // Fetch active listings
+      const response = await ebay.searchActiveItems(searchQuery, 10);
+      const items = response.itemSummaries || [];
+      const calc = calculateTradeValue(items);
+
+      if (calc.value > 0) {
+        const timestamp = new Date().toISOString();
+        const today = timestamp.split("T")[0];
+
+        // Atomic update of current value
+        await cardRef.update({
+          currentMarketValue: calc.value,
+          lastChecked: timestamp,
+          updatedAt: timestamp
+        });
+
+        // Add to history for performance tracking
+        await cardRef.collection("priceHistory").doc(today).set({
+          value: calc.value,
+          timestamp: timestamp,
+        }, { merge: true });
+
+        console.log(`[RefreshTask] Successfully updated ${card.title} (${cardId}) to $${calc.value}`);
+      } else {
+        console.log(`[RefreshTask] No market matches found for ${card.title}. Keeping existing value.`);
+      }
+    } catch (error: any) {
+      console.error(`[RefreshTask] Failed to refresh card ${cardId}:`, error);
+      throw error; // Task queue will retry based on config
+    }
+  }
+);
