@@ -65,12 +65,21 @@ export function EbayUrlImport() {
             const cardDataForDb = {
                 userId: user.uid,
                 cardId: `ebay-${Date.now()}`,
-                title: `${result.year} ${result.brand} ${result.player}`,
+                title: `${result.year} ${result.brand}${result.set ? ' ' + result.set : ''} ${result.player}`,
                 condition: result.condition,
-                purchasePrice: result.currentMarketValue || 0, // Assume purchase price is what it sold/listed for if imported
+                purchasePrice: result.currentMarketValue || 0, 
                 currentMarketValue: result.currentMarketValue || 0,
                 dateAdded: new Date().toISOString(),
-                ...result
+                // Map AI result to database schema
+                year: result.year.toString(),
+                brand: result.brand,
+                player: result.player,
+                set: result.set || "",
+                cardNumber: result.cardNumber || "",
+                estimatedGrade: result.estimatedGrade || (result.condition.includes(" ") ? result.condition.split(" ").pop() : ""),
+                parallel: result.parallel || "",
+                grader: result.grader || "None",
+                features: result.features || []
             };
 
             addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
@@ -115,7 +124,21 @@ export function EbayUrlImport() {
                             <p className="text-muted-foreground">Title:</p><p className="font-medium line-clamp-1" title={result.title}>{result.title}</p>
                             <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
                             <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
-                            <p className="text-muted-foreground">Brand/Set:</p><p className="font-medium">{result.brand}</p>
+                            <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
+                            
+                            {result.set && (
+                                <>
+                                    <p className="text-muted-foreground">Set:</p>
+                                    <p className="font-medium">{result.set}</p>
+                                </>
+                            )}
+
+                            {result.cardNumber && (
+                                <>
+                                    <p className="text-muted-foreground">Card #:</p>
+                                    <p className="font-medium">#{result.cardNumber}</p>
+                                </>
+                            )}
                             <p className="text-muted-foreground">Condition:</p><p className="font-medium">{result.condition}</p>
                             <p className="text-muted-foreground">Grader:</p>
                             <p className="font-medium text-purple-400">{result.grader}</p>
