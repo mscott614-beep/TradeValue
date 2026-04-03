@@ -262,15 +262,15 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     
     // Lead Architect Update: Alphanumeric codes (e.g. DTA-TT, TS-NK) are often omitted in eBay titles.
-    // If numeric, we use # for precision. If alphanumeric, we make it optional in the query string 
-    // to prevent search failures while still helping with exact matches if present.
+    // If numeric, we use # for precision. If alphanumeric, we include it as a raw term to avoid 
+    // eBay search parsing errors with parentheses.
     let cardNumber = '';
     if (rawNumber) {
         if (rawNumber.match(/^\d+$/)) {
             cardNumber = `#${rawNumber}`;
         } else {
-            // Alphanumeric subset code: Treat as secondary signal (optional)
-            cardNumber = `(${rawNumber})`; 
+            // Alphanumeric subset code: Use as a plain term (no prefix, no parentheses)
+            cardNumber = rawNumber; 
         }
     }
     const parallelRaw = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';

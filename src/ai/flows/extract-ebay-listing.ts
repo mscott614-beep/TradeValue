@@ -28,12 +28,13 @@ export const extractEbayListing = ai.defineFlow({
 
     Raw Listing Text:
     "${listingText}"
-    
-    Instructions:
-    1. Extract the player, year, brand, and set.
-    2. **CRITICAL**: The 'brand' field should be the manufacturer (e.g. Upper Deck). The 'set' field should be the series (e.g. O-Pee-Chee Platinum). 
-    3. **CRITICAL**: Do NOT include the year in the 'brand' or 'set' fields. The year goes in the 'year' field only. 
-    4. Extract the card number (e.g. #201) if available on the listing or description.
+        Strict Extraction Rules:
+        1. Ignore any part of the page labeled "Related items" or "People also viewed".
+        2. Identify the year, brand, player, and card number.
+        3. If the card number is alphanumeric (e.g. "DTA-TT", "BCS-1"), extract it EXACTLY without a '#' prefix.
+        4. If the card number is purely numeric (e.g. "123"), you may include the '#'.
+        5. Do NOT hallucinate a card number (e.g. extracting "90" from "1990"). If it isn't explicitly listed, return an empty string. 
+        6. Extract parallels (e.g. "Refractor", "/299") from the title or description.
     5. Determine the condition. If it mentions PSA, BGS, or SGC with a grade, use that (e.g., PSA 10). Otherwise, default to 'Raw'.
     6. Identify the grader if applicable (e.g., PSA, BGS, SGC, CGC, GMA). If it is a raw/ungraded card, output exactly "None".
     7. Identify the numeric grade (e.g. 10, 9.5) and put it in 'estimatedGrade'.
