@@ -21,8 +21,8 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
         // 2. Fetch all user's portfolio documents
         const usersDocs = await db.collection("users").listDocuments();
         
-        // Use the short-name with explicit region for better reliability
-        const queue = getFunctions(app).taskQueue("refreshCardTask", "us-central1");
+        // Use the new renamed function for better reliability and avoiding past conflicts
+        const queue = getFunctions(app).taskQueue("refreshMarketCardTask", "us-central1");
 
         console.log(`[AdminRefresh] manual trigger by ${adminEmail}. Processing ${usersDocs.length} users.`);
 

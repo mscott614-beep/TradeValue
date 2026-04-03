@@ -383,7 +383,7 @@ export const scheduledMarketRefresh = onSchedule(
   async () => {
     const db = admin.firestore();
     const usersSnap = await db.collection("users").listDocuments();
-    const queue = getFunctions().taskQueue("locations/us-central1/functions/refreshCardTask");
+    const queue = getFunctions().taskQueue("refreshMarketCardTask", "us-central1");
 
     let totalEnqueued = 0;
     for (const userDoc of usersSnap) {
@@ -404,7 +404,7 @@ export const scheduledMarketRefresh = onSchedule(
  * Worker: Refreshes a single card's value from eBay.
  * Using Task Queue to manage rate limits and long execution times for large portfolios.
  */
-export const refreshCardTask = onTaskDispatched(
+export const refreshMarketCardTask = onTaskDispatched(
   {
     retryConfig: {
       maxAttempts: 3,

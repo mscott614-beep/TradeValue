@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.refreshCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
+exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const tasks_1 = require("firebase-functions/v2/tasks");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -346,7 +346,7 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
 }, async () => {
     const db = admin.firestore();
     const usersSnap = await db.collection("users").listDocuments();
-    const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-central1/functions/refreshCardTask");
+    const queue = (0, functions_1.getFunctions)().taskQueue("refreshMarketCardTask", "us-central1");
     let totalEnqueued = 0;
     for (const userDoc of usersSnap) {
         const cardsSnap = await userDoc.collection("portfolios").listDocuments();
@@ -364,7 +364,7 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
  * Worker: Refreshes a single card's value from eBay.
  * Using Task Queue to manage rate limits and long execution times for large portfolios.
  */
-exports.refreshCardTask = (0, tasks_1.onTaskDispatched)({
+exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
     retryConfig: {
         maxAttempts: 3,
         minBackoffSeconds: 60,
