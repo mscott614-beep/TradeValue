@@ -13,21 +13,46 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
-import { ChevronUp, LogOut, Settings, Settings2 } from "lucide-react";
+import { ChevronUp, LogOut, RefreshCw, Settings, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/hooks/use-settings";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { triggerAdminMarketRefreshAction } from "@/app/actions/admin-actions";
+import { toast } from "sonner";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export function UserNav() {
   const { user } = useUser();
   const { settings, updateSettings } = useSettings();
   const auth = useAuth();
   const router = useRouter();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleSignOut = async () => {
     await signOut(auth);
     router.push('/login');
+  };
+
+  const handleAdminSync = async () => {
+    if (!user?.email) return;
+    
+    setIsRefreshing(true);
+    const toastId = toast.loading("Starting global market synchronization...");
+    
+    try {
+      const result = await triggerAdminMarketRefreshAction(user.email);
+      if (result.success) {
+        toast.success(result.message, { id: toastId });
+      } else {
+        toast.error(result.error || "Failed to start synchronization", { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "An unexpected error occurred", { id: toastId });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const getInitials = (email?: string | null) => {
@@ -75,6 +100,25 @@ export function UserNav() {
               onCheckedChange={(checked) => updateSettings({ showTicker: checked })}
             />
           </div>
+          
+          {/* Admin Tools - mscott614@gmail.com ONLY */}
+          {user?.email === 'mscott614@gmail.com' && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-semibold text-blue-400 pt-2 flex items-center gap-1">
+                Admin Utilities
+              </DropdownMenuLabel>
+              <DropdownMenuItem 
+                onClick={handleAdminSync} 
+                disabled={isRefreshing}
+                className="cursor-pointer text-blue-400 focus:text-blue-300 focus:bg-blue-400/10"
+              >
+                <RefreshCw className={cn("mr-2 h-4 w-4", isRefreshing && "animate-spin")} />
+                <span>{isRefreshing ? 'Syncing Market...' : 'Force Global Sync'}</span>
+              </DropdownMenuItem>
+            </>
+          )}
+
           <DropdownMenuItem disabled>
             <Settings className="mr-2 h-4 w-4" />
             <span>Advanced Settings</span>
