@@ -182,9 +182,11 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
           const { type, query: primaryQuery } = buildEbayQuery({
             year: result.year,
             brand: result.brand,
+            set: (result as any).set,
             player: result.player,
             cardNumber: result.cardNumber,
             parallel: result.parallel,
+            title: (result as any).title
           });
 
           const isChecklistSearch = (result.player || "").toLowerCase().includes("checklist") || 
@@ -441,6 +443,7 @@ export const refreshCardTask = onTaskDispatched(
       const { query: searchQuery } = buildEbayQuery({
         year: card.year,
         brand: card.brand,
+        set: card.set,
         player: card.player,
         cardNumber: card.cardNumber,
         parallel: card.parallel,

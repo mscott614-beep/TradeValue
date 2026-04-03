@@ -23,6 +23,7 @@ export interface EbayAuctionResponse {
             categoryName: string;
         }>;
         condition?: string;
+        buyingOptions?: string[];
     }>;
     total: number;
 }
