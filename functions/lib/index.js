@@ -153,10 +153,13 @@ Return a JSON object:
 - player: The name of the player.
 - cardNumber: The card number.
 - parallel: The parallel or variation (e.g., "Base", "Refractor", "Silver"). 
-  IMPORTANT: For hockey cards, "Young Guns" and "Young Guns Canvas" MUST be identified as the parallel.
-- estimatedGrade: The condition (e.g., Mint, 9, 10).
-- grader: "PSA", "BGS", etc. or "None".
 - estimatedMarketValue: Average eBay sold price in USD.
+  
+  **PRECISION GUIDELINES**:
+  - The 'cardNumber' MUST come from the card itself. If it is an alphanumeric code like 'DTA-TT', 'TS-NK', or 'BCP-1', return that exact code.
+  - DO NOT confuse the production year (e.g. 1990) or serial numbering (e.g. 90/99) with the card number.
+  - If the card features 'Autograph', 'Patch', or 'Jersey', include that in the 'features' or 'parallel' identifying fields.
+  - For hockey 'Young Guns', the parallel is exactly 'Young Guns'.
 
 ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze the title: ${jobData.payload.title}`}
 `;

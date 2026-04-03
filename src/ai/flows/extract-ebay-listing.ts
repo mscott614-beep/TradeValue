@@ -40,6 +40,11 @@ export const extractEbayListing = ai.defineFlow({
     8. Identify if there is a specific parallel/refractor (e.g., 'Silver', 'Holo', 'Atomic Refractor'). If none is explicitly stated, leave it blank.
     9. List any special features (e.g., 'Rookie', 'Autograph', 'Patch', 'Serial Numbered', '1st Edition').
     10. Find the asking price or current bid price in the text and parse it into a raw number for the 'currentMarketValue' field.
+    
+    **PRECISION GUIDELINES**:
+    - The 'cardNumber' MUST come from the main card title or item specifics. If it is an alphanumeric code like 'DTA-TT' or 'BCP-1', return that exact code.
+    - DO NOT confuse the production year (e.g. 1990) or serial numbering (e.g. 90/99) with the card number.
+    - Be careful not to extract details from "People also viewed" or "Related items" that might be in the raw text.
     `;
 
     const response = await ai.generate({

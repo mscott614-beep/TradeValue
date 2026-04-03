@@ -183,12 +183,16 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const titleText = (effectiveCard.title || '').toLowerCase();
     const combinedText = `${parallelText} ${conditionText} ${titleText}`;
 
+    // Also strip generic prefixes like 'BM' or 'RC' which are often inconsistent in listings
+    const rawNumber = (effectiveCard.cardNumber || '').replace('#', '').replace(/\b(?:BM|RC)\s*/gi, '');
+
     // Check if this is a "True Parallel" (a variant that changes the card type)
     // Also include serial numbers (e.g. /299) as parallels
     let serialMatch = (effectiveCard.title || '').match(/\/(?!\/)\s*(\d+)\b/);
     const hasTrueParallel = TRUE_PARALLEL_KEYWORDS.some(k => combinedText.includes(k.toLowerCase())) ||
         !!serialMatch ||
-        (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g)));
+        (parallelText && parallelText !== 'base' && !BASE_LIKE_KEYWORDS.some(g => parallelText.includes(g))) ||
+        (rawNumber && !rawNumber.match(/^\d+$/)); // Treat alphanumeric codes as indicators of a non-base card
 
     // Fix: Preserve and normalize full season years (e.g. 1998-99)
     // If year is "1998 99", normalize it to "1998-99" for eBay precision
@@ -256,11 +260,19 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     
     const player = effectiveCard.player || '';
 
-    // Formatting: Ensure card number has a '#' for vintage matching on eBay
-    // Also strip generic prefixes like 'BM' or 'RC' which are often inconsistent in listings
-    const rawNumber = (effectiveCard.cardNumber || '').replace('#', '').replace(/\b(?:BM|RC)\s*/gi, '');
-    // Lead Architect Update: Only prefix with # if it's purely numeric to avoid breaking subset codes like TS-NK
-    const cardNumber = rawNumber ? (rawNumber.match(/^\d+$/) ? `#${rawNumber}` : rawNumber) : '';
+    
+    // Lead Architect Update: Alphanumeric codes (e.g. DTA-TT, TS-NK) are often omitted in eBay titles.
+    // If numeric, we use # for precision. If alphanumeric, we make it optional in the query string 
+    // to prevent search failures while still helping with exact matches if present.
+    let cardNumber = '';
+    if (rawNumber) {
+        if (rawNumber.match(/^\d+$/)) {
+            cardNumber = `#${rawNumber}`;
+        } else {
+            // Alphanumeric subset code: Treat as secondary signal (optional)
+            cardNumber = `(${rawNumber})`; 
+        }
+    }
     const parallelRaw = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
     // Map 'Autograph' to 'Auto' (hobby standard for eBay)
     const parallel = parallelRaw.toLowerCase().replace('autograph', 'Auto');

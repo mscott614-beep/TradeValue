@@ -15,6 +15,7 @@ import {
   Bell,
   HelpCircle,
   Sparkles,
+  Settings,
 } from "lucide-react";
 
 const links = [
@@ -24,6 +25,7 @@ const links = [
   { href: "/market", label: "Market", icon: Store },
   { href: "/dashboard/alerts", label: "Alerts", icon: Bell },
   { href: "/help", label: "Help Center", icon: HelpCircle },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function MainNav() {
