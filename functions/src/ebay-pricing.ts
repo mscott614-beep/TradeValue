@@ -184,9 +184,15 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         (rawNumber && !rawNumber.match(/^\d+$/)); // Treat alphanumeric codes as indicators of a non-base card
 
     // Fix: Preserve and normalize full season years (e.g. 1998-99)
-    // If year is "1998 99", normalize it to "1998-99" for eBay precision
+    // If year is just "2017", expand to "2017-18" for modern cards (standard eBay listing style)
     let year = effectiveCard.year || '';
-    if (year.match(/^\d{4}\s\d{2}$/)) {
+    if (year.match(/^\d{4}$/)) {
+        const ySimple = parseInt(year);
+        if (ySimple > 1990) {
+            const nextYearShort = (ySimple + 1).toString().slice(-2);
+            year = `${year}-${nextYearShort}`;
+        }
+    } else if (year.match(/^\d{4}\s\d{2}$/)) {
         year = year.replace(' ', '-');
     }
     const numericYear = parseInt(year.split('-')[0]);
@@ -254,12 +260,13 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     // If numeric, we use # for precision. If alphanumeric, we include it as a raw term to avoid 
     // eBay search parsing errors with parentheses.
     let cardNumber = '';
-    if (rawNumber) {
-        if (rawNumber.match(/^\d+$/)) {
-            cardNumber = `#${rawNumber}`;
+    const cleanNumber = (effectiveCard.cardNumber || '').replace('#', '').trim();
+    if (cleanNumber) {
+        if (cleanNumber.match(/^\d+$/)) {
+            cardNumber = `#${cleanNumber}`;
         } else {
             // Alphanumeric subset code: Use as a plain term (no prefix, no parentheses)
-            cardNumber = rawNumber; 
+            cardNumber = cleanNumber; 
         }
     }
     const parallelRaw = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';

@@ -122,7 +122,7 @@ export default function CardDetailsPage() {
                 year: (card.year || '').toString(),
                 brand: (card.brand || '').toString(),
                 set: (card.set || '').toString(),
-                cardNumber: (card.cardNumber || '').toString(),
+                cardNumber: (card.cardNumber || '').toString().replace('#', ''),
                 parallel: (card.parallel || '').toString(),
                 condition: (card.condition || '').toString(),
                 grader: (card.grader || '').toString(),
@@ -229,7 +229,7 @@ export default function CardDetailsPage() {
                 year: (infoInput.year || '').toString().trim(),
                 brand: (infoInput.brand || '').toString().trim(),
                 set: (infoInput.set || '').toString().trim(),
-                cardNumber: (infoInput.cardNumber || '').toString().trim(),
+                cardNumber: (infoInput.cardNumber || '').toString().replace('#', '').trim(),
                 parallel: (infoInput.parallel || '').toString().trim(),
                 condition: (infoInput.condition || '').toString().trim(),
                 grader: (infoInput.grader || '').toString().trim(),
@@ -796,7 +796,9 @@ export default function CardDetailsPage() {
                                         <Hash className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Card Number</p>
-                                            <p className="text-lg font-semibold">#{card.cardNumber}</p>
+                                            <p className="text-lg font-semibold">
+                                                {card.cardNumber?.toString().match(/^\d+$/) ? `#${card.cardNumber}` : card.cardNumber}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>

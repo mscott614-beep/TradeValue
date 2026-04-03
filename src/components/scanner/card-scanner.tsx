@@ -249,16 +249,18 @@ export function CardScanner() {
 
       const portfoliosCollection = collection(firestore, `users/${user.uid}/portfolios`);
 
+      const cleanCardNumber = (result.cardNumber || "").toString().replace('#', '').trim();
       const cardDataForDb = {
         userId: user.uid,
-        cardId: `${result.brand}-${result.cardNumber}-${result.player.replace(/\s+/g, '-')}`,
-        title: `${result.year} ${result.brand} ${result.player} #${result.cardNumber}`,
+        cardId: `${result.brand}-${cleanCardNumber}-${result.player.replace(/\s+/g, '-')}`,
+        title: `${result.year} ${result.brand} ${result.player} ${cleanCardNumber.match(/^\d+$/) ? '#' + cleanCardNumber : cleanCardNumber}`.trim(),
         condition: result.estimatedGrade,
         purchasePrice: 0,
         currentMarketValue: result.estimatedMarketValue || 0,
         dateAdded: new Date().toISOString(),
         ...(compressedImageUrl ? { imageUrl: compressedImageUrl } : {}),
-        ...result
+        ...result,
+        cardNumber: cleanCardNumber 
       };
 
       addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
@@ -343,7 +345,10 @@ export function CardScanner() {
               <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
               <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
               <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
-              <p className="text-muted-foreground">Card #:</p><p className="font-medium">{result.cardNumber}</p>
+              <p className="text-muted-foreground">Card #:</p>
+              <p className="font-medium">
+                {result.cardNumber?.toString().match(/^\d+$/) ? `#${result.cardNumber}` : result.cardNumber}
+              </p>
               <p className="text-muted-foreground">Est. Grade:</p><p className="font-medium">{result.estimatedGrade}</p>
               <p className="text-muted-foreground">Grader:</p>
               <p className="font-medium text-purple-400">{result.grader}</p>

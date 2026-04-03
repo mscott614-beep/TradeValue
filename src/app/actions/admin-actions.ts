@@ -33,10 +33,24 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
             const portfolioDocs = await portfoliosRef.listDocuments();
             
             for (const cardDoc of portfolioDocs) {
-                await queue.enqueue({
-                    userId: userDoc.id,
-                    cardId: cardDoc.id
-                });
+                try {
+                    await queue.enqueue({
+                        userId: userDoc.id,
+                        cardId: cardDoc.id
+                    });
+                } catch (enqueueError: any) {
+                    // Fallback: Try simpler queue ID if primary full path fails
+                    if (enqueueError.message?.includes('NOT_FOUND') || enqueueError.message?.includes('does not exist')) {
+                        console.log(`[AdminRefresh] Primary queue not found, attempting fallback to refreshCardTask`);
+                        const fallbackQueue = getFunctions(app).taskQueue("refreshCardTask", "us-central1");
+                        await fallbackQueue.enqueue({
+                            userId: userDoc.id,
+                            cardId: cardDoc.id
+                        });
+                    } else {
+                        throw enqueueError;
+                    }
+                }
                 totalEnqueued++;
             }
         }

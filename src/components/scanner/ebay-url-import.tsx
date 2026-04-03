@@ -75,7 +75,7 @@ export function EbayUrlImport() {
                 brand: result.brand,
                 player: result.player,
                 set: result.set || "",
-                cardNumber: result.cardNumber || "",
+                cardNumber: (result.cardNumber || "").toString().replace('#', '').trim(),
                 estimatedGrade: result.estimatedGrade || (result.condition.includes(" ") ? result.condition.split(" ").pop() : ""),
                 parallel: result.parallel || "",
                 grader: result.grader || "None",
@@ -136,7 +136,9 @@ export function EbayUrlImport() {
                             {result.cardNumber && (
                                 <>
                                     <p className="text-muted-foreground">Card #:</p>
-                                    <p className="font-medium">#{result.cardNumber}</p>
+                                    <p className="font-medium">
+                                        {result.cardNumber.toString().match(/^\d+$/) ? `#${result.cardNumber}` : result.cardNumber}
+                                    </p>
                                 </>
                             )}
                             <p className="text-muted-foreground">Condition:</p><p className="font-medium">{result.condition}</p>

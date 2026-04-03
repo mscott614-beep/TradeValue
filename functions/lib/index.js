@@ -156,8 +156,9 @@ Return a JSON object:
 - estimatedMarketValue: Average eBay sold price in USD.
   
   **PRECISION GUIDELINES**:
-  - The 'cardNumber' MUST come from the card itself. If it is an alphanumeric code like 'DTA-TT', 'TS-NK', or 'BCP-1', return that exact code.
+  - The 'cardNumber' MUST come from the card itself. If it is an alphanumeric code like 'DTA-TT', 'TS-NK', or 'BCP-1', return that exact code WITHOUT a '#' prefix.
   - DO NOT confuse the production year (e.g. 1990) or serial numbering (e.g. 90/99) with the card number.
+  - Ignore any part of the page labeled "Related items" or "People also viewed".
   - If the card features 'Autograph', 'Patch', or 'Jersey', include that in the 'features' or 'parallel' identifying fields.
   - For hockey 'Young Guns', the parallel is exactly 'Young Guns'.
 
