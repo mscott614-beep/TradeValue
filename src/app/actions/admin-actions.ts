@@ -18,49 +18,47 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
         const db = getAdminDb();
         const app = getAdminApp();
         
-        // 2. Fetch ALL portfolio documents across ALL users using a Collection Group query
-        // select() with no arguments ensures we only fetch metadata (IDs) to save bandwidth/memory
-        const snapshot = await db.collectionGroup("portfolios").select().get();
-        
-        // Standardized Task Queue: Points directly to the deployed Cloud Function name
-        const queue = getFunctions(app).taskQueue("refreshMarketCardTask", "us-central1");
-        
-        console.log(`[AdminRefresh] manual trigger by ${adminEmail}. Found ${snapshot.size} total cards across all portfolios.`);
-
         let totalEnqueued = 0;
-        
-        for (const doc of snapshot.docs) {
-            try {
-                // The path format is 'users/{userId}/portfolios/{cardId}'
-                const pathParts = doc.ref.path.split('/');
-                const userId = pathParts[pathParts.indexOf('users') + 1];
-                const cardId = pathParts[pathParts.indexOf('portfolios') + 1];
 
-                if (!userId || !cardId) {
-                    console.warn(`[AdminRefresh] Skipping invalid path structure: ${doc.ref.path}`);
+        // Standardized Task Queue: Using the full path for maximum reliability
+        const queue = getFunctions(app).taskQueue("locations/us-central1/functions/refreshMarketCardTask");
+
+        // Perform standard fetch on the users collection
+        console.log(`[AdminRefresh] Fetching all users...`);
+        const usersSnap = await db.collection("users").get();
+        console.log(`[AdminRefresh] Found ${usersSnap.size} users.`);
+
+        for (const userDoc of usersSnap.docs) {
+            try {
+                // List all card documents in the user's portfolio subcollection
+                const portfoliosSnap = await userDoc.ref.collection("portfolios").get();
+                
+                if (portfoliosSnap.size === 0) {
+                    console.log(`[AdminRefresh] User ${userDoc.id} has no cards.`);
                     continue;
                 }
 
-                // Directly enqueue using the primary queue name
-                await queue.enqueue({
-                    userId,
-                    cardId
-                });
-                totalEnqueued++;
+                console.log(`[AdminRefresh] User ${userDoc.id}: Found ${portfoliosSnap.size} cards. Enqueuing...`);
 
-                // Optional: Log progress every 100 cards
-                if (totalEnqueued % 100 === 0) {
-                    console.log(`[AdminRefresh] Progress: Enqueued ${totalEnqueued} cards...`);
+                for (const cardDoc of portfoliosSnap.docs) {
+                    try {
+                        await queue.enqueue({
+                            userId: userDoc.id,
+                            cardId: cardDoc.id
+                        });
+                        totalEnqueued++;
+                    } catch (err: any) {
+                        console.error(`[AdminRefresh] Error enqueuing card ${cardDoc.id}:`, err.message);
+                    }
                 }
-            } catch (enqueueError: any) {
-                console.error(`[AdminRefresh] Failed to enqueue card ${doc.id}:`, enqueueError.message);
-                // Silently fail for one card to avoid crashing the whole sync
+            } catch (userError: any) {
+                console.error(`[AdminRefresh] Error processing user ${userDoc.id}:`, userError.message);
             }
         }
 
         return { 
             success: true as const, 
-            message: `Synchronization started. Enqueued ${totalEnqueued} cards across the global database.`,
+            message: `Global sync (v3) started. Enqueued ${totalEnqueued} cards across the global database.`,
             count: totalEnqueued
         };
     } catch (error: any) {
