@@ -250,10 +250,11 @@ export function CardScanner() {
       const portfoliosCollection = collection(firestore, `users/${user.uid}/portfolios`);
 
       const cleanCardNumber = (result.cardNumber || "").toString().replace('#', '').trim();
+      const setName = (result.set || "").toString().trim();
       const cardDataForDb = {
         userId: user.uid,
         cardId: `${result.brand}-${cleanCardNumber}-${result.player.replace(/\s+/g, '-')}`,
-        title: `${result.year} ${result.brand} ${result.player} ${cleanCardNumber.match(/^\d+$/) ? '#' + cleanCardNumber : cleanCardNumber}`.trim(),
+        title: `${result.year} ${result.brand} ${setName} ${result.player} ${cleanCardNumber.match(/^\d+$/) ? '#' + cleanCardNumber : cleanCardNumber}`.replace(/\s+/g, ' ').trim(),
         condition: result.estimatedGrade,
         purchasePrice: 0,
         currentMarketValue: result.estimatedMarketValue || 0,
@@ -345,6 +346,7 @@ export function CardScanner() {
               <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
               <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
               <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
+              <p className="text-muted-foreground">Set:</p><p className="font-medium">{result.set || 'Base Set'}</p>
               <p className="text-muted-foreground">Card #:</p>
               <p className="font-medium">
                 {result.cardNumber?.toString().match(/^\d+$/) ? `#${result.cardNumber}` : result.cardNumber}

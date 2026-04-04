@@ -29,6 +29,7 @@ export type ScanCardAndAddMetadataInput = z.infer<typeof ScanCardAndAddMetadataI
 const ScanCardAndAddMetadataOutputSchema = z.object({
   year: z.string().describe('The year the trading card was produced.'),
   brand: z.string().describe('The brand of the trading card (e.g., Topps, Upper Deck).'),
+  set: z.string().describe('The specific set or subset name (e.g., Ultimate Collection, Young Guns, Prizm).').default("Base"),
   player: z.string().describe('The name of the player featured on the card.'),
   cardNumber: z.string().describe('The card number (if any).'),
   estimatedGrade: z.string().describe('The estimated condition/grade of the card (e.g., Mint, Near Mint).'),
@@ -48,13 +49,14 @@ const scanCardPrompt = ai.definePrompt({
   output: { schema: ScanCardAndAddMetadataOutputSchema },
   prompt: `You are an expert trading card authenticator and grader.
 
-You will identify the card from the provided image(s) and return the year, brand, player, card number, condition, grader, and estimated value.
+You will identify the card from the provided image(s) and return the year, brand, set, player, card number, condition, grader, and estimated value.
 
 Return a JSON object that contains the following keys:
 - year: The year the trading card was produced.
 - brand: The brand of the trading card (e.g., Topps, Upper Deck).
+- set: The specific set or subset name (e.g. "Ultimate Collection", "Young Guns", "Prizm Base", "Chrome"). Look for this text on the card.
 - player: The name of the player featured on the card.
-- cardNumber: The card number (if any).
+- cardNumber: The card number (if any, e.g. "102", "DTATT"). Be very precise.
 - estimatedGrade: The estimated condition/grade of the card (e.g., Mint, Near Mint, 9, 10).
 - grader: Is the card encased in a professional grading slab? If yes, output the company acronym (e.g. "PSA", "BGS", "SGC", "CGC", "GMA"). If it is raw/ungraded, output exactly "None".
 - estimatedMarketValue: Calculate the current market value by taking the average of the last 5 actual **eBay sold listings** for this exact card. If the card is graded, use recent sales of that specific grade. If raw, use raw sales. Provide ONLY the calculated average number in USD.

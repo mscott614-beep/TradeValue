@@ -27,6 +27,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         // 2. Step 3: API Request Configuration (FIXED_PRICE Priority / EXTENDED Fields)
         console.log(`[Refresh] Lead Data Architect Query (${type}): "${primaryQuery}"`);
 
+        let usedQuery = primaryQuery;
         let activeResponse = await ebayService.searchActiveItems(primaryQuery, 10);
         let rawItems = activeResponse.itemSummaries || [];
 
@@ -35,13 +36,17 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         if (rawItems.length === 0) {
             const parallel = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
             const set = card.set || '';
-            const secondaryQuery = `${card.year} ${card.brand} ${set} ${card.player} ${parallel} ${card.cardNumber} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            const cleanNum = (card.cardNumber || '').toString().replace('#', '').trim();
+            const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
+            const secondaryQuery = `${card.year} ${card.brand} ${set} ${card.player} ${parallel} ${formattedNum} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            
             console.log(`[Refresh] Precision query returned 0. Trying broad fallback: "${secondaryQuery}"`);
+            usedQuery = secondaryQuery;
             activeResponse = await ebayService.searchActiveItems(secondaryQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
         }
 
-        console.log(`[Refresh] Found ${rawItems.length} matching items on eBay.`);
+        console.log(`[Refresh] Found ${rawItems.length} matching items on eBay using: "${usedQuery}"`);
 
         // 3. Step 4: Value Calculation (The TradeValue Rule - 3 Lowest Median)
         const calc = calculateTradeValue(rawItems);
@@ -65,7 +70,8 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             timestamp: timestamp
         });
 
-        const diagnostics = `Query: "${primaryQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value} | Outliers: ${calc.outliersCount}`;
+        const querySource = usedQuery === primaryQuery ? 'Primary' : 'Fallback';
+        const diagnostics = `[${querySource}] Query: "${usedQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value}`;
         console.log(`[Refresh] Final Diagnostic: ${diagnostics}`);
 
         return {

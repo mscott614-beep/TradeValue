@@ -78,8 +78,11 @@ function parseTitleIntoFields(title: string): Partial<CardDescriptor> {
     const yearMatch = title.match(/\b(\d{4}-\d{2}|\d{4})\b/);
     if (yearMatch) result.year = yearMatch[1];
 
-    // Extract card number (e.g. "#102", "#M-14", "/300")
-    const numMatch = title.match(/#([A-Z0-9\-]+)/i) || title.match(/\/(\d+)/);
+    // Extract card number (e.g. "#102", "#M-14", "/300", "DTATT")
+    // Improved: Capture 3-8 character alphanumeric codes that often appear at the end of titles
+    const numMatch = title.match(/#([A-Z0-9\-]+)/i) || 
+                     title.match(/\/(\d+)/) ||
+                     title.match(/\b([A-Z]{1,3}\d{1,4}|[A-Z]{2,5})\b$/i); 
     if (numMatch) result.cardNumber = numMatch[1];
 
     // Extract grading from title (e.g. "BCCG 10", "PSA 9", "BGS 9.5")
@@ -260,12 +263,15 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     // If numeric, we use # for precision. If alphanumeric, we include it as a raw term to avoid 
     // eBay search parsing errors with parentheses.
     let cardNumber = '';
-    const cleanNumber = (effectiveCard.cardNumber || '').replace('#', '').trim();
+    // Priority 1: Explicit structured data from 'card' object
+    const rawCardNumber = (card.cardNumber || effectiveCard.cardNumber || '').toString();
+    const cleanNumber = rawCardNumber.replace('#', '').trim();
+    
     if (cleanNumber) {
         if (cleanNumber.match(/^\d+$/)) {
             cardNumber = `#${cleanNumber}`;
         } else {
-            // Alphanumeric subset code: Use as a plain term (no prefix, no parentheses)
+            // Alphanumeric subset code/identifier (e.g. DTATT, TS-NK): Use as a plain term
             cardNumber = cleanNumber; 
         }
     }

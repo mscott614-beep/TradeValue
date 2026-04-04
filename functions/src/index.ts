@@ -122,6 +122,7 @@ export const geminiProcessingQueue = onTaskDispatched(
       const ScanOutputSchema = zod.object({
         year: zod.string(),
         brand: zod.string(),
+        set: zod.string().describe("The specific set or subset name (e.g. 'Ultimate Collection', 'Young Guns').").default("Base"),
         player: zod.string(),
         cardNumber: zod.string(),
         parallel: zod.string().default("Base"),
@@ -186,7 +187,7 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
           const { type, query: primaryQuery } = buildEbayQuery({
             year: result.year,
             brand: result.brand,
-            set: (result as any).set,
+            set: result.set,
             player: result.player,
             cardNumber: result.cardNumber,
             parallel: result.parallel,
