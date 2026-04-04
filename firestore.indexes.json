@@ -8,6 +8,13 @@
         { "fieldPath": "batchId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "portfolios",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "cardId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

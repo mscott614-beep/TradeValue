@@ -23,42 +23,40 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
         // Standardized Task Queue: Using the full path for maximum reliability
         const queue = getFunctions(app).taskQueue("locations/us-central1/functions/refreshMarketCardTask");
 
-        // Use listDocuments() for robust user discovery (even if user docs have no top-level fields)
-        console.log(`[AdminRefresh] Discovering all users...`);
-        const userRefs = await db.collection("users").listDocuments();
-        const totalUsers = userRefs.length;
-        console.log(`[AdminRefresh] Found ${totalUsers} users.`);
+        // Use collectionGroup for robust discovery of all portfolios anywhere in the database
+        console.log(`[AdminRefresh] Discovering all cards globally...`);
+        const cardsSnap = await db.collectionGroup("portfolios").get();
+        const cardDocs = cardsSnap.docs;
+        const totalCards = cardDocs.length;
+        
+        // Track unique user IDs for reporting
+        const userIds = new Set<string>();
 
-        for (const userRef of userRefs) {
+        for (const cardDoc of cardDocs) {
             try {
-                // List all card documents in the user's portfolio subcollection
-                const portfoliosSnap = await userRef.collection("portfolios").get();
-                
-                if (portfoliosSnap.size === 0) {
+                // Determine the userId from the parent reference: users/{userId}/portfolios/{cardId}
+                const userId = cardDoc.ref.parent.parent?.id;
+
+                if (!userId) {
+                    console.error(`[AdminRefresh] Could not determine userId for card ${cardDoc.id}`);
                     continue;
                 }
 
-                console.log(`[AdminRefresh] User ${userRef.id}: Found ${portfoliosSnap.size} cards. Enqueuing...`);
+                userIds.add(userId);
 
-                for (const cardDoc of portfoliosSnap.docs) {
-                    try {
-                        await queue.enqueue({
-                            userId: userRef.id,
-                            cardId: cardDoc.id
-                        });
-                        totalEnqueued++;
-                    } catch (err: any) {
-                        console.error(`[AdminRefresh] Error enqueuing card ${cardDoc.id} for user ${userRef.id}:`, err.message);
-                    }
-                }
-            } catch (userError: any) {
-                console.error(`[AdminRefresh] Error processing user ${userRef.id}:`, userError.message);
+                await queue.enqueue({
+                    userId: userId,
+                    cardId: cardDoc.id
+                });
+                totalEnqueued++;
+            } catch (err: any) {
+                console.error(`[AdminRefresh] Error enqueuing card ${cardDoc.id} for user ${cardDoc.ref.parent.parent?.id}:`, err.message);
             }
         }
 
         return { 
             success: true as const, 
-            message: `Global sync (v3.2) started. Processing ${totalUsers} users and ${totalEnqueued} cards globally.`,
+            message: `Global sync (v3.3) started. Enqueued ${totalEnqueued} cards for ${userIds.size} users globally.`,
             count: totalEnqueued
         };
     } catch (error: any) {
