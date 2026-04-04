@@ -57,6 +57,30 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             rawItems = activeResponse.itemSummaries || [];
         }
 
+        // Stage 4: Broadest Search (No Card Number). 
+        // This targets listings where sellers forgot the card number but included the player and key features.
+        if (rawItems.length === 0) {
+            const features = [
+                card.parallel || '',
+                ...(card.features || []),
+                card.title || ''
+            ].join(' ').toLowerCase();
+
+            // Inject critical keywords to avoid matching base cards
+            let keywords = '';
+            if (features.includes('auto') || features.includes('signature')) keywords += ' auto';
+            if (features.includes('patch') || features.includes('threads')) keywords += ' patch';
+            if (features.includes('jersey') || features.includes('relic') || features.includes('memo')) keywords += ' jersey';
+            if (features.includes('rookie') || features.includes('debut')) keywords += ' rookie';
+
+            const quaternaryQuery = `${card.year} ${card.brand} ${card.set || ''} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            
+            console.log(`[Refresh] Stage 3 failed ($0). Trying Stage 4 (Broad + Features): "${quaternaryQuery}"`);
+            usedQuery = quaternaryQuery;
+            activeResponse = await ebayService.searchActiveItems(quaternaryQuery, 10);
+            rawItems = activeResponse.itemSummaries || [];
+        }
+
         console.log(`[Refresh] Found ${rawItems.length} matching items on eBay using: "${usedQuery}"`);
 
         // 3. Step 4: Value Calculation (The TradeValue Rule - 3 Lowest Median)

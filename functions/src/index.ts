@@ -484,6 +484,29 @@ export const refreshMarketCardTask = onTaskDispatched(
         items = response.itemSummaries || [];
       }
 
+      // Stage 4 Fallback: Broadest Search (No Card Number)
+      if (items.length === 0) {
+        const featureStr = [
+          card.parallel || "",
+          ...(card.features || []),
+          card.title || "",
+          card.set || "",
+        ].join(" ").toLowerCase();
+        
+        let keywords = "";
+        if (featureStr.includes("auto") || featureStr.includes("signature")) keywords += " auto";
+        if (featureStr.includes("patch") || featureStr.includes("threads")) keywords += " patch";
+        if (featureStr.includes("jersey") || featureStr.includes("relic") || featureStr.includes("memo")) keywords += " jersey";
+        if (featureStr.includes("rookie") || featureStr.includes("debut")) keywords += " rookie";
+
+        const stage4Query = `${card.year} ${card.brand} ${card.set || ""} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, " ").trim();
+
+        console.log(`[RefreshTask] Stage 3 failed. Trying Stage 4 (Broad + Features): "${stage4Query}"`);
+        usedQuery = stage4Query;
+        response = await ebay.searchActiveItems(stage4Query, 10);
+        items = response.itemSummaries || [];
+      }
+
       const calc = calculateTradeValue(items);
 
       if (calc.value > 0) {
