@@ -157,6 +157,10 @@ Return a JSON object:
       const response = await ai.generate({
         prompt: parts,
         output: { schema: ScanOutputSchema },
+        config: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+        }
       });
 
       const result = response.output;
@@ -381,20 +385,39 @@ export const scheduledMarketRefresh = onSchedule(
   async () => {
     const db = admin.firestore();
     const usersSnap = await db.collection("users").listDocuments();
-    const queue = getFunctions().taskQueue("refreshMarketCardTask", "us-central1");
+    const queue = getFunctions().taskQueue("locations/us-central1/functions/refreshMarketCardTask");
 
+    console.log("[MarketRefresh] Starting scheduled morning refresh...");
     let totalEnqueued = 0;
-    for (const userDoc of usersSnap) {
-      const cardsSnap = await userDoc.collection("portfolios").listDocuments();
-      for (const cardDoc of cardsSnap) {
-        await queue.enqueue({
-          userId: userDoc.id,
-          cardId: cardDoc.id
+    let userCount = 0;
+
+    try {
+      for (const userDoc of usersSnap) {
+        userCount++;
+        const cardsSnap = await userDoc.collection("portfolios").listDocuments();
+        console.log(`[MarketRefresh] Processing user ${userDoc.id} (${cardsSnap.length} cards)`);
+        
+        // Parallelize enqueuing within each user's portfolio
+        const enqueuePromises = cardsSnap.map(async (cardDoc) => {
+          try {
+            await queue.enqueue({
+              userId: userDoc.id,
+              cardId: cardDoc.id
+            });
+            return true;
+          } catch (err) {
+            console.error(`[MarketRefresh] Failed to enqueue card ${cardDoc.id} for user ${userDoc.id}:`, err);
+            return false;
+          }
         });
-        totalEnqueued++;
+
+        const results = await Promise.all(enqueuePromises);
+        totalEnqueued += results.filter(r => r).length;
       }
+      console.log(`[MarketRefresh] Scheduled trigger complete. Enqueued ${totalEnqueued} total cards across ${userCount} users.`);
+    } catch (globalErr) {
+      console.error("[MarketRefresh] Critical failure during scheduled refresh:", globalErr);
     }
-    console.log(`[MarketRefresh] Scheduled trigger complete. Enqueued ${totalEnqueued} cards across ${usersSnap.length} users.`);
   }
 );
 

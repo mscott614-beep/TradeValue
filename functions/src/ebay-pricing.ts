@@ -40,7 +40,7 @@ const NON_GRADED_EXCLUSIONS = '-psa -bgs -sgc -cgc -bccg -gma -hga -ksa -mnt -cs
 /** Legacy alias for compatibility */
 const BASE_LIKE_KEYWORDS = [
     ...GRADER_KEYWORDS,
-    'graded', 'gem mt', 'mint', 'young guns', 'canvas', 'rookie card', 'rc', 'rookie', 'slab', 'auth'
+    'graded', 'gem mt', 'mint', 'young guns', 'canvas', 'retro', 'rookie class', 'rookie card', 'rc', 'rookie', 'slab', 'auth'
 ];
 
 const HOBBY_ABBREVIATIONS: Record<string, string> = {
@@ -131,6 +131,10 @@ function parseTitleIntoFields(title: string): Partial<CardDescriptor> {
         ['gold auto', 'Gold Auto'],
         ['silver auto', 'Silver Auto'],
         ['die cut', 'Die Cut'],
+        ['rookie debut', 'Rookie Debut'],
+        ['canvas', 'Canvas'],
+        ['retro', 'Retro'],
+        ['rookie class', 'Rookie Class'],
     ];
     for (const [key, val] of subsetMap) {
         if (lc.includes(key)) {
