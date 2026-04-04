@@ -263,8 +263,9 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         if (setRaw.toLowerCase().includes(key)) setRaw = val;
     });
 
-    // Smart Quoting for Sets: Quote if more than 1 word (subset name like "The Mask", "Gold Auto")
-    const set = setRaw.split(' ').length >= 2 ? `"${setRaw}"` : setRaw;
+    // Relaxed Set Matching: Do not use explicit quotes around multi-word sets.
+    // Sellers routinely abbreviate (e.g. "Ultimate Collection" -> "Ultimate").
+    const set = setRaw;
 
     
     const player = effectiveCard.player || '';
