@@ -21,8 +21,8 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
         // 2. Fetch all user's portfolio documents
         const usersDocs = await db.collection("users").listDocuments();
         
-        // Use the standard (name, region) signature for task queues to ensure correct resolution
-        const queue = getFunctions(app).taskQueue("refreshMarketCardTask", "us-central1");
+        // Standardized Task Queue: Matches the backend 'market-refresh-task' for 100% reliability
+        const queue = getFunctions(app).taskQueue("market-refresh-task", "us-central1");
 
         console.log(`[AdminRefresh] manual trigger by ${adminEmail}. Processing ${usersDocs.length} users.`);
 
@@ -39,10 +39,10 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
                         cardId: cardDoc.id
                     });
                 } catch (enqueueError: any) {
-                    // Fallback: Try simpler queue ID if primary full path fails
+                    // Fallback to the explicit task-queue ID if the function name resolution fails
                     if (enqueueError.message?.includes('NOT_FOUND') || enqueueError.message?.includes('does not exist')) {
-                        console.log(`[AdminRefresh] Primary queue not found, attempting fallback to refreshCardTask`);
-                        const fallbackQueue = getFunctions(app).taskQueue("refreshCardTask", "us-central1");
+                        console.log(`[AdminRefresh] Primary queue not found, attempting fallback to backend queue ID`);
+                        const fallbackQueue = getFunctions(app).taskQueue("market-refresh-task", "us-central1");
                         await fallbackQueue.enqueue({
                             userId: userDoc.id,
                             cardId: cardDoc.id

@@ -411,6 +411,7 @@ export const scheduledMarketRefresh = onSchedule(
  */
 export const refreshMarketCardTask = onTaskDispatched(
   {
+    taskQueueName: "market-refresh-task",
     retryConfig: {
       maxAttempts: 3,
       minBackoffSeconds: 60,
@@ -456,8 +457,34 @@ export const refreshMarketCardTask = onTaskDispatched(
       });
 
       // Fetch active listings
-      const response = await ebay.searchActiveItems(searchQuery, 10);
-      const items = response.itemSummaries || [];
+      let usedQuery = searchQuery;
+      let response = await ebay.searchActiveItems(searchQuery, 10);
+      let items = response.itemSummaries || [];
+
+      // Stage 2 Fallback: Remove Parallel but keep Card Number
+      if (items.length === 0) {
+        const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
+        const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
+        const stage2Query = `${card.year} ${card.brand} ${card.set || ""} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
+        
+        console.log(`[RefreshTask] Stage 1 failed. Trying Stage 2 (No Parallel): "${stage2Query}"`);
+        usedQuery = stage2Query;
+        response = await ebay.searchActiveItems(stage2Query, 10);
+        items = response.itemSummaries || [];
+      }
+
+      // Stage 3 Fallback: Rely entirely on Year, Player, and Card Number
+      if (items.length === 0) {
+        const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
+        const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
+        const stage3Query = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
+
+        console.log(`[RefreshTask] Stage 2 failed. Trying Stage 3 (Identifier Only): "${stage3Query}"`);
+        usedQuery = stage3Query;
+        response = await ebay.searchActiveItems(stage3Query, 10);
+        items = response.itemSummaries || [];
+      }
+
       const calc = calculateTradeValue(items);
 
       if (calc.value > 0) {

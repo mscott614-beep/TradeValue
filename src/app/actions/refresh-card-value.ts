@@ -31,19 +31,29 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         let activeResponse = await ebayService.searchActiveItems(primaryQuery, 10);
         let rawItems = activeResponse.itemSummaries || [];
 
-        // Self-Healing Logic: If the ultra-precise query returns 0, try a slightly broader search 
-        // while still preserving the specific parallel/grade if it exists.
+        // Self-Healing Logic: Try a broader query if the ultra-precise one fails.
+        // Stage 2: Remove the "parallel" but keep the Card Number (the unique ID) for precision.
         if (rawItems.length === 0) {
-            const parallelRaw = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
-            const parallel = parallelRaw.replace(/autograph(?:ed)?\s*/gi, 'Auto ').trim();
             const set = card.set || '';
             const cleanNum = (card.cardNumber || '').toString().replace('#', '').trim();
             const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-            const secondaryQuery = `${card.year} ${card.brand} ${set} ${card.player} ${parallel} ${formattedNum} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            const secondaryQuery = `${card.year} ${card.brand} ${set} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, ' ').trim();
             
-            console.log(`[Refresh] Precision query returned 0. Trying broad fallback: "${secondaryQuery}"`);
+            console.log(`[Refresh] Primary failed ($0). Trying Stage 2 (No Parallel): "${secondaryQuery}"`);
             usedQuery = secondaryQuery;
             activeResponse = await ebayService.searchActiveItems(secondaryQuery, 10);
+            rawItems = activeResponse.itemSummaries || [];
+        }
+
+        // Stage 3: If Stage 2 fails, remove the "Set" too. Rely entirely on Year, Player, and Card Number.
+        if (rawItems.length === 0) {
+            const cleanNum = (card.cardNumber || '').toString().replace('#', '').trim();
+            const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
+            const tertiaryQuery = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            
+            console.log(`[Refresh] Stage 2 failed ($0). Trying Stage 3 (Identifier Only): "${tertiaryQuery}"`);
+            usedQuery = tertiaryQuery;
+            activeResponse = await ebayService.searchActiveItems(tertiaryQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
         }
 
