@@ -42,14 +42,14 @@ import { CARD_ATTRIBUTES, CARD_PARALLELS, CARD_CONDITIONS, CARD_GRADERS, CARD_GR
 import { compressImage } from "@/lib/image-utils";
 import { cn } from "@/lib/utils";
 import { useRef, useMemo } from 'react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
+import {
+    AreaChart,
+    Area,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer
 } from 'recharts';
 
 export default function CardDetailsPage() {
@@ -241,7 +241,7 @@ export default function CardDetailsPage() {
                 title: "Card Details Updated",
                 description: "The card's metadata has been saved successfully.",
             });
-            
+
             // Auto-refresh market value if metadata changed significantly
             // handleRefreshValue(); 
         } catch (error) {
@@ -478,9 +478,9 @@ export default function CardDetailsPage() {
                         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl font-headline">
                             {card.title}
                         </h1>
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
+                        <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-primary"
                             onClick={() => setIsEditingInfo(true)}
                         >
@@ -521,10 +521,10 @@ export default function CardDetailsPage() {
                             {liveListings.length > 0 ? (
                                 <div className="grid grid-cols-5 gap-3 p-4">
                                     {liveListings.map((listing, i) => (
-                                        <a 
-                                            key={i} 
-                                            href={listing.url} 
-                                            target="_blank" 
+                                        <a
+                                            key={i}
+                                            href={listing.url}
+                                            target="_blank"
                                             rel="noopener noreferrer"
                                             className="group cursor-pointer"
                                         >
@@ -533,11 +533,11 @@ export default function CardDetailsPage() {
                                                 onContextMenu={listing.imageUrl ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl, listing.title); } : undefined}
                                             >
                                                 {listing.imageUrl ? (
-                                                    <Image 
-                                                        src={listing.imageUrl} 
-                                                        alt={listing.title} 
-                                                        fill 
-                                                        className="object-cover group-hover:scale-110 transition-transform duration-500" 
+                                                    <Image
+                                                        src={listing.imageUrl}
+                                                        alt={listing.title}
+                                                        fill
+                                                        className="object-cover group-hover:scale-110 transition-transform duration-500"
                                                         unoptimized
                                                     />
                                                 ) : (
@@ -588,16 +588,16 @@ export default function CardDetailsPage() {
                                 <div className="grid grid-cols-5 gap-3 p-4">
                                     {soldListings.map((listing, i) => (
                                         <div key={i} className="group flex flex-col">
-                                        <div
-                                            className="relative aspect-[3/4] bg-muted/30 rounded-lg overflow-hidden border border-border group-hover:border-green-500/30 transition-all shadow-sm"
-                                            onContextMenu={listing.imageUrl ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl, listing.title); } : undefined}
-                                        >
+                                            <div
+                                                className="relative aspect-[3/4] bg-muted/30 rounded-lg overflow-hidden border border-border group-hover:border-green-500/30 transition-all shadow-sm"
+                                                onContextMenu={listing.imageUrl ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl, listing.title); } : undefined}
+                                            >
                                                 {listing.imageUrl ? (
-                                                    <Image 
-                                                        src={listing.imageUrl} 
-                                                        alt={listing.title} 
-                                                        fill 
-                                                        className="object-cover group-hover:scale-105 transition-transform duration-500" 
+                                                    <Image
+                                                        src={listing.imageUrl}
+                                                        alt={listing.title}
+                                                        fill
+                                                        className="object-cover group-hover:scale-105 transition-transform duration-500"
                                                         unoptimized
                                                     />
                                                 ) : (
@@ -624,9 +624,9 @@ export default function CardDetailsPage() {
                             ) : (
                                 <div className="p-8 text-center space-y-3">
                                     <p className="text-[10px] text-muted-foreground italic">No market comparison data currently available.</p>
-                                    <Button 
-                                        variant="outline" 
-                                        size="sm" 
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
                                         className="h-8 text-[11px] border-green-500/30 text-green-600 hover:bg-green-500/10"
                                         onClick={handleRefreshValue}
                                         disabled={isRefreshingValue}
@@ -847,9 +847,9 @@ export default function CardDetailsPage() {
                                             <div>
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Average Asking Price</p>
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="icon" 
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
                                                         className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
                                                         onClick={handleRefreshValue}
                                                         disabled={isRefreshingValue}
@@ -1068,40 +1068,40 @@ export default function CardDetailsPage() {
                                     <AreaChart data={trendData}>
                                         <defs>
                                             <linearGradient id="colorHistory" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3}/>
-                                                <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
+                                                <stop offset="5%" stopColor="#38bdf8" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#38bdf8" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
-                                        <XAxis 
-                                            dataKey="name" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
+                                        <XAxis
+                                            dataKey="name"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                                             dy={10}
                                         />
-                                        <YAxis 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{fontSize: 12, fill: 'hsl(var(--muted-foreground))'}}
+                                        <YAxis
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                                             tickFormatter={(value) => `$${value}`}
                                         />
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'hsl(var(--background))', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'hsl(var(--background))',
                                                 borderColor: 'hsl(var(--border))',
                                                 borderRadius: '8px',
                                                 fontSize: '12px'
                                             }}
                                             formatter={(value: number) => [`$${value.toFixed(2)}`, 'Market Value']}
                                         />
-                                        <Area 
-                                            type="monotone" 
-                                            dataKey="value" 
-                                            stroke="#38bdf8" 
+                                        <Area
+                                            type="monotone"
+                                            dataKey="value"
+                                            stroke="#38bdf8"
                                             strokeWidth={3}
-                                            fillOpacity={1} 
-                                            fill="url(#colorHistory)" 
+                                            fillOpacity={1}
+                                            fill="url(#colorHistory)"
                                             animationDuration={1500}
                                         />
                                     </AreaChart>
@@ -1173,64 +1173,64 @@ export default function CardDetailsPage() {
                     <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="player" className="text-right">Player</Label>
-                            <Input 
-                                id="player" 
-                                value={infoInput.player} 
-                                className="col-span-3" 
-                                onChange={(e) => setInfoInput({...infoInput, player: e.target.value})}
+                            <Input
+                                id="player"
+                                value={infoInput.player}
+                                className="col-span-3"
+                                onChange={(e) => setInfoInput({ ...infoInput, player: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="year" className="text-right">Year</Label>
-                            <Input 
-                                id="year" 
-                                value={infoInput.year} 
-                                className="col-span-3" 
-                                onChange={(e) => setInfoInput({...infoInput, year: e.target.value})}
+                            <Input
+                                id="year"
+                                value={infoInput.year}
+                                className="col-span-3"
+                                onChange={(e) => setInfoInput({ ...infoInput, year: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="brand" className="text-right">Brand</Label>
-                            <Input 
-                                id="brand" 
-                                value={infoInput.brand} 
-                                className="col-span-3" 
-                                onChange={(e) => setInfoInput({...infoInput, brand: e.target.value})}
+                            <Input
+                                id="brand"
+                                value={infoInput.brand}
+                                className="col-span-3"
+                                onChange={(e) => setInfoInput({ ...infoInput, brand: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="set" className="text-right">Set</Label>
-                            <Input 
-                                id="set" 
-                                value={infoInput.set} 
-                                className="col-span-3" 
+                            <Input
+                                id="set"
+                                value={infoInput.set}
+                                className="col-span-3"
                                 placeholder="e.g. Young Guns, Star Rookies"
-                                onChange={(e) => setInfoInput({...infoInput, set: e.target.value})}
+                                onChange={(e) => setInfoInput({ ...infoInput, set: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="cardNumber" className="text-right">Card #</Label>
-                            <Input 
-                                id="cardNumber" 
-                                value={infoInput.cardNumber} 
-                                className="col-span-3" 
-                                onChange={(e) => setInfoInput({...infoInput, cardNumber: e.target.value})}
+                            <Input
+                                id="cardNumber"
+                                value={infoInput.cardNumber}
+                                className="col-span-3"
+                                onChange={(e) => setInfoInput({ ...infoInput, cardNumber: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="parallel" className="text-right">Parallel</Label>
-                            <Input 
-                                id="parallel" 
-                                value={infoInput.parallel} 
-                                className="col-span-3" 
-                                onChange={(e) => setInfoInput({...infoInput, parallel: e.target.value})}
+                            <Input
+                                id="parallel"
+                                value={infoInput.parallel}
+                                className="col-span-3"
+                                onChange={(e) => setInfoInput({ ...infoInput, parallel: e.target.value })}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="condition" className="text-right">Condition</Label>
-                            <Select 
-                                value={infoInput.condition} 
-                                onValueChange={(value) => setInfoInput({...infoInput, condition: value})}
+                            <Select
+                                value={infoInput.condition}
+                                onValueChange={(value) => setInfoInput({ ...infoInput, condition: value })}
                             >
                                 <SelectTrigger className="col-span-3">
                                     <SelectValue placeholder="Select condition" />
@@ -1246,9 +1246,9 @@ export default function CardDetailsPage() {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="grader" className="text-right">Grader</Label>
-                            <Select 
-                                value={infoInput.grader} 
-                                onValueChange={(value) => setInfoInput({...infoInput, grader: value})}
+                            <Select
+                                value={infoInput.grader}
+                                onValueChange={(value) => setInfoInput({ ...infoInput, grader: value })}
                             >
                                 <SelectTrigger className="col-span-3">
                                     <SelectValue placeholder="Select grader" />
@@ -1264,9 +1264,9 @@ export default function CardDetailsPage() {
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="grade" className="text-right">Grade</Label>
-                            <Select 
-                                value={infoInput.estimatedGrade} 
-                                onValueChange={(value) => setInfoInput({...infoInput, estimatedGrade: value})}
+                            <Select
+                                value={infoInput.estimatedGrade}
+                                onValueChange={(value) => setInfoInput({ ...infoInput, estimatedGrade: value })}
                             >
                                 <SelectTrigger className="col-span-3">
                                     <SelectValue placeholder="Select grade" />

@@ -67,6 +67,10 @@ const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
 const EBAY_ENV = (0, params_1.defineSecret)("EBAY_ENV");
 admin.initializeApp();
+const GENERIC_SET_STOPWORDS = [
+    'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
+    'regular', 'common', 'standard issue', 'insert'
+];
 // Producer: Triggered when a new job is created in 'scanJobs'
 exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)("scanJobs/{jobId}", async (event) => {
     const jobId = event.params.jobId;
@@ -137,34 +141,23 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
         const ScanOutputSchema = zod.object({
             year: zod.string(),
             brand: zod.string(),
-            set: zod.string().describe("The specific set or subset name (e.g. 'Ultimate Collection', 'Young Guns').").default("Base"),
             player: zod.string(),
             cardNumber: zod.string(),
             parallel: zod.string().default("Base"),
-            estimatedGrade: zod.string(),
-            grader: zod.string().default("None"),
+            condition: zod.string().default("Raw"),
             estimatedMarketValue: zod.number(),
         });
-        const promptText = `You are an expert trading card authenticator and grader.
-Identify the card and return year, brand, player, card number, parallel, condition, grader, and estimated value.
+        const promptText = `You are an expert trading card authenticator. 
+Analyze the card and return year, brand, player, card number, parallel, condition, and estimated market value based on recent eBay sales.
 
 Return a JSON object:
-- year: The year the trading card was produced.
+- year: The year of the card.
 - brand: The brand (e.g., Topps, Upper Deck).
 - player: The name of the player.
-- cardNumber: The card number.
-- parallel: The parallel or variation (e.g., "Base", "Refractor", "Silver"). 
-- estimatedMarketValue: Average eBay sold price in USD.
-  
-  **PRECISION GUIDELINES**:
-  - The 'cardNumber' MUST come from the card itself. If it is an alphanumeric code like 'DTA-TT', 'TS-NK', or 'BCP-1', return that exact code WITHOUT a '#' prefix.
-  - DO NOT confuse the production year (e.g. 1990) or serial numbering (e.g. 90/99) with the card number.
-  - Ignore any part of the page labeled "Related items" or "People also viewed".
-  - If the card features 'Autograph', 'Patch', or 'Jersey', include that in the 'features' or 'parallel' identifying fields.
-  - For hockey 'Young Guns', the parallel is exactly 'Young Guns'.
-
-${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze the title: ${jobData.payload.title}`}
-`;
+- cardNumber: The card number (exactly as it appears).
+- parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
+- condition: "Raw" or the professional grade if visible.
+- estimatedMarketValue: A number (USD).`;
         const parts = [{ text: promptText }];
         if (jobData.type === "image-scan") {
             parts.push({ media: { url: jobData.payload.frontPhotoDataUri, contentType: "image/jpeg" } });
@@ -408,27 +401,26 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
         let usedQuery = searchQuery;
         let response = await ebay.searchActiveItems(searchQuery, 10);
         let items = response.itemSummaries || [];
-        // Stage 2 Fallback: Remove Parallel but keep Card Number
+        // Stage 2 (Variant-First): Prioritize Variant / Parallel but DROP the brittle card number.
+        if (items.length === 0 && (card.parallel || card.set)) {
+            const set = card.set && !GENERIC_SET_STOPWORDS.includes(card.set.toLowerCase()) ? card.set : "";
+            const variantQuery = `${card.year} ${card.brand} ${set} ${card.player} ${card.parallel || ""} -reprint -digital`.replace(/\s+/g, " ").trim();
+            console.log(`[RefreshTask] Stage 1 failed. Trying Stage 2 (Variant-First): "${variantQuery}"`);
+            usedQuery = variantQuery;
+            response = await ebay.searchActiveItems(variantQuery, 10);
+            items = response.itemSummaries || [];
+        }
+        // Stage 3 (Identifier-First): Try the Card Number but DROP the Parallel/Set.
         if (items.length === 0) {
             const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
             const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-            const stage2Query = `${card.year} ${card.brand} ${card.set || ""} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[RefreshTask] Stage 1 failed. Trying Stage 2 (No Parallel): "${stage2Query}"`);
-            usedQuery = stage2Query;
-            response = await ebay.searchActiveItems(stage2Query, 10);
+            const identifierQuery = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
+            console.log(`[RefreshTask] Stage 2 failed. Trying Stage 3 (Identifier-First): "${identifierQuery}"`);
+            usedQuery = identifierQuery;
+            response = await ebay.searchActiveItems(identifierQuery, 10);
             items = response.itemSummaries || [];
         }
-        // Stage 3 Fallback: Rely entirely on Year, Player, and Card Number
-        if (items.length === 0) {
-            const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
-            const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-            const stage3Query = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[RefreshTask] Stage 2 failed. Trying Stage 3 (Identifier Only): "${stage3Query}"`);
-            usedQuery = stage3Query;
-            response = await ebay.searchActiveItems(stage3Query, 10);
-            items = response.itemSummaries || [];
-        }
-        // Stage 4 Fallback: Broadest Search (No Card Number)
+        // Stage 4 (Nuclear Fallback): Inject critical keywords (Auto, Patch, Jersey, Rookie).
         if (items.length === 0) {
             const featureStr = [
                 card.parallel || "",
@@ -445,10 +437,10 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
                 keywords += " jersey";
             if (featureStr.includes("rookie") || featureStr.includes("debut"))
                 keywords += " rookie";
-            const stage4Query = `${card.year} ${card.brand} ${card.set || ""} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[RefreshTask] Stage 3 failed. Trying Stage 4 (Broad + Features): "${stage4Query}"`);
-            usedQuery = stage4Query;
-            response = await ebay.searchActiveItems(stage4Query, 10);
+            const nuclearQuery = `${card.year} ${card.brand} ${card.set || ""} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, " ").trim();
+            console.log(`[RefreshTask] Stage 3 failed. Trying Stage 4 (Nuclear): "${nuclearQuery}"`);
+            usedQuery = nuclearQuery;
+            response = await ebay.searchActiveItems(nuclearQuery, 10);
             items = response.itemSummaries || [];
         }
         const calc = calculateTradeValue(items);

@@ -2,7 +2,7 @@
 
 import { ebayService } from "@/lib/ebay";
 import { Portfolio } from "@/lib/types";
-import { buildEbayQuery, calculateTradeValue } from "@/lib/ebay-pricing";
+import { buildEbayQuery, calculateTradeValue, GENERIC_SET_STOPWORDS } from "@/lib/ebay-pricing";
 import { getAdminDb } from "@/lib/firebase-server";
 
 /**
@@ -32,33 +32,32 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         let rawItems = activeResponse.itemSummaries || [];
 
         // Self-Healing Logic: Try a broader query if the ultra-precise one fails.
-        // Stage 2: Remove the "parallel" but keep the Card Number (the unique ID) for precision.
-        if (rawItems.length === 0) {
-            const set = card.set || '';
-            const cleanNum = (card.cardNumber || '').toString().replace('#', '').trim();
-            const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-            const secondaryQuery = `${card.year} ${card.brand} ${set} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, ' ').trim();
-            
-            console.log(`[Refresh] Primary failed ($0). Trying Stage 2 (No Parallel): "${secondaryQuery}"`);
-            usedQuery = secondaryQuery;
-            activeResponse = await ebayService.searchActiveItems(secondaryQuery, 10);
+        // Stage 2 (Variant-First): Prioritize the Variant / Parallel but DROP the brittle card number.
+        // This targets listings like "2017-18 Upper Deck Tage Thompson Rookie Debut /149" (omitting the RD-TT number).
+        if (rawItems.length === 0 && (card.parallel || card.set)) {
+            const set = card.set && !GENERIC_SET_STOPWORDS.includes(card.set.toLowerCase()) ? card.set : '';
+            const variantQuery = `${card.year} ${card.brand} ${set} ${card.player} ${card.parallel || ''} -reprint -digital`.replace(/\s+/g, ' ').trim();
+
+            console.log(`[Refresh] Primary failed ($0). Trying Stage 2 (Variant-First): "${variantQuery}"`);
+            usedQuery = variantQuery;
+            activeResponse = await ebayService.searchActiveItems(variantQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
         }
 
-        // Stage 3: If Stage 2 fails, remove the "Set" too. Rely entirely on Year, Player, and Card Number.
+        // Stage 3 (Identifier-First): If Variant search fails, try the Card Number but DROP the Parallel.
+        // This targets base-card listings for non-parallel versions.
         if (rawItems.length === 0) {
             const cleanNum = (card.cardNumber || '').toString().replace('#', '').trim();
             const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-            const tertiaryQuery = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, ' ').trim();
-            
-            console.log(`[Refresh] Stage 2 failed ($0). Trying Stage 3 (Identifier Only): "${tertiaryQuery}"`);
-            usedQuery = tertiaryQuery;
-            activeResponse = await ebayService.searchActiveItems(tertiaryQuery, 10);
+            const identifierQuery = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, ' ').trim();
+
+            console.log(`[Refresh] Stage 2 failed ($0). Trying Stage 3 (Identifier-First): "${identifierQuery}"`);
+            usedQuery = identifierQuery;
+            activeResponse = await ebayService.searchActiveItems(identifierQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
         }
 
-        // Stage 4: Broadest Search (No Card Number). 
-        // This targets listings where sellers forgot the card number but included the player and key features.
+        // Stage 4 (Nuclear Fallback): Inject critical keywords (Auto, Patch, Jersey, Rookie).
         if (rawItems.length === 0) {
             const features = [
                 card.parallel || '',
@@ -66,18 +65,17 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 card.title || ''
             ].join(' ').toLowerCase();
 
-            // Inject critical keywords to avoid matching base cards
             let keywords = '';
             if (features.includes('auto') || features.includes('signature')) keywords += ' auto';
             if (features.includes('patch') || features.includes('threads')) keywords += ' patch';
             if (features.includes('jersey') || features.includes('relic') || features.includes('memo')) keywords += ' jersey';
             if (features.includes('rookie') || features.includes('debut')) keywords += ' rookie';
 
-            const quaternaryQuery = `${card.year} ${card.brand} ${card.set || ''} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, ' ').trim();
-            
-            console.log(`[Refresh] Stage 3 failed ($0). Trying Stage 4 (Broad + Features): "${quaternaryQuery}"`);
-            usedQuery = quaternaryQuery;
-            activeResponse = await ebayService.searchActiveItems(quaternaryQuery, 10);
+            const nuclearQuery = `${card.year} ${card.brand} ${card.set || ''} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, ' ').trim();
+
+            console.log(`[Refresh] Stage 3 failed ($0). Trying Stage 4 (Nuclear): "${nuclearQuery}"`);
+            usedQuery = nuclearQuery;
+            activeResponse = await ebayService.searchActiveItems(nuclearQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
         }
 

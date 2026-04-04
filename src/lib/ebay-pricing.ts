@@ -71,7 +71,7 @@ const PARALLEL_EXCLUSIONS: Record<string, string> = {
  * Generic placeholder set names that bloat the eBay query without helping match.
  * "Base Set", "Base", "Hockey", "NHL" are not real subset names.
  */
-const GENERIC_SET_STOPWORDS = [
+export const GENERIC_SET_STOPWORDS = [
     'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
     'regular', 'common', 'standard issue', 'insert'
 ];

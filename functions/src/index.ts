@@ -11,22 +11,22 @@ let googleAI: any;
 let z: any;
 
 async function loadEbay() {
-    if (!EbayService) {
-        const mod = await import("./ebay");
-        EbayService = mod.EbayService;
-    }
-    return EbayService;
+  if (!EbayService) {
+    const mod = await import("./ebay");
+    EbayService = mod.EbayService;
+  }
+  return EbayService;
 }
 
 async function loadGenkit() {
-    if (!genkit) {
-        const genkitMod = await import("genkit");
-        const aiMod = await import("@genkit-ai/google-genai");
-        genkit = genkitMod.genkit;
-        z = genkitMod.z;
-        googleAI = aiMod.googleAI;
-    }
-    return { genkit, z, googleAI };
+  if (!genkit) {
+    const genkitMod = await import("genkit");
+    const aiMod = await import("@genkit-ai/google-genai");
+    genkit = genkitMod.genkit;
+    z = genkitMod.z;
+    googleAI = aiMod.googleAI;
+  }
+  return { genkit, z, googleAI };
 }
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
@@ -36,6 +36,10 @@ const EBAY_ENV = defineSecret("EBAY_ENV");
 
 admin.initializeApp();
 
+const GENERIC_SET_STOPWORDS = [
+    'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
+    'regular', 'common', 'standard issue', 'insert'
+];
 
 // Producer: Triggered when a new job is created in 'scanJobs'
 export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (event) => {
@@ -48,15 +52,15 @@ export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (ev
   }
 
   const queue = getFunctions().taskQueue("locations/us-central1/functions/geminiProcessingQueue");
-  
+
   try {
     await queue.enqueue(
       { jobId },
-      { 
+      {
         scheduleDelaySeconds: 0
       }
     );
-    
+
     await event.data?.ref.update({
       status: "queued",
       updatedAt: new Date().toISOString(),
@@ -122,35 +126,24 @@ export const geminiProcessingQueue = onTaskDispatched(
       const ScanOutputSchema = zod.object({
         year: zod.string(),
         brand: zod.string(),
-        set: zod.string().describe("The specific set or subset name (e.g. 'Ultimate Collection', 'Young Guns').").default("Base"),
         player: zod.string(),
         cardNumber: zod.string(),
         parallel: zod.string().default("Base"),
-        estimatedGrade: zod.string(),
-        grader: zod.string().default("None"),
+        condition: zod.string().default("Raw"),
         estimatedMarketValue: zod.number(),
       });
 
-      const promptText = `You are an expert trading card authenticator and grader.
-Identify the card and return year, brand, player, card number, parallel, condition, grader, and estimated value.
+      const promptText = `You are an expert trading card authenticator. 
+Analyze the card and return year, brand, player, card number, parallel, condition, and estimated market value based on recent eBay sales.
 
 Return a JSON object:
-- year: The year the trading card was produced.
+- year: The year of the card.
 - brand: The brand (e.g., Topps, Upper Deck).
 - player: The name of the player.
-- cardNumber: The card number.
-- parallel: The parallel or variation (e.g., "Base", "Refractor", "Silver"). 
-- estimatedMarketValue: Average eBay sold price in USD.
-  
-  **PRECISION GUIDELINES**:
-  - The 'cardNumber' MUST come from the card itself. If it is an alphanumeric code like 'DTA-TT', 'TS-NK', or 'BCP-1', return that exact code WITHOUT a '#' prefix.
-  - DO NOT confuse the production year (e.g. 1990) or serial numbering (e.g. 90/99) with the card number.
-  - Ignore any part of the page labeled "Related items" or "People also viewed".
-  - If the card features 'Autograph', 'Patch', or 'Jersey', include that in the 'features' or 'parallel' identifying fields.
-  - For hockey 'Young Guns', the parallel is exactly 'Young Guns'.
-
-${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze the title: ${jobData.payload.title}`}
-`;
+- cardNumber: The card number (exactly as it appears).
+- parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
+- condition: "Raw" or the professional grade if visible.
+- estimatedMarketValue: A number (USD).`;
 
       const parts: any[] = [{ text: promptText }];
 
@@ -172,73 +165,73 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
         throw new Error("AI failed to generate a valid structured output.");
       }
 
-        // --- Post-AI Enrichment: Fetch Real-Time eBay Data ---
-        try {
-          const EbayServiceClass = await loadEbay();
-          const ebay = new EbayServiceClass(
-            EBAY_CLIENT_ID.value(),
-            EBAY_CLIENT_SECRET.value(),
-            EBAY_ENV.value()
-          );
+      // --- Post-AI Enrichment: Fetch Real-Time eBay Data ---
+      try {
+        const EbayServiceClass = await loadEbay();
+        const ebay = new EbayServiceClass(
+          EBAY_CLIENT_ID.value(),
+          EBAY_CLIENT_SECRET.value(),
+          EBAY_ENV.value()
+        );
 
-          const { buildEbayQuery, calculateTradeValue } = await import("./ebay-pricing");
+        const { buildEbayQuery, calculateTradeValue } = await import("./ebay-pricing");
 
-          // Search eBay using the identified metadata
-          const { type, query: primaryQuery } = buildEbayQuery({
-            year: result.year,
-            brand: result.brand,
-            set: result.set,
-            player: result.player,
-            cardNumber: result.cardNumber,
-            parallel: result.parallel,
-            title: (result as any).title
-          });
+        // Search eBay using the identified metadata
+        const { type, query: primaryQuery } = buildEbayQuery({
+          year: result.year,
+          brand: result.brand,
+          set: result.set,
+          player: result.player,
+          cardNumber: result.cardNumber,
+          parallel: result.parallel,
+          title: (result as any).title
+        });
 
-          const isChecklistSearch = (result.player || "").toLowerCase().includes("checklist") || 
-                                    (result.brand || "").toLowerCase().includes("checklist");
-          const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale';
+        const isChecklistSearch = (result.player || "").toLowerCase().includes("checklist") ||
+          (result.brand || "").toLowerCase().includes("checklist");
+        const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale';
 
-          let finalQuery = primaryQuery;
-          if (!isChecklistSearch && !finalQuery.includes('-checklist')) {
-              finalQuery += EXCLUSIONS;
-          }
+        let finalQuery = primaryQuery;
+        if (!isChecklistSearch && !finalQuery.includes('-checklist')) {
+          finalQuery += EXCLUSIONS;
+        }
 
-          console.log(`[Enrichment] Lead Architect Query (${type}): "${finalQuery}"`);
-          let ebayData = await ebay.searchActiveItems(finalQuery, 10);
-          let rawItems = ebayData.itemSummaries || [];
+        console.log(`[Enrichment] Lead Architect Query (${type}): "${finalQuery}"`);
+        let ebayData = await ebay.searchActiveItems(finalQuery, 10);
+        let rawItems = ebayData.itemSummaries || [];
 
-          // 2. Soft Query Fallback (Tier 2): Player + Parallel + Number (removes Year/Brand noise)
-          if (rawItems.length === 0) {
-              const cleanNumber = (result.cardNumber || '').replace('#', '');
-              const parallelStr = result.parallel && result.parallel.toLowerCase() !== 'base' ? result.parallel : '';
-              let softQuery = `${result.player} ${parallelStr} ${cleanNumber}`.trim();
-              if (!isChecklistSearch) softQuery += EXCLUSIONS;
-              
-              console.log(`[Enrichment] Tier 1 failed. Trying Tier 2 Soft Fallback: "${softQuery}"`);
-              ebayData = await ebay.searchActiveItems(softQuery, 10);
-              rawItems = ebayData.itemSummaries || [];
-          }
+        // 2. Soft Query Fallback (Tier 2): Player + Parallel + Number (removes Year/Brand noise)
+        if (rawItems.length === 0) {
+          const cleanNumber = (result.cardNumber || '').replace('#', '');
+          const parallelStr = result.parallel && result.parallel.toLowerCase() !== 'base' ? result.parallel : '';
+          let softQuery = `${result.player} ${parallelStr} ${cleanNumber}`.trim();
+          if (!isChecklistSearch) softQuery += EXCLUSIONS;
 
-          // 3. Softest Query Fallback (Tier 3): Player + Brand + Parallel (NO card number)
-          if (rawItems.length === 0) {
-              const parallelStr = result.parallel && result.parallel.toLowerCase() !== 'base' ? result.parallel : '';
-              let softestQuery = `${result.player} ${result.brand} ${parallelStr}`.trim();
-              if (!isChecklistSearch) softestQuery += EXCLUSIONS;
+          console.log(`[Enrichment] Tier 1 failed. Trying Tier 2 Soft Fallback: "${softQuery}"`);
+          ebayData = await ebay.searchActiveItems(softQuery, 10);
+          rawItems = ebayData.itemSummaries || [];
+        }
 
-              console.log(`[Enrichment] Tier 2 failed. Trying Tier 3 Softest Fallback: "${softestQuery}"`);
-              ebayData = await ebay.searchActiveItems(softestQuery, 10);
-              rawItems = ebayData.itemSummaries || [];
-          }
+        // 3. Softest Query Fallback (Tier 3): Player + Brand + Parallel (NO card number)
+        if (rawItems.length === 0) {
+          const parallelStr = result.parallel && result.parallel.toLowerCase() !== 'base' ? result.parallel : '';
+          let softestQuery = `${result.player} ${result.brand} ${parallelStr}`.trim();
+          if (!isChecklistSearch) softestQuery += EXCLUSIONS;
 
-          // 4. Calculate TradeValue using the "Floor Median" Rule
-          const calc = calculateTradeValue(rawItems);
+          console.log(`[Enrichment] Tier 2 failed. Trying Tier 3 Softest Fallback: "${softestQuery}"`);
+          ebayData = await ebay.searchActiveItems(softestQuery, 10);
+          rawItems = ebayData.itemSummaries || [];
+        }
 
-          if (calc.value > 0) {
-            console.log(`eBay enrichment successful. Found ${rawItems.length} items. Logic: ${calc.logic}. Price: ${calc.value}`);
-            result.estimatedMarketValue = calc.value;
-          } else {
-            console.log(`No active eBay matches found for "${finalQuery}". Using AI estimate: ${result.estimatedMarketValue}`);
-          }
+        // 4. Calculate TradeValue using the "Floor Median" Rule
+        const calc = calculateTradeValue(rawItems);
+
+        if (calc.value > 0) {
+          console.log(`eBay enrichment successful. Found ${rawItems.length} items. Logic: ${calc.logic}. Price: ${calc.value}`);
+          result.estimatedMarketValue = calc.value;
+        } else {
+          console.log(`No active eBay matches found for "${finalQuery}". Using AI estimate: ${result.estimatedMarketValue}`);
+        }
       } catch (ebayError) {
         console.error("eBay enrichment failed, proceeding with AI estimate:", ebayError);
       }
@@ -251,28 +244,28 @@ ${jobData.type === "image-scan" ? "Analyze the attached image(s)." : `Analyze th
       });
 
       console.log(`Job ${jobId} completed successfully`);
-      
+
       // Artificially sleep for 6.5 seconds to pace the queue.
       // With maxConcurrentDispatches: 1, this guarantees we stay well below 
       // the Gemini 2.5 Flash Free Tier limit of 15 Requests Per Minute (RPM)
       // (Total execution time ~8 seconds per card = ~7.5 RPM)
       await new Promise((resolve) => setTimeout(resolve, 6500));
-      
+
     } catch (error: any) {
       console.error(`Error processing job ${jobId}:`, error);
-      
+
       if (error.message?.includes("429") || error.message?.includes("Quota")) {
         // Reset status to queued so the retry will pick it up properly
         await jobRef.update({
           status: "queued",
           updatedAt: new Date().toISOString(),
         });
-        
+
         console.log(`Rate limit hit for job ${jobId}. Sleeping 40s to cool down the queue...`);
         // Artificial sleep to keep the concurrency slot busy and prevent
         // the next task in the queue from immediately firing and hitting the same limit.
         await new Promise((resolve) => setTimeout(resolve, 40000));
-        
+
         throw new Error("Rate limit hit, retrying...");
       }
 
@@ -318,7 +311,7 @@ export const dailyPriceSnapshot = onSchedule(
 
         if (typeof value === "number" && value > 0) {
           totalPortfolioValue += value;
-          
+
           // 1. Save history snapshot
           const historyRef = cardDoc.ref
             .collection("priceHistory")
@@ -336,7 +329,7 @@ export const dailyPriceSnapshot = onSchedule(
             if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
               const diff = value - yesterdayValue;
               const percent = (diff / yesterdayValue) * 100;
-              
+
               batch.update(cardDoc.ref, {
                 valueChange24h: diff,
                 valueChange24hPercent: Math.round(percent * 100) / 100
@@ -354,13 +347,13 @@ export const dailyPriceSnapshot = onSchedule(
         const portfolioHistoryRef = userDocRef
           .collection("portfolioHistory")
           .doc(today);
-        
+
         batch.set(portfolioHistoryRef, {
           totalValue: totalPortfolioValue,
           timestamp: new Date().toISOString(),
           cardCount: portfolioSnap.size
         }, { merge: true });
-        
+
         batchCount++;
       }
 
@@ -381,7 +374,7 @@ export const dailyPriceSnapshot = onSchedule(
  */
 export const scheduledMarketRefresh = onSchedule(
   {
-    schedule: "0 8 * * *", 
+    schedule: "0 8 * * *",
     timeZone: "America/New_York",
     region: "us-central1",
   },
@@ -460,31 +453,30 @@ export const refreshMarketCardTask = onTaskDispatched(
       let response = await ebay.searchActiveItems(searchQuery, 10);
       let items = response.itemSummaries || [];
 
-      // Stage 2 Fallback: Remove Parallel but keep Card Number
-      if (items.length === 0) {
-        const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
-        const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-        const stage2Query = `${card.year} ${card.brand} ${card.set || ""} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
-        
-        console.log(`[RefreshTask] Stage 1 failed. Trying Stage 2 (No Parallel): "${stage2Query}"`);
-        usedQuery = stage2Query;
-        response = await ebay.searchActiveItems(stage2Query, 10);
+      // Stage 2 (Variant-First): Prioritize Variant / Parallel but DROP the brittle card number.
+      if (items.length === 0 && (card.parallel || card.set)) {
+        const set = card.set && !GENERIC_SET_STOPWORDS.includes(card.set.toLowerCase()) ? card.set : "";
+        const variantQuery = `${card.year} ${card.brand} ${set} ${card.player} ${card.parallel || ""} -reprint -digital`.replace(/\s+/g, " ").trim();
+
+        console.log(`[RefreshTask] Stage 1 failed. Trying Stage 2 (Variant-First): "${variantQuery}"`);
+        usedQuery = variantQuery;
+        response = await ebay.searchActiveItems(variantQuery, 10);
         items = response.itemSummaries || [];
       }
 
-      // Stage 3 Fallback: Rely entirely on Year, Player, and Card Number
+      // Stage 3 (Identifier-First): Try the Card Number but DROP the Parallel/Set.
       if (items.length === 0) {
         const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
         const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-        const stage3Query = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
+        const identifierQuery = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
 
-        console.log(`[RefreshTask] Stage 2 failed. Trying Stage 3 (Identifier Only): "${stage3Query}"`);
-        usedQuery = stage3Query;
-        response = await ebay.searchActiveItems(stage3Query, 10);
+        console.log(`[RefreshTask] Stage 2 failed. Trying Stage 3 (Identifier-First): "${identifierQuery}"`);
+        usedQuery = identifierQuery;
+        response = await ebay.searchActiveItems(identifierQuery, 10);
         items = response.itemSummaries || [];
       }
 
-      // Stage 4 Fallback: Broadest Search (No Card Number)
+      // Stage 4 (Nuclear Fallback): Inject critical keywords (Auto, Patch, Jersey, Rookie).
       if (items.length === 0) {
         const featureStr = [
           card.parallel || "",
@@ -492,18 +484,18 @@ export const refreshMarketCardTask = onTaskDispatched(
           card.title || "",
           card.set || "",
         ].join(" ").toLowerCase();
-        
+
         let keywords = "";
         if (featureStr.includes("auto") || featureStr.includes("signature")) keywords += " auto";
         if (featureStr.includes("patch") || featureStr.includes("threads")) keywords += " patch";
         if (featureStr.includes("jersey") || featureStr.includes("relic") || featureStr.includes("memo")) keywords += " jersey";
         if (featureStr.includes("rookie") || featureStr.includes("debut")) keywords += " rookie";
 
-        const stage4Query = `${card.year} ${card.brand} ${card.set || ""} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, " ").trim();
+        const nuclearQuery = `${card.year} ${card.brand} ${card.set || ""} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, " ").trim();
 
-        console.log(`[RefreshTask] Stage 3 failed. Trying Stage 4 (Broad + Features): "${stage4Query}"`);
-        usedQuery = stage4Query;
-        response = await ebay.searchActiveItems(stage4Query, 10);
+        console.log(`[RefreshTask] Stage 3 failed. Trying Stage 4 (Nuclear): "${nuclearQuery}"`);
+        usedQuery = nuclearQuery;
+        response = await ebay.searchActiveItems(nuclearQuery, 10);
         items = response.itemSummaries || [];
       }
 
