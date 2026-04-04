@@ -58,7 +58,7 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
 
         return { 
             success: true as const, 
-            message: `Global sync (v3) started. Enqueued ${totalEnqueued} cards across the global database.`,
+            message: `Global sync (v3.1) started. Enqueued ${totalEnqueued} cards across the global database.`,
             count: totalEnqueued
         };
     } catch (error: any) {
