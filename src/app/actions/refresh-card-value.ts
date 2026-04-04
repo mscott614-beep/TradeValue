@@ -34,7 +34,8 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         // Self-Healing Logic: If the ultra-precise query returns 0, try a slightly broader search 
         // while still preserving the specific parallel/grade if it exists.
         if (rawItems.length === 0) {
-            const parallel = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
+            const parallelRaw = card.parallel && card.parallel.toLowerCase() !== 'base' ? card.parallel : '';
+            const parallel = parallelRaw.replace(/autograph(?:ed)?\s*/gi, 'Auto ').trim();
             const set = card.set || '';
             const cleanNum = (card.cardNumber || '').toString().replace('#', '').trim();
             const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;

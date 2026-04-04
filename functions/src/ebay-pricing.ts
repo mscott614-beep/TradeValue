@@ -276,8 +276,8 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         }
     }
     const parallelRaw = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
-    // Map 'Autograph' to 'Auto' (hobby standard for eBay)
-    const parallel = parallelRaw.toLowerCase().replace('autograph', 'Auto');
+    // Map 'Autographed' and 'Autograph' to 'Auto' (hobby standard for eBay)
+    const parallel = parallelRaw.replace(/autograph(?:ed)?\s*/gi, 'Auto ').trim();
 
     // Grading Logic: Always check BOTH condition field AND title.
     // This handles legacy cards where grading info is embedded in the title but not in a separate condition field.
