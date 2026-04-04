@@ -370,7 +370,6 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
  * Using Task Queue to manage rate limits and long execution times for large portfolios.
  */
 exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
-    taskQueueName: "market-refresh-task",
     retryConfig: {
         maxAttempts: 3,
         minBackoffSeconds: 60,
@@ -444,7 +443,7 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
                 value: calc.value,
                 timestamp: timestamp,
             }, { merge: true });
-            console.log(`[RefreshTask] Successfully updated ${card.title} (${cardId}) to $${calc.value}`);
+            console.log(`[RefreshTask] Successfully updated ${card.title} (${cardId}) to $${calc.value} using: ${usedQuery}`);
         }
         else {
             console.log(`[RefreshTask] No market matches found for ${card.title}. Keeping existing value.`);

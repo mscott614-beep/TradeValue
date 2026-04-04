@@ -34,21 +34,32 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
             
             for (const cardDoc of portfolioDocs) {
                 try {
+                    // Try exact function name (Standard for Firebase v2)
                     await queue.enqueue({
                         userId: userDoc.id,
                         cardId: cardDoc.id
                     });
                 } catch (enqueueError: any) {
-                    // Fallback to the explicit task-queue ID if the function name resolution fails
-                    if (enqueueError.message?.includes('NOT_FOUND') || enqueueError.message?.includes('does not exist')) {
-                        console.log(`[AdminRefresh] Primary queue not found, attempting fallback to backend queue ID`);
-                        const fallbackQueue = getFunctions(app).taskQueue("market-refresh-task", "us-central1");
-                        await fallbackQueue.enqueue({
-                            userId: userDoc.id,
-                            cardId: cardDoc.id
-                        });
-                    } else {
-                        throw enqueueError;
+                    console.warn(`[AdminRefresh] Primary queue failed for ${cardDoc.id}, trying fallback patterns.`, enqueueError.message);
+                    
+                    // Naming Resilience: Try common Firebase/GCP transformations if NOT_FOUND
+                    const possibleQueues = ["refreshMarketCardTask", "refresh-market-card-task", "refreshmarketcardtask"];
+                    let success = false;
+
+                    for (const qId of possibleQueues) {
+                        try {
+                            const fallbackQueue = getFunctions(app).taskQueue(qId, "us-central1");
+                            await fallbackQueue.enqueue({ userId: userDoc.id, cardId: cardDoc.id });
+                            success = true;
+                            break; 
+                        } catch {
+                            continue;
+                        }
+                    }
+
+                    if (!success) {
+                        console.error(`[AdminRefresh] All queue variations failed for card: ${cardDoc.id}`);
+                        // Don't throw for a single card failure to allow the sync to continue for others
                     }
                 }
                 totalEnqueued++;

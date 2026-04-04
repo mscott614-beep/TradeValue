@@ -411,7 +411,6 @@ export const scheduledMarketRefresh = onSchedule(
  */
 export const refreshMarketCardTask = onTaskDispatched(
   {
-    taskQueueName: "market-refresh-task",
     retryConfig: {
       maxAttempts: 3,
       minBackoffSeconds: 60,
@@ -504,7 +503,7 @@ export const refreshMarketCardTask = onTaskDispatched(
           timestamp: timestamp,
         }, { merge: true });
 
-        console.log(`[RefreshTask] Successfully updated ${card.title} (${cardId}) to $${calc.value}`);
+        console.log(`[RefreshTask] Successfully updated ${card.title} (${cardId}) to $${calc.value} using: ${usedQuery}`);
       } else {
         console.log(`[RefreshTask] No market matches found for ${card.title}. Keeping existing value.`);
       }
