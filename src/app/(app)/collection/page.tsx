@@ -393,7 +393,10 @@ export default function CollectionPage() {
                             <DropdownMenuItem onClick={() => router.push(`/collection/${card.id}`)}>
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEditDialog(card)}>
+                            <DropdownMenuItem onSelect={(e) => {
+                              e.preventDefault();
+                              setTimeout(() => openEditDialog(card), 0);
+                            }}>
                               <Edit2 className="mr-2 h-4 w-4" />
                               Edit Title
                             </DropdownMenuItem>
