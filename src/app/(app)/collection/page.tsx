@@ -126,9 +126,14 @@ export default function CollectionPage() {
       const brandMatch = brandFilter === 'all' || card.brand === brandFilter;
       const conditionMatch = conditionFilter === 'all' || card.condition === conditionFilter;
       
-      const rawLabels = ['None', 'Raw', 'Ungraded', 'Raw/Ungraded', 'N/A', ''];
-      const isGraded = card.grader && !rawLabels.includes(card.grader.trim()) && 
-                       card.condition && !rawLabels.includes(card.condition.trim());
+      const isRawValue = (val: string | undefined) => {
+        if (!val) return true;
+        const v = val.trim().toLowerCase();
+        return ['none', 'raw', 'ungraded', 'raw/ungraded', 'n/a', '', 'excellent', 'near mint', 'mint', 'nm', 'ex', 'vg', 'fair', 'good'].includes(v);
+      };
+
+      const isGraded = card.grader && !isRawValue(card.grader) && 
+                       card.condition && !isRawValue(card.condition);
       
       const gradingMatch = gradingFilter === 'all' || 
                            (gradingFilter === 'graded' && isGraded) || 
@@ -142,11 +147,13 @@ export default function CollectionPage() {
       let bValue: any;
 
       if (sortConfig.key === 'grader') {
-        const rawLabels = ['None', 'Raw', 'Ungraded', 'Raw/Ungraded', 'N/A', ''];
-        const isAGraded = a.grader && !rawLabels.includes(a.grader.trim()) && 
-                          a.condition && !rawLabels.includes(a.condition.trim());
-        const isBGraded = b.grader && !rawLabels.includes(b.grader.trim()) && 
-                          b.condition && !rawLabels.includes(b.condition.trim());
+        const isRawValue = (val: string | undefined) => {
+          if (!val) return true;
+          const v = val.trim().toLowerCase();
+          return ['none', 'raw', 'ungraded', 'raw/ungraded', 'n/a', '', 'excellent', 'near mint', 'mint', 'nm', 'ex', 'vg', 'fair', 'good'].includes(v);
+        };
+        const isAGraded = a.grader && !isRawValue(a.grader) && a.condition && !isRawValue(a.condition);
+        const isBGraded = b.grader && !isRawValue(b.grader) && b.condition && !isRawValue(b.condition);
         
         aValue = isAGraded ? 1 : 0;
         bValue = isBGraded ? 1 : 0;
@@ -373,6 +380,9 @@ export default function CollectionPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
+                          {card.grader && !['none', 'raw', 'ungraded', 'raw/ungraded', 'n/a', ''].includes(card.grader.trim().toLowerCase()) && (
+                            <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{card.grader}</Badge>
+                          )}
                           <Badge variant="secondary">{card.condition}</Badge>
                           {card.features && Array.isArray(card.features) && card.features.map(feature => (
                             <Badge key={feature} variant="outline">{feature}</Badge>
