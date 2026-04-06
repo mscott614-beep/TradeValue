@@ -31,14 +31,13 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         let activeResponse = await ebayService.searchActiveItems(primaryQuery, 10);
         let rawItems = activeResponse.itemSummaries || [];
 
-        // Self-Healing Logic: Try a broader query if the ultra-precise one fails.
-        // Stage 2 (Variant-First): Prioritize the Variant / Parallel but DROP the brittle card number.
-        // This targets listings like "2017-18 Upper Deck Tage Thompson Rookie Debut /149" (omitting the RD-TT number).
+        // Stage 2 (Variant Broad): Try without the brand name for maximum findability.
+        // This targets listings like "2017-18 Ultimate Collection Tage Thompson Rookie Debut"
         if (rawItems.length === 0 && (card.parallel || card.set)) {
             const set = card.set && !GENERIC_SET_STOPWORDS.includes(card.set.toLowerCase()) ? card.set : '';
-            const variantQuery = `${card.year} ${card.brand} ${set} ${card.player} ${card.parallel || ''} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            const variantQuery = `${card.year} ${set} ${card.player} ${card.parallel || ''} -reprint -digital`.replace(/\s+/g, ' ').trim();
 
-            console.log(`[Refresh] Primary failed ($0). Trying Stage 2 (Variant-First): "${variantQuery}"`);
+            console.log(`[Refresh] Primary failed ($0). Trying Stage 2 (Broad): "${variantQuery}"`);
             usedQuery = variantQuery;
             activeResponse = await ebayService.searchActiveItems(variantQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
@@ -71,7 +70,8 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             if (features.includes('jersey') || features.includes('relic') || features.includes('memo')) keywords += ' jersey';
             if (features.includes('rookie') || features.includes('debut')) keywords += ' rookie';
 
-            const nuclearQuery = `${card.year} ${card.brand} ${card.set || ''} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            // IMPORTANT: Removed card.brand from Nuclear fallback to handle generic titles
+            const nuclearQuery = `${card.year} ${card.set || ''} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, ' ').trim();
 
             console.log(`[Refresh] Stage 3 failed ($0). Trying Stage 4 (Nuclear): "${nuclearQuery}"`);
             usedQuery = nuclearQuery;

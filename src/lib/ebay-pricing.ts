@@ -91,9 +91,9 @@ function parseTitleIntoFields(title: string): Partial<CardDescriptor> {
 
     // Extract card number (e.g. "#102", "#M-14", "/300", "DTATT")
     // Improved: Capture 3-8 character alphanumeric codes that often appear at the end of titles
-    const numMatch = title.match(/#([A-Z0-9\-]+)/i) || 
-                     title.match(/\/(\d+)/) ||
-                     title.match(/\b([A-Z]{1,3}\d{1,4}|[A-Z]{2,5})\b$/i); 
+    const numMatch = title.match(/#([A-Z0-9\-]+)/i) ||
+        title.match(/\/(\d+)/) ||
+        title.match(/\b([A-Z]{1,3}\d{1,4}|[A-Z]{2,5})\b$/i);
     if (numMatch) result.cardNumber = numMatch[1];
 
     // Extract grading from title (e.g. "BCCG 10", "PSA 9", "BGS 9.5")
@@ -174,7 +174,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     // If key fields are missing, parse them from the title
     const hasStructuredData = card.brand || card.player || card.set;
     const titleParsed = !hasStructuredData ? parseTitleIntoFields(card.title || '') : {};
-    
+
     // Merge: explicit card fields take priority over parsed title fields
     const effectiveCard: CardDescriptor = {
         ...titleParsed,
@@ -210,7 +210,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         year = year.replace(' ', '-');
     }
     const numericYear = parseInt(year.split('-')[0]);
-    
+
     // Apply Hobby Abbreviations with age-based logic
     let brand = effectiveCard.brand || '';
     if (brand.toLowerCase().includes('be a player')) {
@@ -237,8 +237,8 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         { match: 'o-pee-chee', brand90s: 'OPC', brand00s: 'OPC' },
     ];
     for (const entry of BRAND_LEVEL_SET_NAMES) {
-        if (setRaw.toLowerCase().includes(entry.match) || 
-           (brand.toLowerCase().includes('o-pee-chee') && setRaw.toLowerCase() === 'premier' && entry.match === 'o-pee-chee premier')) {
+        if (setRaw.toLowerCase().includes(entry.match) ||
+            (brand.toLowerCase().includes('o-pee-chee') && setRaw.toLowerCase() === 'premier' && entry.match === 'o-pee-chee premier')) {
             // The set IS the real brand — replace the brand with the correct era name
             brand = numericYear < 2000 ? entry.brand90s : entry.brand00s;
             setRaw = ''; // Clear the set — it was really the brand
@@ -267,10 +267,10 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     // Sellers routinely abbreviate (e.g. "Ultimate Collection" -> "Ultimate").
     const set = setRaw;
 
-    
+
     const player = effectiveCard.player || '';
 
-    
+
     // Lead Architect Update: Alphanumeric codes (e.g. DTA-TT, TS-NK) are often omitted in eBay titles.
     // If numeric, we use # for precision. If alphanumeric, we include it as a raw term to avoid 
     // eBay search parsing errors with parentheses.
@@ -278,13 +278,16 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     // Priority 1: Explicit structured data from 'card' object
     const rawCardNumber = (card.cardNumber || effectiveCard.cardNumber || '').toString();
     const cleanNumber = rawCardNumber.replace('#', '').trim();
-    
+
     if (cleanNumber) {
         if (cleanNumber.match(/^\d+$/)) {
             cardNumber = `#${cleanNumber}`;
+        } else if (cleanNumber.includes('-')) {
+            // Alphanumeric subset code with hyphen (e.g. DTA-TT): Wrap in quotes to avoid eBay exclusion logic
+            cardNumber = `"${cleanNumber}"`; 
         } else {
             // Alphanumeric subset code/identifier (e.g. DTATT, TS-NK): Use as a plain term
-            cardNumber = cleanNumber; 
+            cardNumber = cleanNumber;
         }
     }
     const parallelRaw = effectiveCard.parallel && effectiveCard.parallel.toLowerCase() !== 'base' ? effectiveCard.parallel : '';
@@ -296,7 +299,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const conditionHasGrade = GRADER_KEYWORDS.some(k => conditionText.includes(k)) && /\d+/.test(conditionText);
     const titleHasGrade = GRADER_KEYWORDS.some(k => titleText.includes(k)) && /\d+/.test(titleText);
     const isGraded = conditionHasGrade || titleHasGrade;
-    
+
     // Build the grade string for insertion into the query (e.g. "BCCG 10", "PSA 9")
     let gradeString = '';
     if (isGraded) {

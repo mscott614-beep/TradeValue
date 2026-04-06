@@ -37,8 +37,8 @@ const EBAY_ENV = defineSecret("EBAY_ENV");
 admin.initializeApp();
 
 const GENERIC_SET_STOPWORDS = [
-    'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
-    'regular', 'common', 'standard issue', 'insert'
+  'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
+  'regular', 'common', 'standard issue', 'insert'
 ];
 
 // Producer: Triggered when a new job is created in 'scanJobs'
@@ -194,7 +194,16 @@ Return a JSON object:
 
         const isChecklistSearch = (result.player || "").toLowerCase().includes("checklist") ||
           (result.brand || "").toLowerCase().includes("checklist");
-        const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale';
+        const baseExclusions = ['-checklist', '-u-pick', '-upick', '-choice', '-pick', '-lot', '-choose', '-wholesale'];
+        const setLower = (result.set || "").toLowerCase();
+        
+        // Dynamic exclusion cleanup: Do not exclude words that are part of the set name
+        // This fixes "Ultimate Collection" being blocked by "-collection"
+        if (!setLower.includes('collection')) {
+          baseExclusions.push('-collection');
+        }
+        
+        const EXCLUSIONS = ' ' + baseExclusions.join(' ');
 
         let finalQuery = primaryQuery;
         if (!isChecklistSearch && !finalQuery.includes('-checklist')) {
@@ -397,7 +406,7 @@ export const scheduledMarketRefresh = onSchedule(
         userCount++;
         const cardsSnap = await userDoc.collection("portfolios").listDocuments();
         console.log(`[MarketRefresh] Processing user ${userDoc.id} (${cardsSnap.length} cards)`);
-        
+
         // Parallelize enqueuing within each user's portfolio
         const enqueuePromises = cardsSnap.map(async (cardDoc) => {
           try {
