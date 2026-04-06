@@ -63,6 +63,7 @@ import { cn } from '@/lib/utils';
 import { useAccountLimits } from '@/hooks/use-account-limits';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { AlertCircle } from 'lucide-react';
+import { isGraded } from '@/lib/card-utils';
 
 type SortableField = 'player' | 'currentMarketValue' | 'year' | 'grader';
 type SortDirection = 'asc' | 'desc';
@@ -126,23 +127,11 @@ export default function CollectionPage() {
       const brandMatch = brandFilter === 'all' || card.brand === brandFilter;
       const conditionMatch = conditionFilter === 'all' || card.condition === conditionFilter;
       
-      const isGradedValue = (val: string | undefined) => {
-        if (!val) return false;
-        const v = val.trim().toLowerCase();
-        // Priority 1: Known Professional Graders
-        const knownGraders = ['psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'ksa', 'mnt', 'csg', 'ags', 'scg'];
-        if (knownGraders.some(g => v.includes(g))) return true;
-        
-        // Priority 2: Raw/Condition Keywords
-        const rawKeywords = ['none', 'raw', 'uncertified', 'ungraded', 'loose', 'n/a', 'binder', 'sleeve', 'excellent', 'mint', 'near mint', 'nm', 'ex', 'vg', 'fair', 'good', 'poor', 'played', 'mp', 'hp', 'lp'];
-        return !rawKeywords.some(kw => v.includes(kw));
-      };
-
-      const isGraded = isGradedValue(card.grader);
+      const isCardGraded = isGraded(card.grader);
       
       const gradingMatch = gradingFilter === 'all' || 
-                           (gradingFilter === 'graded' && isGraded) || 
-                           (gradingFilter === 'raw' && !isGraded);
+                           (gradingFilter === 'graded' && isCardGraded) || 
+                           (gradingFilter === 'raw' && !isCardGraded);
 
       return textMatch && yearMatch && brandMatch && conditionMatch && gradingMatch;
     });
@@ -150,18 +139,9 @@ export default function CollectionPage() {
     return filtered.sort((a, b) => {
       let aValue: any;
       let bValue: any;
-
       if (sortConfig.key === 'grader') {
-        const isGradedValue = (val: string | undefined) => {
-          if (!val) return false;
-          const v = val.trim().toLowerCase();
-          const knownGraders = ['psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'ksa', 'mnt', 'csg', 'ags', 'scg'];
-          if (knownGraders.some(g => v.includes(g))) return true;
-          const rawKeywords = ['none', 'raw', 'uncertified', 'ungraded', 'loose', 'n/a', 'binder', 'sleeve', 'excellent', 'mint', 'near mint', 'nm', 'ex', 'vg', 'fair', 'good', 'poor', 'played', 'mp', 'hp', 'lp'];
-          return !rawKeywords.some(kw => v.includes(kw));
-        };
-        const isAGraded = isGradedValue(a.grader);
-        const isBGraded = isGradedValue(b.grader);
+        const isAGraded = isGraded(a.grader);
+        const isBGraded = isGraded(b.grader);
         
         aValue = isAGraded ? 1 : 0;
         bValue = isBGraded ? 1 : 0;
@@ -388,13 +368,7 @@ export default function CollectionPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {card.grader && (() => {
-                            const v = card.grader.trim().toLowerCase();
-                            const knownGraders = ['psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'ksa', 'mnt', 'csg', 'ags', 'scg'];
-                            if (knownGraders.some(g => v.includes(g))) return true;
-                            const rawKeywords = ['none', 'raw', 'uncertified', 'ungraded', 'loose', 'n/a', 'binder', 'sleeve', 'excellent', 'mint', 'near mint', 'nm', 'ex', 'vg', 'fair', 'good', 'poor', 'played', 'mp', 'hp', 'lp'];
-                            return !rawKeywords.some(kw => v.includes(kw));
-                          })() && (
+                          {isGraded(card.grader) && (
                             <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{card.grader}</Badge>
                           )}
                           <Badge variant="secondary">{card.condition}</Badge>

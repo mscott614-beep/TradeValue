@@ -27,6 +27,7 @@ import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebas
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { useDemo } from "@/context/demo-context";
 import type { Portfolio } from "@/lib/types";
+import { isGraded } from "@/lib/card-utils";
 
 export default function DashboardPage() {
     const firestore = useFirestore();
@@ -153,19 +154,12 @@ export default function DashboardPage() {
 
         const tMovers = [...cards]
             .filter(c => Math.abs(c.valueChange24hPercent || 0) > 0)
-            .sort((a, b) => Math.abs(b.valueChange24hPercent || 0) - Math.abs(a.valueChange24hPercent || 0))
+            .sort((a, b) => (b.valueChange24hPercent || 0) - (a.valueChange24hPercent || 0))
             .slice(0, 3);
 
         const uBrands = new Set(cards.map(c => c.brand)).size;
 
-        const isRawCard = (c: Portfolio) => {
-            if (c.grader) {
-                return c.grader.toLowerCase() === 'none';
-            }
-            return !c.condition || c.condition.toLowerCase().includes('raw') || c.condition.toLowerCase() === 'ungraded';
-        };
-
-        const rCount = cards.filter(isRawCard).length;
+        const rCount = cards.filter(c => !isGraded(c.grader)).length;
         const gCount = cards.length - rCount;
 
         return { totalValue: tValue, totalGain: tGain, change24h: c24h, topMovers: tMovers, uniqueBrands: uBrands, rawCount: rCount, gradedCount: gCount };
