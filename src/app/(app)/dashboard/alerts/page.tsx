@@ -5,9 +5,9 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Bell, TrendingUp, TrendingDown, AlertTriangle, Settings, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Loader2, Bell, TrendingUp, TrendingDown, AlertTriangle, Settings, RefreshCw, CheckCircle2, Trash2, CheckCheck } from "lucide-react";
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, updateDoc, doc, setDoc } from "firebase/firestore";
+import { collection, updateDoc, doc, setDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import type { AlertConfig, Portfolio, MarketAlert } from "@/lib/types";
 import { runMarketScannerAction } from "@/app/actions/run-market-scanner";
 import { toast } from "sonner";
@@ -162,6 +162,38 @@ export default function AlertsDashboardPage() {
             await updateDoc(doc(firestore, `users/${user.uid}/marketAlerts`, id), { read: true });
         } catch (error) {
             console.error("Failed to mark as read:", error);
+            toast.error("Failed to mark as read.");
+        }
+    };
+
+    const handleMarkAllAsRead = async () => {
+        if (!firestore || !user || !alerts) return;
+        const unreadAlerts = alerts.filter(a => !a.read);
+        if (unreadAlerts.length === 0) return;
+
+        const markToast = toast.loading("Marking all as read...");
+        try {
+            const batch = writeBatch(firestore);
+            unreadAlerts.forEach(alert => {
+                const docRef = doc(firestore, `users/${user.uid}/marketAlerts`, alert.id!);
+                batch.update(docRef, { read: true });
+            });
+            await batch.commit();
+            toast.success("All alerts marked as read.", { id: markToast });
+        } catch (error) {
+            console.error("Failed to mark all as read:", error);
+            toast.error("Failed to mark all as read.", { id: markToast });
+        }
+    };
+
+    const handleDeleteAlert = async (id: string) => {
+        if (!firestore || !user) return;
+        try {
+            await deleteDoc(doc(firestore, `users/${user.uid}/marketAlerts`, id));
+            toast.success("Alert deleted.");
+        } catch (error) {
+            console.error("Failed to delete alert:", error);
+            toast.error("Failed to delete alert.");
         }
     };
 
@@ -250,6 +282,17 @@ export default function AlertsDashboardPage() {
                                 {unreadCount > 0 ? `You have ${unreadCount} unread market notifications.` : "You're all caught up."}
                             </CardDescription>
                         </div>
+                        {unreadCount > 0 && (
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={handleMarkAllAsRead}
+                                className="text-primary hover:text-primary/80 flex items-center gap-2"
+                            >
+                                <CheckCheck className="w-4 h-4" />
+                                Mark all as Read
+                            </Button>
+                        )}
                     </CardHeader>
                     <CardContent>
                         {loadingAlerts ? (
@@ -270,14 +313,14 @@ export default function AlertsDashboardPage() {
                                     <div
                                         key={alert.id}
                                         className={cn(
-                                            "flex items-start gap-4 p-4 border rounded-lg transition-colors",
+                                            "flex items-start gap-4 p-4 border rounded-lg transition-colors group relative",
                                             getAlertBackground(alert.type, alert.read)
                                         )}
                                     >
                                         <div className={cn("mt-1 p-2 rounded-full", alert.read ? "bg-muted" : "bg-background shadow-sm")}>
                                             {getAlertIcon(alert.type)}
                                         </div>
-                                        <div className="flex-1 space-y-1">
+                                        <div className="flex-1 space-y-1 pr-8">
                                             <div className="flex justify-between items-start">
                                                 <h4 className={cn("font-semibold text-sm", alert.read ? "text-muted-foreground" : "")}>
                                                     {alert.title}
@@ -292,12 +335,20 @@ export default function AlertsDashboardPage() {
 
                                             {!alert.read && (
                                                 <div className="pt-2 flex justify-end">
-                                                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => handleMarkAsRead(alert.id!)}>
+                                                    <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold" onClick={() => handleMarkAsRead(alert.id!)}>
                                                         Mark as Read
                                                     </Button>
                                                 </div>
                                             )}
                                         </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2"
+                                            onClick={() => handleDeleteAlert(alert.id!)}
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
                                     </div>
                                 ))}
                             </div>

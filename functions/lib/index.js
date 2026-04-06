@@ -82,7 +82,8 @@ exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)("scanJobs/{jobId}
     const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-central1/functions/geminiProcessingQueue");
     try {
         await queue.enqueue({ jobId }, {
-            scheduleDelaySeconds: 0
+            scheduleDelaySeconds: 0,
+            oidcToken: {},
         });
         await event.data?.ref.update({
             status: "queued",
@@ -363,6 +364,8 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
                     await queue.enqueue({
                         userId: userDoc.id,
                         cardId: cardDoc.id
+                    }, {
+                        oidcToken: {}
                     });
                     return true;
                 }
