@@ -64,7 +64,7 @@ import { useAccountLimits } from '@/hooks/use-account-limits';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { AlertCircle } from 'lucide-react';
 
-type SortableField = 'player' | 'currentMarketValue' | 'year';
+type SortableField = 'player' | 'currentMarketValue' | 'year' | 'grader';
 type SortDirection = 'asc' | 'desc';
 type ViewMode = 'list' | 'grid';
 
@@ -78,6 +78,7 @@ export default function CollectionPage() {
   const [yearFilter, setYearFilter] = useState<string>('all');
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [conditionFilter, setConditionFilter] = useState<string>('all');
+  const [gradingFilter, setGradingFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortConfig, setSortConfig] = useState<{ key: SortableField; direction: SortDirection }>({
     key: 'player',
@@ -124,13 +125,26 @@ export default function CollectionPage() {
       const yearMatch = yearFilter === 'all' || card.year.toString() === yearFilter;
       const brandMatch = brandFilter === 'all' || card.brand === brandFilter;
       const conditionMatch = conditionFilter === 'all' || card.condition === conditionFilter;
+      
+      const isGraded = card.grader && card.grader !== '' && card.grader !== 'Raw';
+      const gradingMatch = gradingFilter === 'all' || 
+                           (gradingFilter === 'graded' && isGraded) || 
+                           (gradingFilter === 'raw' && !isGraded);
 
-      return textMatch && yearMatch && brandMatch && conditionMatch;
+      return textMatch && yearMatch && brandMatch && conditionMatch && gradingMatch;
     });
 
     return filtered.sort((a, b) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
+      let aValue: any;
+      let bValue: any;
+
+      if (sortConfig.key === 'grader') {
+        aValue = a.grader && a.grader !== 'Raw' ? 1 : 0;
+        bValue = b.grader && b.grader !== 'Raw' ? 1 : 0;
+      } else {
+        aValue = a[sortConfig.key];
+        bValue = b[sortConfig.key];
+      }
 
       if (aValue < bValue) {
         return sortConfig.direction === 'asc' ? -1 : 1;
@@ -140,7 +154,7 @@ export default function CollectionPage() {
       }
       return 0;
     });
-  }, [cards, filter, yearFilter, brandFilter, conditionFilter, sortConfig]);
+  }, [cards, filter, yearFilter, brandFilter, conditionFilter, gradingFilter, sortConfig]);
 
   const handleDelete = useCallback((cardId: string) => {
     if (!user || !firestore) return;
@@ -273,6 +287,17 @@ export default function CollectionPage() {
               ))}
             </SelectContent>
           </Select>
+
+          <Select value={gradingFilter} onValueChange={setGradingFilter}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Format" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Items</SelectItem>
+              <SelectItem value="graded">Graded Only</SelectItem>
+              <SelectItem value="raw">Raw Only</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as ViewMode)}>
@@ -293,7 +318,9 @@ export default function CollectionPage() {
                   <TableHead onClick={() => handleSort('player')} className="cursor-pointer">
                     Card {renderSortArrow('player')}
                   </TableHead>
-                  <TableHead>Details</TableHead>
+                  <TableHead onClick={() => handleSort('grader')} className="cursor-pointer">
+                    Details {renderSortArrow('grader')}
+                  </TableHead>
                   <TableHead onClick={() => handleSort('year')} className="cursor-pointer">
                     Year {renderSortArrow('year')}
                   </TableHead>
