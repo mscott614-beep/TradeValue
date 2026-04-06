@@ -90,16 +90,10 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
     } catch (error: any) {
         console.error("[AdminRefresh] Failed to trigger manual refresh:", error);
         
-        if (error.message?.includes('permission') || error.code === 'permission-denied') {
-            return {
-                success: false as const,
-                error: "IAM Permission Error: Service account needs 'Cloud Tasks Enqueuer'."
-            };
-        }
-
+        // Return raw error details to identify the specific missing resource or permission
         return { 
             success: false as const, 
-            error: error.message || "An unexpected error occurred during global sync." 
+            error: `Firebase Error: ${error.message}${error.code ? ` (Code: ${error.code})` : ''} - Check logs for full stack.`
         };
     }
 }
