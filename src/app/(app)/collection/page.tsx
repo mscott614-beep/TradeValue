@@ -126,7 +126,10 @@ export default function CollectionPage() {
       const brandMatch = brandFilter === 'all' || card.brand === brandFilter;
       const conditionMatch = conditionFilter === 'all' || card.condition === conditionFilter;
       
-      const isGraded = card.grader && card.grader !== '' && card.grader !== 'None' && card.grader !== 'Raw';
+      const rawLabels = ['None', 'Raw', 'Ungraded', 'Raw/Ungraded', 'N/A', ''];
+      const isGraded = card.grader && !rawLabels.includes(card.grader.trim()) && 
+                       card.condition && !rawLabels.includes(card.condition.trim());
+      
       const gradingMatch = gradingFilter === 'all' || 
                            (gradingFilter === 'graded' && isGraded) || 
                            (gradingFilter === 'raw' && !isGraded);
@@ -139,8 +142,14 @@ export default function CollectionPage() {
       let bValue: any;
 
       if (sortConfig.key === 'grader') {
-        aValue = a.grader && a.grader !== 'None' && a.grader !== 'Raw' ? 1 : 0;
-        bValue = b.grader && b.grader !== 'None' && b.grader !== 'Raw' ? 1 : 0;
+        const rawLabels = ['None', 'Raw', 'Ungraded', 'Raw/Ungraded', 'N/A', ''];
+        const isAGraded = a.grader && !rawLabels.includes(a.grader.trim()) && 
+                          a.condition && !rawLabels.includes(a.condition.trim());
+        const isBGraded = b.grader && !rawLabels.includes(b.grader.trim()) && 
+                          b.condition && !rawLabels.includes(b.condition.trim());
+        
+        aValue = isAGraded ? 1 : 0;
+        bValue = isBGraded ? 1 : 0;
       } else {
         aValue = a[sortConfig.key];
         bValue = b[sortConfig.key];
