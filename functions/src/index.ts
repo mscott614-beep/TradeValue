@@ -57,8 +57,9 @@ export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (ev
     await queue.enqueue(
       { jobId },
       {
-        scheduleDelaySeconds: 0
-      }
+        scheduleDelaySeconds: 0,
+        oidcToken: {},
+      } as any
     );
 
     await event.data?.ref.update({
@@ -400,10 +401,15 @@ export const scheduledMarketRefresh = onSchedule(
         // Parallelize enqueuing within each user's portfolio
         const enqueuePromises = cardsSnap.map(async (cardDoc) => {
           try {
-            await queue.enqueue({
-              userId: userDoc.id,
-              cardId: cardDoc.id
-            });
+            await queue.enqueue(
+              {
+                userId: userDoc.id,
+                cardId: cardDoc.id
+              },
+              {
+                oidcToken: {}
+              } as any
+            );
             return true;
           } catch (err) {
             console.error(`[MarketRefresh] Failed to enqueue card ${cardDoc.id} for user ${userDoc.id}:`, err);

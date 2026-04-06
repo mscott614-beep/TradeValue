@@ -39,7 +39,12 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
             for (const cardDoc of cardsSnap.docs) {
                 const userId = cardDoc.ref.parent.parent?.id;
                 if (userId) {
-                    await queue.enqueue({ userId, cardId: cardDoc.id });
+                    await queue.enqueue(
+                        { userId, cardId: cardDoc.id },
+                        {
+                            oidcToken: {}
+                        } as any
+                    );
                     userIdsUsed.add(userId);
                     totalEnqueued++;
                 }
@@ -59,7 +64,12 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
                 if (!portfoliosSnap.empty) {
                     console.log(`[AdminRefresh] User ${userId}: found ${portfoliosSnap.size} cards.`);
                     for (const cardDoc of portfoliosSnap.docs) {
-                        await queue.enqueue({ userId, cardId: cardDoc.id });
+                        await queue.enqueue(
+                            { userId, cardId: cardDoc.id },
+                            {
+                                oidcToken: {}
+                            } as any
+                        );
                         userIdsUsed.add(userId);
                         totalEnqueued++;
                     }
@@ -75,7 +85,12 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
             if (!mscottSnap.empty) {
                 console.log(`[AdminRefresh] Strategy 3 found ${mscottSnap.size} cards for mscott614.`);
                 for (const cardDoc of mscottSnap.docs) {
-                    await queue.enqueue({ userId: MSCOTT614_UID, cardId: cardDoc.id });
+                    await queue.enqueue(
+                        { userId: MSCOTT614_UID, cardId: cardDoc.id },
+                        {
+                            oidcToken: {}
+                        } as any
+                    );
                     totalEnqueued++;
                 }
                 userIdsUsed.add(MSCOTT614_UID);
