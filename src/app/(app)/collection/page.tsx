@@ -126,7 +126,7 @@ export default function CollectionPage() {
       const brandMatch = brandFilter === 'all' || card.brand === brandFilter;
       const conditionMatch = conditionFilter === 'all' || card.condition === conditionFilter;
       
-      const isGraded = card.grader && card.grader !== '' && card.grader !== 'Raw';
+      const isGraded = card.grader && card.grader !== '' && card.grader !== 'None' && card.grader !== 'Raw';
       const gradingMatch = gradingFilter === 'all' || 
                            (gradingFilter === 'graded' && isGraded) || 
                            (gradingFilter === 'raw' && !isGraded);
@@ -139,8 +139,8 @@ export default function CollectionPage() {
       let bValue: any;
 
       if (sortConfig.key === 'grader') {
-        aValue = a.grader && a.grader !== 'Raw' ? 1 : 0;
-        bValue = b.grader && b.grader !== 'Raw' ? 1 : 0;
+        aValue = a.grader && a.grader !== 'None' && a.grader !== 'Raw' ? 1 : 0;
+        bValue = b.grader && b.grader !== 'None' && b.grader !== 'Raw' ? 1 : 0;
       } else {
         aValue = a[sortConfig.key];
         bValue = b[sortConfig.key];
