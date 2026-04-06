@@ -199,7 +199,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     // Fix: Preserve and normalize full season years (e.g. 1998-99)
     // If year is just "2017", expand to "2017-18" for modern cards (standard eBay listing style)
-    let year = effectiveCard.year || '';
+    let year = (effectiveCard.year || '').toString();
     if (year.match(/^\d{4}$/)) {
         const ySimple = parseInt(year);
         if (ySimple > 1990) {
