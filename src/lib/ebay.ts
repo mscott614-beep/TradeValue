@@ -100,7 +100,7 @@ class EbayService {
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328,215'); // Added 215 (Ice Hockey) for legacy listings
+        url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
         url.searchParams.append('sort', sort); // price (Ascending) by default
         url.searchParams.append('fieldGroups', 'EXTENDED'); // To see buyingOptions and other details
 
@@ -130,7 +130,7 @@ class EbayService {
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328,215');
+        url.searchParams.append('category_ids', '261328');
         url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
         url.searchParams.append('fieldGroups', 'EXTENDED');
 
