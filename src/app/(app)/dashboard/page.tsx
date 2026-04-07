@@ -315,6 +315,7 @@ export default function DashboardPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Card</TableHead>
+                                        <TableHead className="text-right">Price</TableHead>
                                         <TableHead className="text-right">Change</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -343,13 +344,16 @@ export default function DashboardPage() {
                                                             </div>
                                                         )}
 
-                                                        <div>
-                                                            <div className="font-medium truncate max-w-[120px]">{card.player}</div>
-                                                            <div className="hidden text-sm text-muted-foreground md:inline truncate max-w-[150px]">
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="font-medium text-sm leading-tight mb-0.5">{card.player}</div>
+                                                            <div className="text-xs text-muted-foreground leading-tight whitespace-normal break-words">
                                                                 {card.title}
                                                             </div>
                                                         </div>
                                                     </div>
+                                                </TableCell>
+                                                <TableCell className="text-right whitespace-nowrap">
+                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.currentMarketValue || 0)}
                                                 </TableCell>
                                                 <TableCell
                                                     className={cn("text-right font-semibold", (card.valueChange24hPercent || 0) >= 0 ? "text-green-400" : "text-red-400")}
@@ -361,7 +365,7 @@ export default function DashboardPage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={2} className="h-24 text-center text-muted-foreground">
+                                            <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                                                 <div className="flex flex-col items-center gap-1">
                                                     <p>Not enough historical data.</p>
                                                     <p className="text-[10px] opacity-70">Daily snapshots run at 00:00 UTC.</p>
