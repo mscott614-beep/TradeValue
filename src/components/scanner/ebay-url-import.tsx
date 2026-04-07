@@ -211,13 +211,13 @@ export function EbayUrlImport() {
                         </div>
                         <AlertDialogDescription>
                             Gemini 3.1 is currently experiencing extremely high demand and is unavailable. 
-                            Would you like to try using the slightly older but more available <strong>Gemini 1.5</strong> model to extract this card's details?
+                            Would you like to try using the slightly older but more available <strong>Gemini 2.5</strong> model to extract this card's details?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={() => handleImport(true)} className="bg-primary">
-                            Try Gemini 1.5
+                            Try Gemini 2.5
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
