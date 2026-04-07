@@ -24,6 +24,12 @@ export interface EbayAuctionResponse {
         }>;
         condition?: string;
         buyingOptions?: string[];
+        shippingOptions?: Array<{
+            shippingCost: {
+                value: string;
+                currency: string;
+            };
+        }>;
     }>;
     total: number;
 }
@@ -92,7 +98,7 @@ export class EbayService {
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328'); // Trading Card Singles
+        url.searchParams.append('category_ids', '261328,215'); // Trading Card Singles + Ice Hockey
         url.searchParams.append('sort', sort); // price (Ascending) by default
         url.searchParams.append('fieldGroups', 'EXTENDED');
 
@@ -121,7 +127,7 @@ export class EbayService {
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328');
+        url.searchParams.append('category_ids', '261328,215');
         url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
         url.searchParams.append('fieldGroups', 'EXTENDED');
 

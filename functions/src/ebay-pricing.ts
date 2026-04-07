@@ -276,8 +276,9 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         if (cleanNumber.match(/^\d+$/)) {
             cardNumber = `#${cleanNumber}`;
         } else if (cleanNumber.includes('-')) {
-            // Alphanumeric subset code with hyphen (e.g. DTA-TT): Wrap in quotes to avoid eBay exclusion logic
-            cardNumber = `"${cleanNumber}"`; 
+            // Alphanumeric subset code with hyphen (e.g. DTA-TT): Replace hyphen with space
+            // This is more flexible for eBay search, matching "DTA-TT", "DTA TT", and "DTATT"
+            cardNumber = cleanNumber.replace('-', ' '); 
         } else {
             // Alphanumeric subset code/identifier (e.g. DTATT, TS-NK): Use as a plain term
             cardNumber = cleanNumber;
@@ -369,7 +370,11 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
 
     // Sort by price ascending to find the "Market Floor"
     const sortedPrices = processedItems
-        .map(i => parseFloat(i.price?.value || '0'))
+        .map(i => {
+            const price = parseFloat(i.price?.value || '0');
+            const shipping = parseFloat(i.shippingOptions?.[0]?.shippingCost?.value || '0');
+            return price + shipping;
+        })
         .filter(p => !isNaN(p) && p > 0)
         .sort((a, b) => a - b);
 

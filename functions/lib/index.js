@@ -195,7 +195,14 @@ Return a JSON object:
             });
             const isChecklistSearch = (result.player || "").toLowerCase().includes("checklist") ||
                 (result.brand || "").toLowerCase().includes("checklist");
-            const EXCLUSIONS = ' -checklist -u-pick -upick -choice -pick -lot -choose -collection -wholesale';
+            const baseExclusions = ['-checklist', '-u-pick', '-upick', '-choice', '-pick', '-lot', '-choose', '-wholesale'];
+            const setLower = (result.set || "").toLowerCase();
+            // Dynamic exclusion cleanup: Do not exclude words that are part of the set name
+            // This fixes "Ultimate Collection" being blocked by "-collection"
+            if (!setLower.includes('collection')) {
+                baseExclusions.push('-collection');
+            }
+            const EXCLUSIONS = ' ' + baseExclusions.join(' ');
             let finalQuery = primaryQuery;
             if (!isChecklistSearch && !finalQuery.includes('-checklist')) {
                 finalQuery += EXCLUSIONS;
@@ -288,7 +295,7 @@ exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
         const batch = db.batch();
         let batchCount = 0;
         let totalPortfolioValue = 0;
-        const yesterday = new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split("T")[0];
+        // yesterday variable removed due to changes in 24h metrics logic
         for (const cardDoc of portfolioSnap.docs) {
             const cardData = cardDoc.data();
             const value = cardData.currentMarketValue;
@@ -302,19 +309,8 @@ exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
                     value,
                     timestamp: new Date().toISOString(),
                 }, { merge: true });
-                // 2. Calculate 24h change if yesterday's snapshot exists
-                const yesterdaySnap = await cardDoc.ref.collection("priceHistory").doc(yesterday).get();
-                if (yesterdaySnap.exists) {
-                    const yesterdayValue = yesterdaySnap.data()?.value;
-                    if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
-                        const diff = value - yesterdayValue;
-                        const percent = (diff / yesterdayValue) * 100;
-                        batch.update(cardDoc.ref, {
-                            valueChange24h: diff,
-                            valueChange24hPercent: Math.round(percent * 100) / 100
-                        });
-                    }
-                }
+                // 2. 24h metrics are now handled in real-time by the refresh tasks 
+                // to ensure they reflect the most recent market activity compared to yesterday.
                 batchCount++;
                 totalCards++;
             }
@@ -470,11 +466,34 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
         }
         const calc = calculateTradeValue(items);
         if (calc.value > 0) {
+            // 5. Finalize Update: Calculate 24h changes
             const timestamp = new Date().toISOString();
             const today = timestamp.split("T")[0];
-            // Atomic update of current value
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterday = yesterdayDate.toISOString().split("T")[0];
+            // Fetch yesterday's value from priceHistory
+            const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
+            let valueChange24h = 0;
+            let valueChange24hPercent = 0;
+            if (yesterdaySnap.exists) {
+                const yesterdayValue = yesterdaySnap.data()?.value;
+                if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
+                    valueChange24h = calc.value - yesterdayValue;
+                    valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
+                }
+            }
+            else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
+                // Fallback: If no yesterday's snapshot, compare with currentMarketValue
+                // This is useful for the first time the sync runs or if a previous sync succeeded but no snapshot was saved
+                valueChange24h = calc.value - card.currentMarketValue;
+                valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
+            }
+            // Atomic update of current value and 24h change metrics
             await cardRef.update({
                 currentMarketValue: calc.value,
+                valueChange24h,
+                valueChange24hPercent,
                 lastChecked: timestamp,
                 updatedAt: timestamp
             });

@@ -90,10 +90,10 @@ export default function MarketPage() {
       if (response.success && response.result && Array.isArray(response.result)) {
         setAuctions(response.result.map(toAuction));
       } else {
-        toast.error("Could not load AI auctions. Please refresh.");
+        toast.error(`Could not load AI auctions: ${response.error || 'Unknown error'}`);
       }
-    } catch {
-      toast.error("Failed to load auctions.");
+    } catch (error: any) {
+      toast.error(`Failed to load auctions: ${error.message}`);
     } finally {
       setIsLoadingAuctions(false);
     }
@@ -106,10 +106,10 @@ export default function MarketPage() {
       if (response.success && response.result) {
         setTrending(response.result);
       } else {
-        toast.error("Could not load trending cards.");
+        toast.error(`Could not load trending cards: ${response.error}`);
       }
-    } catch {
-      toast.error("Failed to load trending cards.");
+    } catch (error: any) {
+      toast.error(`Failed to load trending cards: ${error.message}`);
     } finally {
       setIsLoadingTrending(false);
     }

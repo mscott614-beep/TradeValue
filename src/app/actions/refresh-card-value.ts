@@ -40,6 +40,15 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             console.log(`[Refresh] Primary failed ($0). Trying Stage 2 (Broad): "${variantQuery}"`);
             usedQuery = variantQuery;
             activeResponse = await ebayService.searchActiveItems(variantQuery, 10);
+        }
+
+        // Stage 2.1 (Market-Proven): If Set-based search fails, try without the Set name.
+        // This mirrors exactly what the user found works: "2017-18 Upper Deck Tage Thompson rookie debut"
+        if (rawItems.length === 0 && card.parallel) {
+            const marketQuery = `${card.year} ${card.brand || ''} ${card.player} ${card.parallel} -reprint -digital`.replace(/\s+/g, ' ').trim();
+            console.log(`[Refresh] Stage 2 failed ($0). Trying Stage 2.1 (Market-Proven): "${marketQuery}"`);
+            usedQuery = marketQuery;
+            activeResponse = await ebayService.searchActiveItems(marketQuery, 10);
             rawItems = activeResponse.itemSummaries || [];
         }
 
@@ -84,24 +93,47 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         // 3. Step 4: Value Calculation (The TradeValue Rule - 3 Lowest Median)
         const calc = calculateTradeValue(rawItems);
 
-        // 4. Atomic Authorized Update (Admin SDK - Permissions Fix)
+        // 4. Calculate 24h changes
         const db = getAdminDb();
         const timestamp = new Date().toISOString();
+        const today = timestamp.split('T')[0];
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterday = yesterdayDate.toISOString().split('T')[0];
 
-        // Update the card reference
+        // Fetch yesterday's value from priceHistory
         const cardRef = db.doc(`users/${userId}/portfolios/${card.id}`);
+        const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
+        let valueChange24h = 0;
+        let valueChange24hPercent = 0;
+
+        if (yesterdaySnap.exists) {
+            const yesterdayValue = yesterdaySnap.data()?.value;
+            if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
+                valueChange24h = calc.value - yesterdayValue;
+                valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
+            }
+        } else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
+            // Fallback: If no yesterday's snapshot, compare with currentMarketValue
+            valueChange24h = calc.value - card.currentMarketValue;
+            valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
+        }
+
+        // Update the card reference with new value and metrics
         await cardRef.update({
             currentMarketValue: calc.value,
+            valueChange24h,
+            valueChange24hPercent,
             lastChecked: timestamp,
             status: 'success'
         });
 
-        // Update the price history
-        const historyRef = db.collection(`users/${userId}/portfolios/${card.id}/priceHistory`).doc(timestamp.split('T')[0]);
+        // Update the price history for today
+        const historyRef = cardRef.collection("priceHistory").doc(today);
         await historyRef.set({
             value: calc.value,
             timestamp: timestamp
-        });
+        }, { merge: true });
 
         const querySource = usedQuery === primaryQuery ? 'Primary' : 'Fallback';
         const diagnostics = `[${querySource}] Query: "${usedQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value}`;
@@ -115,7 +147,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             diagnostics,
             top5: rawItems.map(item => ({
                 title: item.title,
-                price: parseFloat(item.price.value),
+                price: parseFloat(item.price.value) + parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || '0'),
                 url: item.itemWebUrl,
                 imageUrl: item.image?.imageUrl,
             })),

@@ -23,16 +23,16 @@ export const generateTrendingCards = ai.defineFlow(
     async () => {
         // 1. Expanded player pool for variety
         const playerPool = [
-            "Connor McDavid", "Auston Matthews", "Nathan MacKinnon", "Cale Makar", "Connor Bedard", 
+            "Connor McDavid", "Auston Matthews", "Nathan MacKinnon", "Cale Makar", "Connor Bedard",
             "Sidney Crosby", "Alex Ovechkin", "Igor Shesterkin", "Tage Thompson", "Jack Hughes",
-            "Victor Wembanyama", "LeBron James", "Stephen Curry", "Luka Doncic", "Giannis Antetokounmpo", 
+            "Victor Wembanyama", "LeBron James", "Stephen Curry", "Luka Doncic", "Giannis Antetokounmpo",
             "Jayson Tatum", "Shai Gilgeous-Alexander", "Anthony Edwards", "Ja Morant", "Nikola Jokic",
-            "Shohei Ohtani", "Aaron Judge", "Ronald Acuna Jr.", "Mookie Betts", "Juan Soto", 
+            "Shohei Ohtani", "Aaron Judge", "Ronald Acuna Jr.", "Mookie Betts", "Juan Soto",
             "Elly De La Cruz", "Corbin Carroll", "Mike Trout", "Julio Rodriguez", "Bobby Witt Jr.",
-            "Patrick Mahomes", "Joe Burrow", "Josh Allen", "Justin Jefferson", "Tyreek Hill", 
+            "Patrick Mahomes", "Joe Burrow", "Josh Allen", "Justin Jefferson", "Tyreek Hill",
             "Lamar Jackson", "C.J. Stroud", "Brock Purdy", "Christian McCaffrey", "Travis Kelce"
         ];
-        
+
         // 2. Randomly sample 8 players to find potential "movers"
         const shuffled = [...playerPool].sort(() => 0.5 - Math.random());
         const selectedPlayers = shuffled.slice(0, 8);
@@ -42,8 +42,8 @@ export const generateTrendingCards = ai.defineFlow(
             selectedPlayers.map(async (player) => {
                 try {
                     const results = await ebayService.searchActiveItems(player, 1);
-                    return { 
-                        player, 
+                    return {
+                        player,
                         activeListingCount: results.total || 0,
                         lastChecked: new Date().toISOString()
                     };
