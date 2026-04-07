@@ -18,9 +18,13 @@ const ExtractEbayOutputSchema = z.object({
 
 export const extractEbayListing = ai.defineFlow({
     name: 'extractEbayListing',
-    inputSchema: z.string(),
+    inputSchema: z.object({
+        text: z.string(),
+        model: z.string().optional()
+    }),
     outputSchema: ExtractEbayOutputSchema,
-}, async (listingText: string) => {
+}, async (input) => {
+    const { text: listingText, model } = input;
 
     // We append the list of recognized attributes and parallels to help the model standardize its output.
     const prompt = `
@@ -50,7 +54,7 @@ export const extractEbayListing = ai.defineFlow({
 
     const response = await ai.generate({
         prompt: prompt,
-        model: 'googleai/gemini-3.1-flash-lite-preview',
+        model: model || 'googleai/gemini-3.1-flash-lite-preview',
         output: { schema: ExtractEbayOutputSchema }
     });
 

@@ -2,8 +2,9 @@
 
 import * as cheerio from 'cheerio';
 import { extractEbayListing } from '@/ai/flows/extract-ebay-listing';
+import { FALLBACK_MODEL, PRIMARY_MODEL } from '@/ai/genkit';
 
-export async function extractEbayListingAction(url: string) {
+export async function extractEbayListingAction(url: string, useFallback: boolean = false) {
     if (!url.includes('ebay.com/itm/')) {
         return {
             success: false,
@@ -75,7 +76,10 @@ export async function extractEbayListingAction(url: string) {
         }
 
         console.log("Extracted raw text, sending to AI...");
-        const result = await extractEbayListing(compiledText);
+        const result = await extractEbayListing({ 
+            text: compiledText,
+            model: useFallback ? FALLBACK_MODEL : PRIMARY_MODEL
+        });
 
         return {
             success: true,
@@ -84,9 +88,16 @@ export async function extractEbayListingAction(url: string) {
 
     } catch (error: any) {
         console.error("Error extracting eBay listing:", error);
+        
+        const errorMessage = error.message || "";
+        const isOverloaded = errorMessage.includes("503") || 
+                            errorMessage.includes("high demand") || 
+                            errorMessage.includes("UNAVAILABLE");
+
         return {
             success: false,
-            error: error.message || "An unexpected error occurred while fetching the eBay listing."
+            error: error.message || "An unexpected error occurred while fetching the eBay listing.",
+            isModelOverloaded: isOverloaded
         };
     }
 }

@@ -11,31 +11,51 @@ import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { AlertCircle } from "lucide-react";
 
 export function EbayUrlImport() {
     const [url, setUrl] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<any>(null); // Uses the extracted Portfolio object
+    const [showFallbackDialog, setShowFallbackDialog] = useState(false);
 
     const { toast } = useToast();
     const firestore = useFirestore();
     const { user } = useUser();
 
-    const handleImport = async () => {
+    const handleImport = async (useFallback: boolean = false) => {
         if (!url) return;
 
         setIsLoading(true);
-        setResult(null);
+        if (!useFallback) setResult(null);
+        setShowFallbackDialog(false);
 
         try {
-            const response = await extractEbayListingAction(url);
+            const response = await extractEbayListingAction(url, useFallback);
 
             if (response.success && response.data) {
                 setResult(response.data);
                 toast({
-                    title: "Import Successful",
-                    description: "Card details extracted from eBay.",
+                    title: useFallback ? "Fallback Import Successful" : "Import Successful",
+                    description: `Card details extracted${useFallback ? ' using Gemini 1.5' : ''}.`,
                     action: <CheckCircle className="text-green-500" />,
+                });
+            } else if (response.isModelOverloaded && !useFallback) {
+                setShowFallbackDialog(true);
+                toast({
+                    title: "Gemini is busy",
+                    description: "The AI model is currently at capacity.",
+                    variant: "default",
                 });
             } else {
                 toast({
@@ -110,7 +130,7 @@ export function EbayUrlImport() {
                         className="pl-9 h-10"
                     />
                 </div>
-                <Button onClick={handleImport} disabled={!url || isLoading} className="h-10">
+                <Button onClick={() => handleImport()} disabled={!url || isLoading} className="h-10">
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                     Import
                 </Button>
@@ -181,6 +201,27 @@ export function EbayUrlImport() {
                     </CardContent>
                 </Card>
             )}
+
+            <AlertDialog open={showFallbackDialog} onOpenChange={setShowFallbackDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <div className="flex items-center gap-2 text-amber-500 mb-2">
+                            <AlertCircle className="h-5 w-5" />
+                            <AlertDialogTitle>AI Model Overloaded</AlertDialogTitle>
+                        </div>
+                        <AlertDialogDescription>
+                            Gemini 3.1 is currently experiencing extremely high demand and is unavailable. 
+                            Would you like to try using the slightly older but more available <strong>Gemini 1.5</strong> model to extract this card's details?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleImport(true)} className="bg-primary">
+                            Try Gemini 1.5
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
