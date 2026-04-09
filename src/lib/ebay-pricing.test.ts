@@ -7,6 +7,7 @@ describe('Lead Data Architect: Query Construction', () => {
         const result = buildEbayQuery(card);
         expect(result.type).toBe('Base');
         expect(result.query).toContain('-parallel -refractor -silver -prizm -auto -jersey -patch');
+        expect(result.query).toContain('-lot -upick -pick');
         expect(result.query).toContain('1984-85');
         expect(result.query).toContain('Ray Bourque');
         expect(result.query).toContain('#1');
@@ -49,6 +50,13 @@ describe('Lead Data Architect: Query Construction', () => {
         expect(result.query).toContain('TS-NK');
         expect(result.query).not.toContain('#TS-NK'); // Should not have # prefix
     });
+
+    it('should not trigger false-positive graded detection for common words/names', () => {
+        const card = { year: '1990', brand: '7th Inning Sketch', player: 'Martin Brodeur', cardNumber: '222' };
+        const result = buildEbayQuery(card);
+        expect(result.query).toContain('-psa'); // Should still be Raw
+        expect(result.query).not.toContain('PSA'); 
+    });
 });
 
 describe('Lead Data Architect: Valuation Math (The TradeValue Rule)', () => {
@@ -75,5 +83,20 @@ describe('Lead Data Architect: Valuation Math (The TradeValue Rule)', () => {
         // After rejecting 1.00, it selects [19, 20, 21]. Median is 20.
         expect(result.value).toBe(20.00);
         expect(result.outliersCount).toBe(1);
+    });
+
+    it('should filter out lot and u-pick listings from the valuation pool by title', () => {
+        const items = [
+            { title: 'Martin Brodeur 10 Card Lot', price: { value: '15.00' }, buyingOptions: ['FIXED_PRICE'] },
+            { title: '1990 7th Inning Sketch #222 Martin Brodeur', price: { value: '20.00' }, buyingOptions: ['FIXED_PRICE'] },
+            { title: '2023 Upper Deck ** U PICK **', price: { value: '5.00' }, buyingOptions: ['FIXED_PRICE'] },
+            { title: '1990 7th Inning Sketch #222 Martin Brodeur', price: { value: '25.00' }, buyingOptions: ['FIXED_PRICE'] },
+            { title: '1990 7th Inning Sketch #222 Martin Brodeur', price: { value: '30.00' }, buyingOptions: ['FIXED_PRICE'] }
+        ];
+        const result = calculateTradeValue(items);
+        // Should ignore the Lot ($15) and U PICK ($5).
+        // Pool: [20, 25, 30]. Median is 25.
+        expect(result.value).toBe(25.00);
+        expect(result.logic).toContain('2 noise listings');
     });
 });

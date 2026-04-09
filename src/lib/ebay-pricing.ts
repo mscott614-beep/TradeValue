@@ -28,14 +28,14 @@ const TRUE_PARALLEL_KEYWORDS = [
  * These are grading company names. If any appear in condition/title with a number, card is graded.
  */
 const GRADER_KEYWORDS = [
-    'psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'csa', 'isa', 'ace', 'fcg', 'ksa', 'mnt', 'csg', 'ags'
+    'psa', 'bgs', 'sgc', 'cgc', 'bccg', 'gma', 'hga', 'csa', 'isa', 'ace', 'fcg', 'ksa', 'mnt', 'csg', 'ags', 'dg', 'rcg'
 ];
 
 /**
  * NON_GRADED_EXCLUSIONS: Injected into ungraded card queries to filter out slabs.
  * Must include ALL graders, not just the major 4.
  */
-const NON_GRADED_EXCLUSIONS = '-psa -bgs -sgc -cgc -bccg -gma -hga -ksa -mnt -csg -ags -graded -slab';
+const NON_GRADED_EXCLUSIONS = '-psa -bgs -sgc -cgc -bccg -gma -hga -ksa -mnt -csg -ags -dg -rcg -graded -slab';
 
 /** Legacy alias for compatibility */
 const BASE_LIKE_KEYWORDS = [
@@ -297,8 +297,8 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     // Grading Logic: Always check BOTH condition field AND title.
     // This handles legacy cards where grading info is embedded in the title but not in a separate condition field.
-    const conditionHasGrade = GRADER_KEYWORDS.some(k => conditionText.includes(k)) && /\d+/.test(conditionText);
-    const titleHasGrade = GRADER_KEYWORDS.some(k => titleText.includes(k)) && /\d+/.test(titleText);
+    const conditionHasGrade = GRADER_KEYWORDS.some(k => new RegExp(`\\b${k}\\b`, 'i').test(conditionText)) && /\d+/.test(conditionText);
+    const titleHasGrade = GRADER_KEYWORDS.some(k => new RegExp(`\\b${k}\\b`, 'i').test(titleText)) && /\d+/.test(titleText);
     const isGraded = conditionHasGrade || titleHasGrade;
 
     // Build the grade string for insertion into the query (e.g. "BCCG 10", "PSA 9")
@@ -334,7 +334,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
-        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
+        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital -lot -lots -upick -pick -choose -you';
         // For ungraded cards: block ALL graders (psa, bgs, sgc, cgc, bccg, gma, hga, etc.)
         // For graded cards: include the grader+grade instead
         const gradingExclusions = !isGraded ? NON_GRADED_EXCLUSIONS : '';
@@ -346,7 +346,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
         // Do NOT use 'insert' as a fallback — it's too generic and rarely in eBay titles
         const feature = parallel;
         const serialPart = serialNumber;
-        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${serialPart} ${autoExclusions} -reprint -digital`.replace(/\s+/g, ' ').trim();
+        let query = `${gradeString} ${year} ${brand} ${set} ${player} ${feature} ${cardNumber} ${serialPart} ${autoExclusions} -reprint -digital -lot -lots -upick -pick -choose -you`.replace(/\s+/g, ' ').trim();
         return { type: 'Parallel', query };
     }
 }
@@ -366,6 +366,15 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
     if (processedItems.length === 0) {
         processedItems = items;
     }
+
+    // 1.5 Noise Filter: Secondary title-based filtering to catch lots, u-pick, etc that slipped through API filters
+    const NOISE_PATTERN = /\blot\s*s?\b|\bu[\s-]*pick\b|\byou[\s-]*pick\b|\bchoose\b|\bcomplete\s*set\b|\bfull\s*set\b|\bbulk\b/i;
+    const initialCount = processedItems.length;
+    processedItems = processedItems.filter(i => {
+        const title = i.title || '';
+        return !NOISE_PATTERN.test(title);
+    });
+    const noiseRemoved = initialCount - processedItems.length;
 
     // Sort by price ascending to find the "Market Floor"
     const sortedPrices = processedItems
@@ -414,6 +423,6 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
     return {
         value: median,
         outliersCount,
-        logic: `Median of ${floorPool.length} lowest Fixed Price items (Floor detection). ${outliersCount} outliers rejected.`
+        logic: `Median of ${floorPool.length} lowest Fixed Price items (Floor detection). ${outliersCount} price outliers rejected. ${noiseRemoved} noise listings (lots/pick) filtered by title.`
     };
 }
