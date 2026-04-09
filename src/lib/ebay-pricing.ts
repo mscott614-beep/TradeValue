@@ -353,6 +353,22 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
 
 /**
+ * Secondary title-based filtering to catch lots, u-pick, etc that slipped through API filters.
+ * Returns true if the title indicates a noise listing (not a single card).
+ */
+export function isNoiseListing(title: string): boolean {
+    if (!title) return false;
+    // Patterns that indicate multiple cards or variety listings:
+    // - lot, lots, bulk
+    // - u-pick, you pick, choose
+    // - (8), [10] (numbered lots)
+    // - 8 cards, 10x, x10
+    // - complete set, full set, lot of..., set of...
+    const NOISE_PATTERN = /\blot\s*s?\b|\bu[\s-]*pick\b|\byou[\s-]*pick\b|\bchoose\b|\bcomplete\s*set\b|\bfull\s*set\b|\bbulk\b|\(\d+\)|\[\d+\]|\b\d+\s*cards?\b|\b\d+\s*x\b|\bx\s*\d+\b|\blot\s+of\b|\bset\s+of\s+\d+\b/i;
+    return NOISE_PATTERN.test(title);
+}
+
+/**
  * Step 4: Value Calculation (The TradeValue Rule)
  * Identifies the "Market Floor" using the 3 lowest fixed-price listings.
  */
@@ -368,12 +384,8 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
     }
 
     // 1.5 Noise Filter: Secondary title-based filtering to catch lots, u-pick, etc that slipped through API filters
-    const NOISE_PATTERN = /\blot\s*s?\b|\bu[\s-]*pick\b|\byou[\s-]*pick\b|\bchoose\b|\bcomplete\s*set\b|\bfull\s*set\b|\bbulk\b/i;
     const initialCount = processedItems.length;
-    processedItems = processedItems.filter(i => {
-        const title = i.title || '';
-        return !NOISE_PATTERN.test(title);
-    });
+    processedItems = processedItems.filter(i => !isNoiseListing(i.title));
     const noiseRemoved = initialCount - processedItems.length;
 
     // Sort by price ascending to find the "Market Floor"

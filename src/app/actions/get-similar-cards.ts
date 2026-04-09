@@ -2,6 +2,7 @@
 
 import { ebayService } from "@/lib/ebay";
 import { Portfolio } from "@/lib/types";
+import { isNoiseListing } from "@/lib/ebay-pricing";
 
 export interface SimilarCard {
     title: string;
@@ -30,6 +31,7 @@ export async function getSimilarCardsAction(card: Portfolio) {
 
         const parallels = (parallelsRes.itemSummaries || [])
             .filter(item => !item.title.toLowerCase().includes(card.title.toLowerCase())) // Try to avoid the exact same card
+            .filter(item => !isNoiseListing(item.title)) // Filter out lots, u-pick, etc.
             .map(item => ({
                 title: item.title,
                 price: parseFloat(item.price.value),
@@ -41,6 +43,7 @@ export async function getSimilarCardsAction(card: Portfolio) {
 
         const playerMatches = (playerRes.itemSummaries || [])
             .filter(item => !item.title.toLowerCase().includes(card.brand.toLowerCase())) // Filter out same brand to get "other sets"
+            .filter(item => !isNoiseListing(item.title)) // Filter out lots, u-pick, etc.
             .map(item => ({
                 title: item.title,
                 price: parseFloat(item.price.value),

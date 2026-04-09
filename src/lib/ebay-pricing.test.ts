@@ -85,18 +85,20 @@ describe('Lead Data Architect: Valuation Math (The TradeValue Rule)', () => {
         expect(result.outliersCount).toBe(1);
     });
 
-    it('should filter out lot and u-pick listings from the valuation pool by title', () => {
+    it('should filter out lot, u-pick, and numbered listings (8) from the valuation pool by title', () => {
         const items = [
             { title: 'Martin Brodeur 10 Card Lot', price: { value: '15.00' }, buyingOptions: ['FIXED_PRICE'] },
             { title: '1990 7th Inning Sketch #222 Martin Brodeur', price: { value: '20.00' }, buyingOptions: ['FIXED_PRICE'] },
             { title: '2023 Upper Deck ** U PICK **', price: { value: '5.00' }, buyingOptions: ['FIXED_PRICE'] },
+            { title: 'Martin Brodeur #222 HOF Rookie (8) Cards FREE SHIP', price: { value: '129.95' }, buyingOptions: ['FIXED_PRICE'] },
+            { title: 'Connor Bedard 10x Lot', price: { value: '50.00' }, buyingOptions: ['FIXED_PRICE'] },
             { title: '1990 7th Inning Sketch #222 Martin Brodeur', price: { value: '25.00' }, buyingOptions: ['FIXED_PRICE'] },
             { title: '1990 7th Inning Sketch #222 Martin Brodeur', price: { value: '30.00' }, buyingOptions: ['FIXED_PRICE'] }
         ];
         const result = calculateTradeValue(items);
-        // Should ignore the Lot ($15) and U PICK ($5).
+        // Should ignore: Lot ($15), U PICK ($5), (8) Cards ($129.95), 10x ($50).
         // Pool: [20, 25, 30]. Median is 25.
         expect(result.value).toBe(25.00);
-        expect(result.logic).toContain('2 noise listings');
+        expect(result.logic).toContain('4 noise listings');
     });
 });
