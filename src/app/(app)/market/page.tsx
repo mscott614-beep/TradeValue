@@ -275,6 +275,12 @@ export default function MarketPage() {
                           </div>
                         </div>
                       ))}
+
+                      <div className="pt-4 border-t border-border/50">
+                        <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                          <span className="font-bold text-primary/70">Note:</span> These values and trends are AI-synthesized projections based on real-time listing volumes. They are for informational purposes and may not reflect exact calculated market floors.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </CardContent>
