@@ -1,6 +1,5 @@
-import { genkit } from 'genkit';
 import { z } from 'zod';
-import { ai } from '../genkit';
+import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 import { AlertConfig, Portfolio } from '@/lib/types';
 import { ebayService } from '@/lib/ebay';
 
@@ -134,8 +133,8 @@ export const runMarketScanner = ai.defineFlow(
       Limit to 3-5 of the most important, high-impact alerts.
     `;
 
-        const response = await ai.generate({
-            model: 'googleai/gemini-3.1-flash-lite-preview',
+        const response = await generateWithFallback({
+            model: PRIMARY_MODEL,
             prompt: prompt,
             output: { format: 'json' }
         });

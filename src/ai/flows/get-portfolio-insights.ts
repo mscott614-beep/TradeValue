@@ -1,6 +1,6 @@
 import { genkit } from 'genkit';
 import { z } from 'zod';
-import { ai } from '../genkit';
+import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 
 const RecommendationSchema = z.object({
     cardId: z.string().optional(),
@@ -67,8 +67,8 @@ export const getPortfolioInsights = ai.defineFlow(
       Focus on being realistic. If the portfolio is full of 1991 Score base cards, the risk score should be high (90+) because they are overproduced and have low liquidity.
     `;
 
-        const response = await ai.generate({
-            model: 'googleai/gemini-3.1-flash-lite-preview',
+        const response = await generateWithFallback({
+            model: PRIMARY_MODEL,
             prompt: prompt,
             output: { format: 'json' }
         });

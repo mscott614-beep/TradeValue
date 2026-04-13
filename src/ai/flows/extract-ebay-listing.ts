@@ -1,4 +1,4 @@
-import { ai } from '@/ai/genkit';
+import { ai, generateWithFallback, PRIMARY_MODEL } from '@/ai/genkit';
 import { z } from 'zod';
 
 const ExtractEbayOutputSchema = z.object({
@@ -52,9 +52,9 @@ export const extractEbayListing = ai.defineFlow({
     - Be careful not to extract details from "People also viewed" or "Related items" that might be in the raw text.
     `;
 
-    const response = await ai.generate({
+    const response = await generateWithFallback({
         prompt: prompt,
-        model: model || 'googleai/gemini-3.1-flash-lite-preview',
+        model: model || PRIMARY_MODEL,
         output: { schema: ExtractEbayOutputSchema }
     });
 

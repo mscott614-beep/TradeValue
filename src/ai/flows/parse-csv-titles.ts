@@ -1,4 +1,4 @@
-import { ai } from '@/ai/genkit';
+import { ai, generateWithFallback, PRIMARY_MODEL } from '@/ai/genkit';
 import { z } from 'zod';
 
 const ParsedCsvRowSchema = z.object({
@@ -44,9 +44,9 @@ export const parseCsvTitlesFlow = ai.defineFlow({
     ${JSON.stringify(titles, null, 2)}
     `;
 
-    const response = await ai.generate({
+    const response = await generateWithFallback({
         prompt: prompt,
-        model: 'googleai/gemini-3.1-flash-lite-preview',
+        model: PRIMARY_MODEL,
         output: { schema: ParseCsvTitlesOutputSchema }
     });
 

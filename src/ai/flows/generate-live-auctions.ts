@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ai } from '../genkit';
+import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 import { ebayService } from '@/lib/ebay';
 
 export const AuctionListingSchema = z.object({
@@ -53,8 +53,9 @@ export const generateLiveAuctions = ai.defineFlow(
                   ${JSON.stringify(rawItems)}
                 `;
 
-                const response = await ai.generate({
+                const response = await generateWithFallback({
                     prompt,
+                    model: PRIMARY_MODEL,
                     output: {
                         schema: z.array(AuctionListingSchema),
                     },
@@ -80,8 +81,8 @@ export const generateLiveAuctions = ai.defineFlow(
           Include player, title, year, brand, condition, currentBid, bids, and timeLeft.
         `;
 
-        const response = await ai.generate({
-            model: 'googleai/gemini-3.1-flash-lite-preview',
+        const response = await generateWithFallback({
+            model: PRIMARY_MODEL,
             prompt,
             output: {
                 schema: z.array(AuctionListingSchema),

@@ -1,6 +1,5 @@
-import { genkit } from 'genkit';
 import { z } from 'zod';
-import { ai } from '../genkit';
+import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 
 export const generateMarketReportSchema = z.object({
     topic: z.string().optional().describe("Optional specific topic to focus the report on."),
@@ -61,8 +60,8 @@ export const generateMarketReport = ai.defineFlow(
       Confidential Market Intelligence | [Current Date]
     `;
 
-        const response = await ai.generate({
-            model: 'googleai/gemini-3.1-flash-lite-preview',
+        const response = await generateWithFallback({
+            model: PRIMARY_MODEL,
             prompt: prompt,
         });
 

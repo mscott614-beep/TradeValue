@@ -1,6 +1,6 @@
 import { genkit } from 'genkit';
 import { z } from 'zod';
-import { ai } from '../genkit';
+import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 import { Portfolio } from '@/lib/types';
 
 export const analyzeCardInvestmentSchema = z.object({
@@ -81,8 +81,8 @@ export const analyzeCardInvestment = ai.defineFlow(
       }
     `;
 
-        const response = await ai.generate({
-            model: 'googleai/gemini-3.1-flash-lite-preview',
+        const response = await generateWithFallback({
+            model: PRIMARY_MODEL,
             prompt: prompt,
             output: { format: 'json' }
         });
