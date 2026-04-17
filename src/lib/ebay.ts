@@ -24,6 +24,8 @@ export interface EbayAuctionResponse {
         }>;
         condition?: string;
         buyingOptions?: string[];
+        itemEndDate?: string;
+        itemCreationDate?: string;
         shippingOptions?: Array<{
             shippingCost: {
                 value: string;

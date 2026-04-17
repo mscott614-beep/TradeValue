@@ -11,6 +11,7 @@ import { getAdminDb } from "@/lib/firebase-server";
  * Phase: Production Engine v1.2
  */
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
+    let diagnostics = '';
     try {
         // 1. Classification and Initial Query Construction (Step 1 & 2)
         const { type, query: primaryQuery } = buildEbayQuery({
@@ -118,8 +119,10 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             } else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
                 // Fallback: If no yesterday's snapshot, compare with currentMarketValue
                 valueChange24h = calc.value - card.currentMarketValue;
-                valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
             }
+        } catch (dbError) {
+            console.warn("[Refresh] Firestore yesterday values fetch failed:", dbError);
+        }
 
         // 5. Fetch 5 Recent Sales (Comps)
         let soldItems: any[] = [];
@@ -136,6 +139,10 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
 
             const rawSoldItems = soldResponse.itemSummaries || [];
             lowVolumeData = rawSoldItems.length < 5;
+
+            const querySource = usedQuery === primaryQuery ? 'Primary' : 'Fallback';
+            const diagnostics = `[${querySource}] Query: "${usedQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value}`;
+            console.log(`[Refresh] Final Diagnostic: ${diagnostics}`);
 
             soldItems = rawSoldItems.map(item => ({
                 title: item.title,

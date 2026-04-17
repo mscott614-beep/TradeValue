@@ -20,9 +20,10 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
 ) {
   try {
     // Attempt 1: Use the primary model (or the model specified in options)
+    const genOptions = await options;
     return await ai.generate({
-      ...options,
-      model: options.model || PRIMARY_MODEL
+      ...genOptions,
+      model: (genOptions as any).model || PRIMARY_MODEL
     });
   } catch (error: any) {
     const errorMsg = error?.message || String(error);

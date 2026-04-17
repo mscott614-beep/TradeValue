@@ -62,7 +62,7 @@ export const generateLiveAuctions = ai.defineFlow(
                 });
 
                 // Map back the URLs and IDs from the real API to the AI's standardized objects
-                return (response.output || []).map((item, idx) => ({
+                return (response.output || []).map((item: AuctionListing, idx: number) => ({
                     ...item,
                     id: rawItems[idx].itemId,
                     url: rawItems[idx].itemWebUrl,
