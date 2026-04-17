@@ -30,3 +30,14 @@ export const isGraded = (grader?: string): boolean => {
     ];
     return !rawKeywords.some(kw => v.includes(kw));
 };
+
+/**
+ * Strips common noise from titles to help with visual consistency in the UI.
+ * Patterns: "L@@K", "STUNNING", "FIRE", "WOW", "MINT", "STARS", "INVEST"
+ */
+export const cleanTitle = (title: string): string => {
+    if (!title) return "";
+    // Regex for common hobby "spam" words in eBay titles
+    const NOISE_PATTERN = /\b(L@@K|STUNNING|FIRE|WOW|MINT|STARS?|INVEST|HOT|RARE|BEAUTIFUL|BEST|AMAZING|NRMT|MT|CASE|HIT|SSP|SP|D@@K|LOOK|PULL)\b/gi;
+    return title.replace(NOISE_PATTERN, "").replace(/\s+/g, " ").trim();
+};

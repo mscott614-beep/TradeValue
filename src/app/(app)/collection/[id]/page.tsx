@@ -41,6 +41,7 @@ import { BarChart3, LineChart as LineChartIcon, BrainCircuit, CheckCircle2, Tren
 import { CARD_ATTRIBUTES, CARD_PARALLELS, CARD_CONDITIONS, CARD_GRADERS, CARD_GRADES } from "@/lib/constants";
 import { compressImage } from "@/lib/image-utils";
 import { cn } from "@/lib/utils";
+import { cleanTitle } from "@/lib/card-utils";
 import { useRef, useMemo } from 'react';
 import {
     AreaChart,
@@ -80,6 +81,7 @@ export default function CardDetailsPage() {
     const [liveListings, setLiveListings] = useState<any[]>([]);
     const [soldListings, setSoldListings] = useState<any[]>([]);
     const [avgPrices, setAvgPrices] = useState<{ active: number; sold: number } | null>(null);
+    const [isLowVolume, setIsLowVolume] = useState(false);
     const [similarCards, setSimilarCards] = useState<SimilarCard[]>([]);
     const [isFetchingSimilar, setIsFetchingSimilar] = useState(false);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -356,6 +358,7 @@ export default function CardDetailsPage() {
                     active: response.avgActivePrice || 0,
                     sold: response.avgSoldPrice || 0
                 });
+                setIsLowVolume(!!response.lowVolumeData);
                 const res = response as any;
                 toast({
                     title: "Market Price Updated",
@@ -573,18 +576,25 @@ export default function CardDetailsPage() {
                             <div>
                                 <CardTitle className="text-xs font-bold uppercase tracking-widest text-green-500 flex items-center gap-2">
                                     <CheckCircle2 className="h-3 w-3" />
-                                    Market Comparisons
+                                    Recent Comps (Sold)
                                 </CardTitle>
-                                <CardDescription className="text-[10px]">Similar active listings used for valuation.</CardDescription>
+                                <CardDescription className="text-[10px]">
+                                    Last 5 completed sales on eBay.
+                                    {isLowVolume && (
+                                        <Badge variant="destructive" className="ml-2 h-4 text-[7px] uppercase tracking-tighter px-1 py-0 border-none">
+                                            Low Volume Data
+                                        </Badge>
+                                    )}
+                                </CardDescription>
                             </div>
-                            {avgPrices && (
+                            {avgPrices && avgPrices.sold > 0 && (
                                 <Badge variant="secondary" className="h-6 text-[10px] bg-green-500/20 text-green-600 border-none">
-                                    Median: ${avgPrices.active.toFixed(2)}
+                                    Avg Sale: ${avgPrices.sold.toFixed(2)}
                                 </Badge>
                             )}
                         </CardHeader>
                         <CardContent className="p-0">
-                            {liveListings.length > 0 ? (
+                            {soldListings.length > 0 ? (
                                 <div className="grid grid-cols-5 gap-3 p-4">
                                     {soldListings.map((listing, i) => (
                                         <div key={i} className="group flex flex-col">
@@ -606,17 +616,17 @@ export default function CardDetailsPage() {
                                                     </div>
                                                 )}
                                                 <div className="absolute top-2 right-2">
-                                                    <Badge className="text-[9px] px-1.5 h-4 bg-green-500 text-white border-none shadow-sm">
-                                                        LISTED
+                                                    <Badge className="text-[9px] px-1.5 h-4 bg-green-600 text-white border-none shadow-sm">
+                                                        SOLD
                                                     </Badge>
                                                 </div>
                                             </div>
                                             <div className="mt-2 text-left space-y-0.5 px-1 text-[10px]">
                                                 <p className="font-bold text-green-600">${listing.price.toFixed(2)}</p>
                                                 <p className="text-muted-foreground line-clamp-2 leading-tight" title={listing.title}>
-                                                    {listing.title}
+                                                    {cleanTitle(listing.title)}
                                                 </p>
-                                                <p className="text-[8px] text-muted-foreground/60">{listing.date}</p>
+                                                <p className="text-[8px] text-muted-foreground/60">{listing.endDate ? new Date(listing.endDate).toLocaleDateString() : 'Recent'}</p>
                                             </div>
                                         </div>
                                     ))}

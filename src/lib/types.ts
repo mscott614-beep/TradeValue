@@ -23,6 +23,8 @@ export type Portfolio = {
   url?: string;
   dataFlags?: string[]; // e.g. ["MISSING_IMAGE", "OUTDATED"]
   set?: string; // Manufacturer Set name (e.g. "Base Set", "Young Guns")
+  epid?: string; // eBay Product ID
+  upc?: string; // UPC/GTIN
   marketPrices?: {
     median: number;
     activeItems: any[];

@@ -149,6 +149,49 @@ class EbayService {
 
         return await response.json();
     }
+
+    /**
+     * Fetch the 5 most recent sales (Comps) for a card.
+     * Target: eBay Browse API (/buy/browse/v1/item_summary/search)
+     */
+    async searchSoldItems(options: { 
+        cardTitle: string, 
+        epid?: string, 
+        upc?: string, 
+        limit?: number 
+    }): Promise<EbayAuctionResponse> {
+        const token = await this.getAccessToken();
+        const { cardTitle, epid, upc, limit = 5 } = options;
+
+        const url = new URL(this.BASE_URLS[this.env].browse);
+        url.searchParams.append('q', cardTitle);
+        if (epid) url.searchParams.append('epid', epid);
+        if (upc) url.searchParams.append('gtin', upc);
+        
+        url.searchParams.append('limit', limit.toString());
+        url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
+        // Filter specifically for Fixed Price and Auctions
+        url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE|AUCTION}');
+        // Sort by most recent transactions
+        url.searchParams.append('sort', '-endTime');
+        url.searchParams.append('fieldGroups', 'EXTENDED');
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`eBay ${this.env} Sold Items search failed: ${error}`);
+        }
+
+        return await response.json();
+    }
+
     /**
      * @deprecated Currently unused in the main trending flow in favor of live active volume.
      * Simulated results for testing UI components that require historical arrays.

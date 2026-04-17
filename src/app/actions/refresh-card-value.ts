@@ -93,57 +93,101 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         // 3. Step 4: Value Calculation (The TradeValue Rule - 3 Lowest Median)
         const calc = calculateTradeValue(rawItems);
 
-        // 4. Calculate 24h changes
-        const db = getAdminDb();
+        // 4. Calculate 24h changes & Update Firestore (Optional/Resilient for local verification)
         const timestamp = new Date().toISOString();
         const today = timestamp.split('T')[0];
-        const yesterdayDate = new Date();
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        const yesterday = yesterdayDate.toISOString().split('T')[0];
-
-        // Fetch yesterday's value from priceHistory
-        const cardRef = db.doc(`users/${userId}/portfolios/${card.id}`);
-        const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
         let valueChange24h = 0;
         let valueChange24hPercent = 0;
 
-        if (yesterdaySnap.exists) {
-            const yesterdayValue = yesterdaySnap.data()?.value;
-            if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
-                valueChange24h = calc.value - yesterdayValue;
-                valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
+        try {
+            const db = getAdminDb();
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterday = yesterdayDate.toISOString().split('T')[0];
+
+            // Fetch yesterday's value from priceHistory
+            const cardRef = db.doc(`users/${userId}/portfolios/${card.id}`);
+            const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
+
+            if (yesterdaySnap.exists) {
+                const yesterdayValue = yesterdaySnap.data()?.value;
+                if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
+                    valueChange24h = calc.value - yesterdayValue;
+                    valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
+                }
+            } else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
+                // Fallback: If no yesterday's snapshot, compare with currentMarketValue
+                valueChange24h = calc.value - card.currentMarketValue;
+                valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
             }
-        } else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
-            // Fallback: If no yesterday's snapshot, compare with currentMarketValue
-            valueChange24h = calc.value - card.currentMarketValue;
-            valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
+
+            // Update the card reference with new value and metrics
+            await cardRef.update({
+                currentMarketValue: calc.value,
+                valueChange24h,
+                valueChange24hPercent,
+                lastMarketValueUpdate: timestamp,
+                marketPrices: {
+                    median: calc.value,
+                    activeItems: rawItems.slice(0, 10),
+                    soldItems: [], // Will be filled below if needed, or updated separately
+                    lastUpdated: timestamp
+                },
+                status: 'success'
+            });
+
+            // Update the price history for today
+            const historyRef = cardRef.collection("priceHistory").doc(today);
+            await historyRef.set({
+                value: calc.value,
+                timestamp: timestamp
+            }, { merge: true });
+        } catch (dbError) {
+            console.warn("[Refresh] Firestore interaction failed (expected in local dev):", dbError);
         }
-
-        // Update the card reference with new value and metrics
-        await cardRef.update({
-            currentMarketValue: calc.value,
-            valueChange24h,
-            valueChange24hPercent,
-            lastChecked: timestamp,
-            status: 'success'
-        });
-
-        // Update the price history for today
-        const historyRef = cardRef.collection("priceHistory").doc(today);
-        await historyRef.set({
-            value: calc.value,
-            timestamp: timestamp
-        }, { merge: true });
 
         const querySource = usedQuery === primaryQuery ? 'Primary' : 'Fallback';
         const diagnostics = `[${querySource}] Query: "${usedQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value}`;
         console.log(`[Refresh] Final Diagnostic: ${diagnostics}`);
 
+        // 5. Fetch 5 Recent Sales (Comps)
+        let soldItems: any[] = [];
+        let avgSoldPrice = 0;
+        let lowVolumeData = false;
+
+        try {
+            const soldResponse = await ebayService.searchSoldItems({
+                cardTitle: usedQuery, // Use the successful query for better matching
+                epid: card.epid,
+                upc: card.upc,
+                limit: 5
+            });
+
+            const rawSoldItems = soldResponse.itemSummaries || [];
+            lowVolumeData = rawSoldItems.length < 5;
+
+            soldItems = rawSoldItems.map(item => ({
+                title: item.title,
+                price: parseFloat(item.price.value) + parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || '0'),
+                url: item.itemWebUrl,
+                imageUrl: item.image?.imageUrl,
+                endDate: item.itemEndDate || item.itemCreationDate
+            }));
+
+            if (soldItems.length > 0) {
+                const total = soldItems.reduce((acc, item) => acc + item.price, 0);
+                avgSoldPrice = total / soldItems.length;
+            }
+        } catch (soldError) {
+            console.error("[Refresh] Failed to fetch sold items:", soldError);
+        }
+
         return {
             success: true,
             newPrice: calc.value,
             avgActivePrice: calc.value,
-            avgSoldPrice: 0,
+            avgSoldPrice,
+            lowVolumeData,
             diagnostics,
             top5: rawItems.map(item => ({
                 title: item.title,
@@ -151,7 +195,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 url: item.itemWebUrl,
                 imageUrl: item.image?.imageUrl,
             })),
-            soldItems: [],
+            soldItems,
             lastUpdated: timestamp,
             searchType: type,
             logic: calc.logic
