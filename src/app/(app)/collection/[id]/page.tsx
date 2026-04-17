@@ -134,12 +134,13 @@ export default function CardDetailsPage() {
         // Sync market data from Firestore
         if (card?.marketPrices) {
             setLiveListings(card.marketPrices.activeItems || []);
-            // Since we pivoted to active only, we use activeItems for both
-            setSoldListings(card.marketPrices.activeItems || []);
+            // Use the dedicated soldItems from the database if they exist
+            setSoldListings(card.marketPrices.soldItems || []);
             setAvgPrices({
                 active: card.marketPrices.median || 0,
-                sold: 0
+                sold: (card.marketPrices as any).avgSoldPrice || 0
             });
+            setIsLowVolume(!!(card.marketPrices as any).lowVolumeData);
         }
     }, [card, isEditingPrice, isEditingAttributes, isEditingTitle, card?.marketPrices]);
 
@@ -622,7 +623,9 @@ export default function CardDetailsPage() {
                                                 </div>
                                             </div>
                                             <div className="mt-2 text-left space-y-0.5 px-1 text-[10px]">
-                                                <p className="font-bold text-green-600">${listing.price.toFixed(2)}</p>
+                                                <p className="font-bold text-green-600">
+                                                    ${typeof listing.price === 'number' ? listing.price.toFixed(2) : (listing.price?.value || '0.00')}
+                                                </p>
                                                 <p className="text-muted-foreground line-clamp-2 leading-tight" title={listing.title}>
                                                     {cleanTitle(listing.title)}
                                                 </p>

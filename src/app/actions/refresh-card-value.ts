@@ -121,35 +121,6 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
             }
 
-            // Update the card reference with new value and metrics
-            await cardRef.update({
-                currentMarketValue: calc.value,
-                valueChange24h,
-                valueChange24hPercent,
-                lastMarketValueUpdate: timestamp,
-                marketPrices: {
-                    median: calc.value,
-                    activeItems: rawItems.slice(0, 10),
-                    soldItems: [], // Will be filled below if needed, or updated separately
-                    lastUpdated: timestamp
-                },
-                status: 'success'
-            });
-
-            // Update the price history for today
-            const historyRef = cardRef.collection("priceHistory").doc(today);
-            await historyRef.set({
-                value: calc.value,
-                timestamp: timestamp
-            }, { merge: true });
-        } catch (dbError) {
-            console.warn("[Refresh] Firestore interaction failed (expected in local dev):", dbError);
-        }
-
-        const querySource = usedQuery === primaryQuery ? 'Primary' : 'Fallback';
-        const diagnostics = `[${querySource}] Query: "${usedQuery}" | Found: ${rawItems.length} | CalcPrice: ${calc.value}`;
-        console.log(`[Refresh] Final Diagnostic: ${diagnostics}`);
-
         // 5. Fetch 5 Recent Sales (Comps)
         let soldItems: any[] = [];
         let avgSoldPrice = 0;
@@ -180,6 +151,56 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             }
         } catch (soldError) {
             console.error("[Refresh] Failed to fetch sold items:", soldError);
+        }
+
+        // 6. Update the card in Firestore (Optional/Resilient for local verification)
+        try {
+            const db = getAdminDb();
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterday = yesterdayDate.toISOString().split('T')[0];
+
+            // Fetch yesterday's value from priceHistory
+            const cardRef = db.doc(`users/${userId}/portfolios/${card.id}`);
+            const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
+
+            if (yesterdaySnap.exists) {
+                const yesterdayValue = yesterdaySnap.data()?.value;
+                if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
+                    valueChange24h = calc.value - yesterdayValue;
+                    valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
+                }
+            } else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
+                // Fallback: If no yesterday's snapshot, compare with currentMarketValue
+                valueChange24h = calc.value - card.currentMarketValue;
+                valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
+            }
+
+            // Update the card reference with new value and metrics
+            await cardRef.update({
+                currentMarketValue: calc.value,
+                valueChange24h,
+                valueChange24hPercent,
+                lastMarketValueUpdate: timestamp,
+                marketPrices: {
+                    median: calc.value,
+                    activeItems: rawItems.slice(0, 10),
+                    soldItems: soldItems,
+                    avgSoldPrice,
+                    lowVolumeData,
+                    lastUpdated: timestamp
+                },
+                status: 'success'
+            });
+
+            // Update the price history for today
+            const historyRef = cardRef.collection("priceHistory").doc(today);
+            await historyRef.set({
+                value: calc.value,
+                timestamp: timestamp
+            }, { merge: true });
+        } catch (dbError) {
+            console.warn("[Refresh] Firestore interaction failed (expected in local dev):", dbError);
         }
 
         return {
