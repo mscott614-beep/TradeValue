@@ -86,6 +86,7 @@ export class EbayService {
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
         url.searchParams.append('category_ids', '261328');
+        url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE}');
 
         const response = await fetch(url.toString(), {
             headers: { 'Authorization': `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
@@ -122,7 +123,7 @@ export class EbayService {
         const url = new URL(`https://api.ebay.com/sell/research/v1/item_summary/search`);
         url.searchParams.append('q', query);
         url.searchParams.append('filter', filter);
-        url.searchParams.append('categoryId', '261328');
+        url.searchParams.append('category_id', '261328');
 
         const response = await fetch(url.toString(), {
             headers: {

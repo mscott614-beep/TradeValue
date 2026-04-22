@@ -65,7 +65,7 @@ export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (ev
 });
 
 export const geminiProcessingQueue = onTaskDispatched({
-  secrets: [GOOGLE_GENAI_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, EBAY_USER_REFRESH_TOKEN],
+  secrets: [GOOGLE_GENAI_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
   memory: "1GiB",
   timeoutSeconds: 300,
 }, async (request) => {
@@ -125,7 +125,7 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
       throw new Error("AI failed to generate a valid structured output.");
     }
 
-    // --- Post-AI Valuation: Fetch Real-Time eBay Sold Data ---
+    // --- Post-AI Valuation: Fetch Real-Time eBay Active Data ---
     try {
       const EbayServiceClass = await loadEbay();
       const ebay = new EbayServiceClass(
@@ -145,6 +145,8 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
           .replace(/\s\s+/g, ' ')
           .trim();
       };
+
+      console.log(`[Scanner] Processing Job ${jobId} (Env: ${EBAY_ENV.value()})`);
 
       // 2. Grade Handling: Only include if numerical (1-10)
       const hasNumericalGrade = result.grade && /^\d+(\.\d+)?$/.test(String(result.grade));
@@ -171,7 +173,7 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
         sanitizeQuery([result.player, result.cardNumber])
       ];
 
-      let soldResults: any = null;
+      let activeResults: any = null;
       let successfulTier = 0;
 
       for (let i = 0; i < tiers.length; i++) {
@@ -189,14 +191,14 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
 
         console.log(`[Scanner] Tier ${i + 1} Attempt: "${query}"`);
 
-        soldResults = await ebay.searchSoldItems(query, EBAY_USER_REFRESH_TOKEN.value());
+        activeResults = await ebay.searchActiveItems(query);
         
-        if (soldResults?.itemSummaries && soldResults.itemSummaries.length > 0) {
+        if (activeResults?.itemSummaries && activeResults.itemSummaries.length > 0) {
           successfulTier = i + 1;
           
           // Special note if graded card fell back to raw pricing
           if (validGrader && validGrade && successfulTier >= 2 && !query.includes(validGrader)) {
-            result.marketNote = "No graded sales found; showing Raw market average.";
+            result.marketNote = "No graded listings found; showing Raw market average.";
           }
           break;
         }
@@ -204,44 +206,30 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
       
       let estimatedMarketValue = 0;
       if (successfulTier > 0) {
-        const prices = soldResults.itemSummaries.map((i: any) => parseFloat(i.price.value)).filter((p: number) => !isNaN(p) && p > 0);
+        const summaries = activeResults.itemSummaries;
+        const pricesWithShipping: number[] = [];
+
+        for (const item of summaries) {
+          const basePrice = parseFloat(item.price.value);
+          const shippingCost = parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || "0");
+          if (!isNaN(basePrice)) {
+            pricesWithShipping.push(basePrice + shippingCost);
+          }
+        }
         
-        if (prices.length > 0) {
-          // 1. Price Range Metrics
-          result.lowestSold = Math.min(...prices);
-          result.highestSold = Math.max(...prices);
-          result.averageSold = Math.round((prices.reduce((a: number, b: number) => a + b, 0) / prices.length) * 100) / 100;
+        if (pricesWithShipping.length > 0) {
+          // 1. Price Range Metrics (Active BIN)
+          result.lowestActive = Math.min(...pricesWithShipping);
+          result.highestActive = Math.max(...pricesWithShipping);
+          result.averageActive = Math.round((pricesWithShipping.reduce((a, b) => a + b, 0) / pricesWithShipping.length) * 100) / 100;
 
-          // 2. Weighted Average Calculation
-          const recent3 = prices.slice(0, 3);
-          const others = prices.slice(3);
-          
-          let weightedAvg = 0;
-          if (recent3.length > 0) {
-            const avgRecent = recent3.reduce((a: number, b: number) => a + b, 0) / recent3.length;
-            if (others.length > 0) {
-              const avgOthers = others.reduce((a: number, b: number) => a + b, 0) / others.length;
-              weightedAvg = (avgRecent * 0.7) + (avgOthers * 0.3);
-            } else {
-              weightedAvg = avgRecent;
-            }
-          }
-          estimatedMarketValue = Math.round(weightedAvg * 100) / 100;
+          // 2. Set Estimated Value to simple average of active Buy It Nows
+          estimatedMarketValue = result.averageActive;
 
-          // 3. Market Lag Disclaimer
-          const latestSaleDateStr = soldResults.itemSummaries[0]?.lastSoldDate;
-          if (latestSaleDateStr) {
-            const latestSaleDate = new Date(latestSaleDateStr);
-            const diffHours = (Date.now() - latestSaleDate.getTime()) / (1000 * 60 * 60);
-            if (diffHours > 48) {
-              result.marketNote = "Market data may have a 48h lag; recent intraday sales not yet reflected.";
-            }
-          }
-
-          console.log(`[Scanner] Tier ${successfulTier} success. Valuation: $${estimatedMarketValue}`);
+          console.log(`[Scanner] Tier ${successfulTier} success. Active Avg (Price+Ship): $${estimatedMarketValue}`);
         }
       } else {
-        console.log(`[Scanner] All 3 Search Tiers failed. Setting value to 0.`);
+        console.log(`[Scanner] All 4 Search Tiers failed to find active listings.`);
       }
 
       // Manually append the calculated value
@@ -272,7 +260,7 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
 
 export const onMessageMarketVibe = onDocumentCreated({
   document: "messages/{messageId}",
-  secrets: [OPENROUTER_API_KEY, TAVILY_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, EBAY_USER_REFRESH_TOKEN],
+  secrets: [OPENROUTER_API_KEY, TAVILY_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
 }, async (event) => {
   const messageData = event.data?.data();
   if (!messageData || messageData.marketVibe) return;
@@ -290,11 +278,11 @@ export const onMessageMarketVibe = onDocumentCreated({
     const searchKeyword = cleanEbayQuery(messageData.text);
     let realizedValueReport = "No sales data found.";
 
-    const soldResults = await ebay.searchSoldItems(searchKeyword, EBAY_USER_REFRESH_TOKEN.value());
+    const soldResults = await ebay.searchActiveItems(searchKeyword);
     if (soldResults?.itemSummaries) {
       const prices = soldResults.itemSummaries.map((i: any) => parseFloat(i.price.value));
       const avg = prices.reduce((a: number, b: number) => a + b, 0) / prices.length;
-      realizedValueReport = `Based on ${prices.length} recent sales, Realized Value is $${avg.toFixed(2)}.`;
+      realizedValueReport = `Based on ${prices.length} active listings, Current Value is $${avg.toFixed(2)}.`;
     }
 
     // C. AI Response
