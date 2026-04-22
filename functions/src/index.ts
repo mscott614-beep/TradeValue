@@ -134,27 +134,40 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
         EBAY_ENV.value()
       );
 
-      // 1. Search Sanitizer Helper
+      // 1. Search Sanitizer Helper (Strict Regex Purge)
       const sanitizeQuery = (parts: any[]) => {
+        const regex = /null|undefined|Base Set|#/gi;
         return parts
-          .filter(p => p !== null && p !== undefined && p !== "null" && p !== "Base Set")
-          .map(p => String(p).trim())
+          .filter(p => p !== null && p !== undefined && String(p).toLowerCase() !== "null" && String(p).toLowerCase() !== "undefined")
+          .map(p => String(p).replace(regex, "").trim())
           .filter(p => p.length > 0)
           .join(" ")
           .replace(/\s\s+/g, ' ')
           .trim();
       };
 
-      // 2. Define Searching Tiers
-      const grader = result.grader;
-      const grade = result.grade;
-      
+      // 2. Grade Handling: Only include if numerical (1-10)
+      const hasNumericalGrade = result.grade && /^\d+(\.\d+)?$/.test(String(result.grade));
+      const validGrader = hasNumericalGrade ? result.grader : null;
+      const validGrade = hasNumericalGrade ? result.grade : null;
+
+      // 3. Brand Alias Mapping
+      const brandMapping: Record<string, string> = {
+        "In The Game": "ITG",
+        "Upper Deck": "UD"
+      };
+      const brandAlias = brandMapping[result.brand] || result.brand;
+
+      // 4. Define Searching Tiers
+      const isRookieYear = result.year === "2015" || result.year === "2016";
       const tiers = [
-        // Tier 1 (Targeted): All available metadata
-        sanitizeQuery([result.year, result.brand, result.player, result.cardNumber, result.parallel, grader, grade]),
-        // Tier 2 (Collector): core ID info (Drops Year/Parallel/Grade)
-        sanitizeQuery([result.brand, result.player, result.cardNumber]),
-        // Tier 3 (Safety Net): Just player and number
+        // Tier 1: The Pro (Precision)
+        sanitizeQuery([result.year, result.brand, result.player, result.cardNumber, result.parallel, validGrader, validGrade]),
+        // Tier 2: The Collector (Brand Alias)
+        sanitizeQuery([brandAlias, result.player, result.cardNumber]),
+        // Tier 3: The Rookie (Conditional RC)
+        sanitizeQuery([result.player, result.cardNumber, isRookieYear ? "RC" : ""]),
+        // Tier 4: The Hammer (Nuclear)
         sanitizeQuery([result.player, result.cardNumber])
       ];
 
@@ -164,7 +177,7 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
       for (let i = 0; i < tiers.length; i++) {
         let query = tiers[i];
         
-        // Brand Cleaning for "In The Game"
+        // Brand Cleaning fallback
         if (query.toLowerCase().includes("in the game")) {
           query = query.replace(/in the game/gi, "ITG");
         }
@@ -174,14 +187,15 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
           query = `${query} Connor McDavid Collection`;
         }
 
-        console.log(`[Scanner] Cleaned Query (Tier ${i + 1}): "${query}"`);
+        console.log(`[Scanner] Tier ${i + 1} Attempt: "${query}"`);
+
         soldResults = await ebay.searchSoldItems(query, EBAY_USER_REFRESH_TOKEN.value());
         
         if (soldResults?.itemSummaries && soldResults.itemSummaries.length > 0) {
           successfulTier = i + 1;
           
           // Special note if graded card fell back to raw pricing
-          if (grader && grade && successfulTier >= 2) {
+          if (validGrader && validGrade && successfulTier >= 2 && !query.includes(validGrader)) {
             result.marketNote = "No graded sales found; showing Raw market average.";
           }
           break;
