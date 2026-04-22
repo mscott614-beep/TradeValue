@@ -134,17 +134,28 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
         EBAY_ENV.value()
       );
 
-      // 1. Fuzzy Query Helper
-      const fuzzyClean = (t: string) => t.replace(/Base Set|#|Standard/gi, '').replace(/\s\s+/g, ' ').trim();
+      // 1. Search Sanitizer Helper
+      const sanitizeQuery = (parts: any[]) => {
+        return parts
+          .filter(p => p !== null && p !== undefined && p !== "null" && p !== "Base Set")
+          .map(p => String(p).trim())
+          .filter(p => p.length > 0)
+          .join(" ")
+          .replace(/\s\s+/g, ' ')
+          .trim();
+      };
 
       // 2. Define Searching Tiers
-      const isGraded = result.grader && result.grade;
-      const gradingStr = isGraded ? `${result.grader} ${result.grade}` : "";
+      const grader = result.grader;
+      const grade = result.grade;
       
       const tiers = [
-        fuzzyClean(`${result.year} ${result.brand} ${result.player} ${result.cardNumber} ${gradingStr}`), // Tier 1: Strict
-        fuzzyClean(`${result.brand} ${result.player} ${result.cardNumber}`),                              // Tier 2: Clean
-        `${result.player} ${result.brand} ${result.cardNumber}`                                           // Tier 3: Broad
+        // Tier 1 (Targeted): All available metadata
+        sanitizeQuery([result.year, result.brand, result.player, result.cardNumber, result.parallel, grader, grade]),
+        // Tier 2 (Collector): core ID info (Drops Year/Parallel/Grade)
+        sanitizeQuery([result.brand, result.player, result.cardNumber]),
+        // Tier 3 (Safety Net): Just player and number
+        sanitizeQuery([result.player, result.cardNumber])
       ];
 
       let soldResults: any = null;
@@ -158,19 +169,19 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
           query = query.replace(/in the game/gi, "ITG");
         }
 
-        // McDavid Specialty Logic: CM numbers are from the "Connor McDavid Collection"
+        // McDavid Specialty Logic
         if (result.brand === "Upper Deck" && result.cardNumber?.startsWith("CM")) {
           query = `${query} Connor McDavid Collection`;
         }
 
-        console.log(`[Scanner] Tier ${i + 1} Search: "${query}"`);
+        console.log(`[Scanner] Cleaned Query (Tier ${i + 1}): "${query}"`);
         soldResults = await ebay.searchSoldItems(query, EBAY_USER_REFRESH_TOKEN.value());
         
         if (soldResults?.itemSummaries && soldResults.itemSummaries.length > 0) {
           successfulTier = i + 1;
           
           // Special note if graded card fell back to raw pricing
-          if (isGraded && successfulTier >= 2 && !query.includes(result.grader)) {
+          if (grader && grade && successfulTier >= 2) {
             result.marketNote = "No graded sales found; showing Raw market average.";
           }
           break;
