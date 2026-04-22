@@ -32,20 +32,15 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.onMessageMarketVibe = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
+exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const tasks_1 = require("firebase-functions/v2/tasks");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const functions_1 = require("firebase-admin/functions");
 const admin = __importStar(require("firebase-admin"));
 const params_1 = require("firebase-functions/params");
-const axios_1 = __importDefault(require("axios"));
-const core_1 = require("@tavily/core");
-// 1. Lazy load dependencies
+// Lazy load heavy dependencies to avoid 10s initialization timeout
 let EbayService;
 let genkit;
 let googleAI;
@@ -67,72 +62,105 @@ async function loadGenkit() {
     }
     return { genkit, z, googleAI };
 }
-// 2. Secrets
 const GOOGLE_GENAI_API_KEY = (0, params_1.defineSecret)("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
 const EBAY_ENV = (0, params_1.defineSecret)("EBAY_ENV");
-const OPENROUTER_API_KEY = (0, params_1.defineSecret)("OPENROUTER_API_KEY");
-const TAVILY_API_KEY = (0, params_1.defineSecret)("TAVILY_API_KEY");
-const EBAY_USER_REFRESH_TOKEN = (0, params_1.defineSecret)("EBAY_USER_REFRESH_TOKEN");
 admin.initializeApp();
-// 3. Helper: Clean query for eBay
-function cleanEbayQuery(text) {
-    return text.replace(/compare|versus|price|market|sentiment|outlook|what|is|the|sold|of|a/gi, '')
-        .replace(/\s\s+/g, ' ')
-        .trim();
-}
-// --- SCANNER LOGIC (Original) ---
+const GENERIC_SET_STOPWORDS = [
+    'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
+    'regular', 'common', 'standard issue', 'insert'
+];
+// Producer: Triggered when a new job is created in 'scanJobs'
 exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)("scanJobs/{jobId}", async (event) => {
     const jobId = event.params.jobId;
     const jobData = event.data?.data();
-    if (!jobData || jobData.status !== "pending")
+    if (!jobData || jobData.status !== "pending") {
+        console.log(`Job ${jobId} is not pending or missing data. Status: ${jobData?.status}`);
         return;
+    }
     const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-central1/functions/geminiProcessingQueue");
     try {
-        await queue.enqueue({ jobId }, { scheduleDelaySeconds: 0, oidcToken: {} });
-        await event.data?.ref.update({ status: "queued", updatedAt: new Date().toISOString() });
+        await queue.enqueue({ jobId }, {
+            scheduleDelaySeconds: 0,
+            oidcToken: {},
+        });
+        await event.data?.ref.update({
+            status: "queued",
+            updatedAt: new Date().toISOString(),
+        });
+        console.log(`Successfully enqueued job ${jobId} to geminiProcessingQueue`);
     }
     catch (error) {
-        console.error("Enqueue failed", error);
+        console.error(`Failed to enqueue job ${jobId}:`, error);
+        await event.data?.ref.update({
+            status: "error",
+            error: "Failed to enqueue task",
+            updatedAt: new Date().toISOString(),
+        });
     }
 });
+// Worker: Consumes the task and calls Gemini
 exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
-    secrets: [GOOGLE_GENAI_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, EBAY_USER_REFRESH_TOKEN],
+    retryConfig: {
+        maxAttempts: 5,
+        minBackoffSeconds: 30,
+    },
+    rateLimits: {
+        maxConcurrentDispatches: 1,
+        maxDispatchesPerSecond: 1,
+    },
+    secrets: [GOOGLE_GENAI_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
     memory: "1GiB",
     timeoutSeconds: 300,
 }, async (request) => {
     const { jobId } = request.data;
+    console.log(`Worker processing job ${jobId}`);
     const db = admin.firestore();
     const jobRef = db.collection("scanJobs").doc(jobId);
     const jobSnap = await jobRef.get();
-    if (!jobSnap.exists)
+    if (!jobSnap.exists) {
+        console.error(`Job ${jobId} not found`);
         return;
+    }
     const jobData = jobSnap.data();
+    if (jobData.status === "completed") {
+        console.log(`Job ${jobId} already completed`);
+        return;
+    }
     try {
-        await jobRef.update({ status: "processing", updatedAt: new Date().toISOString() });
+        await jobRef.update({
+            status: "processing",
+            updatedAt: new Date().toISOString(),
+        });
         const { genkit: genkitFunc, googleAI: googleAIFunc, z: zod } = await loadGenkit();
         const ai = genkitFunc({
             plugins: [googleAIFunc({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
             model: "googleai/gemini-3.1-flash-lite-preview",
         });
-        // Output Schema (Strict OCR - Now with Grading)
+        // Define Output Schema
         const ScanOutputSchema = zod.object({
             year: zod.string(),
             brand: zod.string(),
             player: zod.string(),
             cardNumber: zod.string(),
             parallel: zod.string().default("Base"),
-            condition: zod.string().default("Raw"),
-            grade: zod.string().optional(),
-            grader: zod.string().optional(),
+            grade: zod.string().nullable(),
+            grader: zod.string().nullable(),
         });
-        const promptText = `You are an expert OCR engine for trading cards. 
-Analyze the image(s) and return the year, brand, player, card number, parallel, and condition.
+        const promptText = `You are an expert trading card authenticator. 
+Analyze the card and return year, brand, player, card number, parallel, and grading info.
 
-Identify if the card is in a graded slab (PSA, BGS, SGC, CGC). If so, extract the company and the numerical grade (e.g., PSA 10). If raw, set to null.
+Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both to null.
 
-STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job is only to read the card's text and identify it.`;
+Return a JSON object:
+- year: The year of the card.
+- brand: The brand (e.g., Topps, Upper Deck).
+- player: The name of the player.
+- cardNumber: The card number (exactly as it appears).
+- parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
+- grade: The numerical grade (e.g., "10", "9.5", "Authentic") or descriptive grade (e.g. "GEM MT").
+- grader: The grading company (e.g., "PSA", "BGS", "SGC", "CGC") or null.`;
         const parts = [{ text: promptText }];
         if (jobData.type === "image-scan") {
             parts.push({ media: { url: jobData.payload.frontPhotoDataUri, contentType: "image/jpeg" } });
@@ -140,161 +168,390 @@ STRICT RULE: Do NOT guess or provide any market value or pricing data. Your job 
                 parts.push({ media: { url: jobData.payload.backPhotoDataUri, contentType: "image/jpeg" } });
             }
         }
-        const response = await ai.generate({
-            prompt: parts,
-            output: { schema: ScanOutputSchema },
-            config: { temperature: 0.1 }
-        });
+        let response;
+        try {
+            console.log("Attempting generation with primary model: gemini-3.1-flash-lite-preview");
+            response = await ai.generate({
+                model: "googleai/gemini-3.1-flash-lite-preview",
+                prompt: parts,
+                output: { schema: ScanOutputSchema },
+                config: { temperature: 0.1, maxOutputTokens: 1024 }
+            });
+        }
+        catch (err) {
+            console.error("Primary model failed, falling back to gemini-1.5-flash:", err);
+            response = await ai.generate({
+                model: "googleai/gemini-1.5-flash",
+                prompt: parts,
+                output: { schema: ScanOutputSchema },
+                config: { temperature: 0.1, maxOutputTokens: 1024 }
+            });
+        }
         const result = response.output;
         if (!result) {
             throw new Error("AI failed to generate a valid structured output.");
         }
-        // --- Post-AI Valuation: Fetch Real-Time eBay Sold Data ---
+        // --- Post-AI Enrichment: Fetch Real-Time eBay Data (Massapequa Hammer) ---
         try {
             const EbayServiceClass = await loadEbay();
             const ebay = new EbayServiceClass(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
-            // 1. Fuzzy Query Helper
-            const fuzzyClean = (t) => t.replace(/Base Set|#|Standard/gi, '').replace(/\s\s+/g, ' ').trim();
-            // 2. Define Searching Tiers
-            const isGraded = result.grader && result.grade;
-            const gradingStr = isGraded ? `${result.grader} ${result.grade}` : "";
-            const tiers = [
-                fuzzyClean(`${result.year} ${result.brand} ${result.player} ${result.cardNumber} ${gradingStr}`), // Tier 1: Strict
-                fuzzyClean(`${result.brand} ${result.player} ${result.cardNumber}`), // Tier 2: Clean
-                `${result.player} ${result.brand} ${result.cardNumber}` // Tier 3: Broad
-            ];
-            let soldResults = null;
-            let successfulTier = 0;
-            for (let i = 0; i < tiers.length; i++) {
-                let query = tiers[i];
-                // Brand Cleaning for "In The Game"
-                if (query.toLowerCase().includes("in the game")) {
-                    query = query.replace(/in the game/gi, "ITG");
-                }
-                // McDavid Specialty Logic: CM numbers are from the "Connor McDavid Collection"
-                if (result.brand === "Upper Deck" && result.cardNumber?.startsWith("CM")) {
-                    query = `${query} Connor McDavid Collection`;
-                }
-                console.log(`[Scanner] Tier ${i + 1} Search: "${query}"`);
-                soldResults = await ebay.searchSoldItems(query, EBAY_USER_REFRESH_TOKEN.value());
-                if (soldResults?.itemSummaries && soldResults.itemSummaries.length > 0) {
-                    successfulTier = i + 1;
-                    // Special note if graded card fell back to raw pricing
-                    if (isGraded && successfulTier >= 2 && !query.includes(result.grader)) {
-                        result.marketNote = "No graded sales found; showing Raw market average.";
-                    }
-                    break;
-                }
+            // Brand Alias Mapping
+            const brandAlias = {
+                "In The Game": "ITG",
+                "Upper Deck": "UD",
+                "Topps": "Chrome" // Common for many sets
+            };
+            const sanitizeQuery = (metadata) => {
+                const values = [
+                    metadata.year,
+                    brandAlias[metadata.brand] || metadata.brand,
+                    metadata.player,
+                    (metadata.cardNumber || "").replace("#", ""),
+                    metadata.parallel !== "Base" ? metadata.parallel : null,
+                    metadata.grader, // Include grader regardless of grade
+                    metadata.grade
+                ];
+                const clean = values
+                    .filter(v => v && v !== "null" && v !== "undefined" && v !== "Base Set")
+                    .join(" ")
+                    .replace(/null/gi, "")
+                    .replace(/undefined/gi, "")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                // Mandatory exclusions to prevent digital/reprint/lot noise
+                return `${clean} -digital -reprint -lot -pick -choose -upick`.trim();
+            };
+            // Tier 1 (Precision)
+            const tier1Query = sanitizeQuery(result);
+            console.log(`[Tier 1] Precision Query: "${tier1Query}"`);
+            let ebayData = await ebay.searchActiveItems(tier1Query, 10);
+            let rawItems = ebayData.itemSummaries || [];
+            // Tier 2 (The Collector)
+            if (rawItems.length === 0) {
+                const alias = brandAlias[result.brand] || result.brand;
+                const tier2Base = `${alias} ${result.player} ${(result.cardNumber || "").replace("#", "")}`.trim();
+                const tier2Query = `${tier2Base} -digital -reprint -lot -pick -choose -upick`.trim();
+                console.log(`[Tier 2] Collector Query: "${tier2Query}"`);
+                ebayData = await ebay.searchActiveItems(tier2Query, 10);
+                rawItems = ebayData.itemSummaries || [];
             }
-            let estimatedMarketValue = 0;
-            if (successfulTier > 0) {
-                const prices = soldResults.itemSummaries.map((i) => parseFloat(i.price.value)).filter((p) => !isNaN(p) && p > 0);
+            // Tier 3 (The Rookie)
+            if (rawItems.length === 0 && (result.year === "2015" || result.year === "2016" || result.year.includes("2015"))) {
+                const tier3Base = `${result.player} ${(result.cardNumber || "").replace("#", "")} RC`.trim();
+                const tier3Query = `${tier3Base} -digital -reprint -lot -pick -choose -upick`.trim();
+                console.log(`[Tier 3] Rookie Query: "${tier3Query}"`);
+                ebayData = await ebay.searchActiveItems(tier3Query, 10);
+                rawItems = ebayData.itemSummaries || [];
+            }
+            // Tier 4 (The Hammer)
+            if (rawItems.length === 0) {
+                const tier4Base = `${result.player} ${(result.cardNumber || "").replace("#", "")}`.trim();
+                const tier4Query = `${tier4Base} -digital -reprint -lot -pick -choose -upick`.trim();
+                console.log(`[Tier 4] Hammer Query: "${tier4Query}"`);
+                ebayData = await ebay.searchActiveItems(tier4Query, 10);
+                rawItems = ebayData.itemSummaries || [];
+            }
+            // Calculate Valuation (Median of Lowest 3 - The "Market Floor" Rule)
+            if (rawItems.length > 0) {
+                const prices = rawItems
+                    .map((item) => {
+                    const price = parseFloat(item.price?.value || "0");
+                    const shipping = parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || "0");
+                    return price + shipping;
+                })
+                    .filter((p) => p > 0)
+                    .sort((a, b) => a - b);
                 if (prices.length > 0) {
-                    // 1. Price Range Metrics
-                    result.lowestSold = Math.min(...prices);
-                    result.highestSold = Math.max(...prices);
-                    result.averageSold = Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100;
-                    // 2. Weighted Average Calculation
-                    const recent3 = prices.slice(0, 3);
-                    const others = prices.slice(3);
-                    let weightedAvg = 0;
-                    if (recent3.length > 0) {
-                        const avgRecent = recent3.reduce((a, b) => a + b, 0) / recent3.length;
-                        if (others.length > 0) {
-                            const avgOthers = others.reduce((a, b) => a + b, 0) / others.length;
-                            weightedAvg = (avgRecent * 0.7) + (avgOthers * 0.3);
-                        }
-                        else {
-                            weightedAvg = avgRecent;
-                        }
-                    }
-                    estimatedMarketValue = Math.round(weightedAvg * 100) / 100;
-                    // 3. Market Lag Disclaimer
-                    const latestSaleDateStr = soldResults.itemSummaries[0]?.lastSoldDate;
-                    if (latestSaleDateStr) {
-                        const latestSaleDate = new Date(latestSaleDateStr);
-                        const diffHours = (Date.now() - latestSaleDate.getTime()) / (1000 * 60 * 60);
-                        if (diffHours > 48) {
-                            result.marketNote = "Market data may have a 48h lag; recent intraday sales not yet reflected.";
-                        }
-                    }
-                    console.log(`[Scanner] Tier ${successfulTier} success. Valuation: $${estimatedMarketValue}`);
+                    // Take the lowest 3 (or fewer if not available)
+                    const floorPool = prices.slice(0, 3);
+                    const mid = Math.floor(floorPool.length / 2);
+                    const medianValue = floorPool.length % 2 !== 0
+                        ? floorPool[mid]
+                        : (floorPool[mid - 1] + floorPool[mid]) / 2;
+                    const finalValue = Math.round(medianValue * 100) / 100;
+                    result.estimatedMarketValue = finalValue;
+                    console.log(`eBay enrichment successful. Floor Pool: ${floorPool.join(", ")}. Median: ${finalValue}`);
+                }
+                else {
+                    result.estimatedMarketValue = 0;
                 }
             }
             else {
-                console.log(`[Scanner] All 3 Search Tiers failed. Setting value to 0.`);
+                console.log(`FINAL ATTEMPT STRING: [FAIL] No results found for any tier.`);
+                result.estimatedMarketValue = 0;
             }
-            // Manually append the calculated value
-            result.estimatedMarketValue = estimatedMarketValue;
         }
-        catch (ebayErr) {
-            console.error("[Scanner] eBay valuation failed:", ebayErr);
+        catch (ebayError) {
+            console.error("eBay enrichment failed:", ebayError);
             result.estimatedMarketValue = 0;
         }
+        // --- End Enrichment ---
         await jobRef.update({
             status: "completed",
             result,
             updatedAt: new Date().toISOString(),
         });
-        console.log(`Job ${jobId} completed successfully with value: $${result.estimatedMarketValue}`);
+        console.log(`Job ${jobId} completed successfully`);
+        // Artificially sleep for 6.5 seconds to pace the queue.
+        // With maxConcurrentDispatches: 1, this guarantees we stay well below 
+        // the Gemini 2.5 Flash Free Tier limit of 15 Requests Per Minute (RPM)
+        // (Total execution time ~8 seconds per card = ~7.5 RPM)
+        await new Promise((resolve) => setTimeout(resolve, 6500));
     }
     catch (error) {
         console.error(`Error processing job ${jobId}:`, error);
+        if (error.message?.includes("429") || error.message?.includes("Quota")) {
+            // Reset status to queued so the retry will pick it up properly
+            await jobRef.update({
+                status: "queued",
+                updatedAt: new Date().toISOString(),
+            });
+            console.log(`Rate limit hit for job ${jobId}. Sleeping 40s to cool down the queue...`);
+            // Artificial sleep to keep the concurrency slot busy and prevent
+            // the next task in the queue from immediately firing and hitting the same limit.
+            await new Promise((resolve) => setTimeout(resolve, 40000));
+            throw new Error("Rate limit hit, retrying...");
+        }
         await jobRef.update({
             status: "error",
-            error: error.message || "Unknown error during processing",
+            error: error.message || "Unknown error during AI processing",
             updatedAt: new Date().toISOString(),
         });
     }
 });
-// --- ADVISOR LOGIC (New & Improved) ---
-exports.onMessageMarketVibe = (0, firestore_1.onDocumentCreated)({
-    document: "messages/{messageId}",
-    secrets: [OPENROUTER_API_KEY, TAVILY_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, EBAY_USER_REFRESH_TOKEN],
-}, async (event) => {
-    const messageData = event.data?.data();
-    if (!messageData || messageData.marketVibe)
-        return;
+exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
+    schedule: "0 0 * * *", // Midnight UTC daily
+    timeZone: "UTC",
+    region: "us-central1",
+    timeoutSeconds: 300,
+    memory: "256MiB",
+}, async () => {
+    const db = admin.firestore();
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    console.log(`[PriceSnapshot] Starting daily snapshot for ${today}`);
+    const usersSnap = await db.collection("users").listDocuments();
+    let totalCards = 0;
+    for (const userDocRef of usersSnap) {
+        const portfolioSnap = await userDocRef.collection("portfolios").get();
+        const batch = db.batch();
+        let batchCount = 0;
+        let totalPortfolioValue = 0;
+        // yesterday variable removed due to changes in 24h metrics logic
+        for (const cardDoc of portfolioSnap.docs) {
+            const cardData = cardDoc.data();
+            const value = cardData.currentMarketValue;
+            if (typeof value === "number" && value > 0) {
+                totalPortfolioValue += value;
+                // 1. Save history snapshot
+                const historyRef = cardDoc.ref
+                    .collection("priceHistory")
+                    .doc(today);
+                batch.set(historyRef, {
+                    value,
+                    timestamp: new Date().toISOString(),
+                }, { merge: true });
+                // 2. 24h metrics are now handled in real-time by the refresh tasks 
+                // to ensure they reflect the most recent market activity compared to yesterday.
+                batchCount++;
+                totalCards++;
+            }
+        }
+        // Record total portfolio value for the user
+        if (totalPortfolioValue > 0) {
+            const portfolioHistoryRef = userDocRef
+                .collection("portfolioHistory")
+                .doc(today);
+            batch.set(portfolioHistoryRef, {
+                totalValue: totalPortfolioValue,
+                timestamp: new Date().toISOString(),
+                cardCount: portfolioSnap.size
+            }, { merge: true });
+            batchCount++;
+        }
+        if (batchCount > 0) {
+            await batch.commit();
+        }
+    }
+    console.log(`[PriceSnapshot] Done. Snapshotted ${totalCards} cards for ${today}.`);
+});
+// --- Morning Refresh: Updates Prices From eBay ---
+/**
+ * Triggered at 8:00 AM EST (12:00/13:00 UTC)
+ * Iterates through all cards and enqueues them for price refreshing.
+ */
+exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
+    schedule: "0 8 * * *",
+    timeZone: "America/New_York",
+    region: "us-central1",
+}, async () => {
+    const db = admin.firestore();
+    const usersSnap = await db.collection("users").listDocuments();
+    const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-central1/functions/refreshMarketCardTask");
+    console.log("[MarketRefresh] Starting scheduled morning refresh...");
+    let totalEnqueued = 0;
+    let userCount = 0;
     try {
-        // A. Tavily News
-        let marketIntelligence = "No news found.";
-        const tvly = (0, core_1.tavily)({ apiKey: TAVILY_API_KEY.value() });
-        const searchResult = await tvly.search(messageData.text, { topic: "news", maxResults: 2 });
-        marketIntelligence = searchResult.results.map((r) => `Source: ${r.title}\n${r.content}`).join("\n\n");
-        // B. eBay Realized Sales
+        for (const userDoc of usersSnap) {
+            userCount++;
+            const cardsSnap = await userDoc.collection("portfolios").listDocuments();
+            console.log(`[MarketRefresh] Processing user ${userDoc.id} (${cardsSnap.length} cards)`);
+            // Parallelize enqueuing within each user's portfolio
+            const enqueuePromises = cardsSnap.map(async (cardDoc) => {
+                try {
+                    await queue.enqueue({
+                        userId: userDoc.id,
+                        cardId: cardDoc.id
+                    }, {
+                        oidcToken: {}
+                    });
+                    return true;
+                }
+                catch (err) {
+                    console.error(`[MarketRefresh] Failed to enqueue card ${cardDoc.id} for user ${userDoc.id}:`, err);
+                    return false;
+                }
+            });
+            const results = await Promise.all(enqueuePromises);
+            totalEnqueued += results.filter(r => r).length;
+        }
+        console.log(`[MarketRefresh] Scheduled trigger complete. Enqueued ${totalEnqueued} total cards across ${userCount} users.`);
+    }
+    catch (globalErr) {
+        console.error("[MarketRefresh] Critical failure during scheduled refresh:", globalErr);
+    }
+});
+/**
+ * Worker: Refreshes a single card's value from eBay.
+ * Using Task Queue to manage rate limits and long execution times for large portfolios.
+ */
+exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
+    retryConfig: {
+        maxAttempts: 3,
+        minBackoffSeconds: 60,
+    },
+    rateLimits: {
+        maxConcurrentDispatches: 5,
+    },
+    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
+    region: "us-central1",
+    timeoutSeconds: 300,
+}, async (request) => {
+    const { userId, cardId } = request.data;
+    const db = admin.firestore();
+    const cardRef = db.doc(`users/${userId}/portfolios/${cardId}`);
+    const cardSnap = await cardRef.get();
+    if (!cardSnap.exists) {
+        console.log(`[RefreshTask] Card ${cardId} for user ${userId} not found.`);
+        return;
+    }
+    const card = cardSnap.data();
+    try {
         const EbayServiceClass = await loadEbay();
         const ebay = new EbayServiceClass(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
-        const searchKeyword = cleanEbayQuery(messageData.text);
-        let realizedValueReport = "No sales data found.";
-        const soldResults = await ebay.searchSoldItems(searchKeyword, EBAY_USER_REFRESH_TOKEN.value());
-        if (soldResults?.itemSummaries) {
-            const prices = soldResults.itemSummaries.map((i) => parseFloat(i.price.value));
-            const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-            realizedValueReport = `Based on ${prices.length} recent sales, Realized Value is $${avg.toFixed(2)}.`;
+        const { buildEbayQuery, calculateTradeValue } = await Promise.resolve().then(() => __importStar(require("./ebay-pricing")));
+        // Construct precise query for this card
+        const { query: searchQuery } = buildEbayQuery({
+            year: card.year,
+            brand: card.brand,
+            set: card.set,
+            player: card.player,
+            cardNumber: card.cardNumber,
+            parallel: card.parallel,
+            title: card.title
+        });
+        // Fetch active listings
+        let usedQuery = searchQuery;
+        let response = await ebay.searchActiveItems(searchQuery, 10);
+        let items = response.itemSummaries || [];
+        // Stage 2 (Variant-First): Prioritize Variant / Parallel but DROP the brittle card number.
+        if (items.length === 0 && (card.parallel || card.set)) {
+            const set = card.set && !GENERIC_SET_STOPWORDS.includes(card.set.toLowerCase()) ? card.set : "";
+            const variantQuery = `${card.year} ${card.brand} ${set} ${card.player} ${card.parallel || ""} -reprint -digital`.replace(/\s+/g, " ").trim();
+            console.log(`[RefreshTask] Stage 1 failed. Trying Stage 2 (Variant-First): "${variantQuery}"`);
+            usedQuery = variantQuery;
+            response = await ebay.searchActiveItems(variantQuery, 10);
+            items = response.itemSummaries || [];
         }
-        // C. AI Response
-        const userPrompt = `News: ${marketIntelligence}\nRealized Sales: ${realizedValueReport}\nUser: ${messageData.text}`;
-        const response = await axios_1.default.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "inflection/inflection-3-pi",
-            messages: [{ role: "system", content: "You are a Senior Card Advisor. Compare News vs. Sold Prices." }, { role: "user", content: userPrompt }],
-        }, { headers: { "Authorization": `Bearer ${OPENROUTER_API_KEY.value()}` } });
-        await event.data?.ref.update({ marketVibe: response.data.choices[0]?.message?.content, updatedAt: new Date().toISOString() });
+        // Stage 3 (Identifier-First): Try the Card Number but DROP the Parallel/Set.
+        if (items.length === 0) {
+            const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
+            const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
+            const identifierQuery = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
+            console.log(`[RefreshTask] Stage 2 failed. Trying Stage 3 (Identifier-First): "${identifierQuery}"`);
+            usedQuery = identifierQuery;
+            response = await ebay.searchActiveItems(identifierQuery, 10);
+            items = response.itemSummaries || [];
+        }
+        // Stage 4 (Nuclear Fallback): Inject critical keywords (Auto, Patch, Jersey, Rookie).
+        if (items.length === 0) {
+            const featureStr = [
+                card.parallel || "",
+                ...(card.features || []),
+                card.title || "",
+                card.set || "",
+            ].join(" ").toLowerCase();
+            let keywords = "";
+            if (featureStr.includes("auto") || featureStr.includes("signature"))
+                keywords += " auto";
+            if (featureStr.includes("patch") || featureStr.includes("threads"))
+                keywords += " patch";
+            if (featureStr.includes("jersey") || featureStr.includes("relic") || featureStr.includes("memo"))
+                keywords += " jersey";
+            if (featureStr.includes("rookie") || featureStr.includes("debut"))
+                keywords += " rookie";
+            const nuclearQuery = `${card.year} ${card.brand} ${card.set || ""} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, " ").trim();
+            console.log(`[RefreshTask] Stage 3 failed. Trying Stage 4 (Nuclear): "${nuclearQuery}"`);
+            usedQuery = nuclearQuery;
+            response = await ebay.searchActiveItems(nuclearQuery, 10);
+            items = response.itemSummaries || [];
+        }
+        const calc = calculateTradeValue(items);
+        if (calc.value > 0) {
+            // 5. Finalize Update: Calculate 24h changes
+            const timestamp = new Date().toISOString();
+            const today = timestamp.split("T")[0];
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterday = yesterdayDate.toISOString().split("T")[0];
+            // Fetch yesterday's value from priceHistory
+            const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
+            let valueChange24h = 0;
+            let valueChange24hPercent = 0;
+            if (yesterdaySnap.exists) {
+                const yesterdayValue = yesterdaySnap.data()?.value;
+                if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
+                    valueChange24h = calc.value - yesterdayValue;
+                    valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
+                }
+            }
+            else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
+                // Fallback: If no yesterday's snapshot, compare with currentMarketValue
+                // This is useful for the first time the sync runs or if a previous sync succeeded but no snapshot was saved
+                valueChange24h = calc.value - card.currentMarketValue;
+                valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
+            }
+            // Atomic update of current value and 24h change metrics
+            await cardRef.update({
+                currentMarketValue: calc.value,
+                valueChange24h,
+                valueChange24hPercent,
+                lastChecked: timestamp,
+                updatedAt: timestamp
+            });
+            // Add to history for performance tracking
+            await cardRef.collection("priceHistory").doc(today).set({
+                value: calc.value,
+                timestamp: timestamp,
+            }, { merge: true });
+            console.log(`[RefreshTask] Successfully updated ${card.title} (${cardId}) to $${calc.value} using: ${usedQuery}`);
+        }
+        else {
+            console.log(`[RefreshTask] No market matches found for ${card.title}. Keeping existing value.`);
+        }
     }
     catch (error) {
-        console.error("Advisor failed", error);
+        console.error(`[RefreshTask] Failed to refresh card ${cardId}:`, error);
+        throw error; // Task queue will retry based on config
     }
-});
-// --- MAINTENANCE LOGIC (Original) ---
-exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({ schedule: "0 0 * * *", timeZone: "UTC" }, async () => {
-    console.log("Taking daily snapshots...");
-});
-exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({ schedule: "0 8 * * *", timeZone: "America/New_York" }, async () => {
-    console.log("Enqueuing cards for refresh...");
-});
-exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
-    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
-    rateLimits: { maxConcurrentDispatches: 5 },
-}, async (request) => {
-    console.log("Refreshing card value...");
 });
 //# sourceMappingURL=index.js.map

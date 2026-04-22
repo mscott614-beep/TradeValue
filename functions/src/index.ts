@@ -145,8 +145,8 @@ Return a JSON object:
 - player: The name of the player.
 - cardNumber: The card number (exactly as it appears).
 - parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
-- grade: The numerical grade (e.g., "10", "9.5") or null.
-- grader: The grading company (e.g., "PSA", "BGS") or null.`;
+- grade: The numerical grade (e.g., "10", "9.5", "Authentic") or descriptive grade (e.g. "GEM MT").
+- grader: The grading company (e.g., "PSA", "BGS", "SGC", "CGC") or null.`;
 
       const parts: any[] = [{ text: promptText }];
 
@@ -157,14 +157,24 @@ Return a JSON object:
         }
       }
 
-      const response = await ai.generate({
-        prompt: parts,
-        output: { schema: ScanOutputSchema },
-        config: {
-          temperature: 0.1,
-          maxOutputTokens: 1024,
-        }
-      });
+      let response;
+      try {
+        console.log("Attempting generation with primary model: gemini-3.1-flash-lite-preview");
+        response = await ai.generate({
+          model: "googleai/gemini-3.1-flash-lite-preview",
+          prompt: parts,
+          output: { schema: ScanOutputSchema },
+          config: { temperature: 0.1, maxOutputTokens: 1024 }
+        });
+      } catch (err) {
+        console.error("Primary model failed, falling back to gemini-1.5-flash:", err);
+        response = await ai.generate({
+          model: "googleai/gemini-1.5-flash",
+          prompt: parts,
+          output: { schema: ScanOutputSchema },
+          config: { temperature: 0.1, maxOutputTokens: 1024 }
+        });
+      }
 
       const result = response.output;
 
@@ -195,16 +205,20 @@ Return a JSON object:
               metadata.player,
               (metadata.cardNumber || "").replace("#", ""),
               metadata.parallel !== "Base" ? metadata.parallel : null,
-              metadata.grade ? `${metadata.grader || ""} ${metadata.grade}` : null
+              metadata.grader, // Include grader regardless of grade
+              metadata.grade
             ];
             
-            return values
+            const clean = values
               .filter(v => v && v !== "null" && v !== "undefined" && v !== "Base Set")
               .join(" ")
               .replace(/null/gi, "")
               .replace(/undefined/gi, "")
               .replace(/\s+/g, " ")
               .trim();
+
+            // Mandatory exclusions to prevent digital/reprint/lot noise
+            return `${clean} -digital -reprint -lot -pick -choose -upick`.trim();
           };
 
           // Tier 1 (Precision)
@@ -217,7 +231,8 @@ Return a JSON object:
           // Tier 2 (The Collector)
           if (rawItems.length === 0) {
             const alias = brandAlias[result.brand] || result.brand;
-            const tier2Query = `${alias} ${result.player} ${(result.cardNumber || "").replace("#", "")}`.trim();
+            const tier2Base = `${alias} ${result.player} ${(result.cardNumber || "").replace("#", "")}`.trim();
+            const tier2Query = `${tier2Base} -digital -reprint -lot -pick -choose -upick`.trim();
             console.log(`[Tier 2] Collector Query: "${tier2Query}"`);
             ebayData = await ebay.searchActiveItems(tier2Query, 10);
             rawItems = ebayData.itemSummaries || [];
@@ -225,7 +240,8 @@ Return a JSON object:
 
           // Tier 3 (The Rookie)
           if (rawItems.length === 0 && (result.year === "2015" || result.year === "2016" || result.year.includes("2015"))) {
-            const tier3Query = `${result.player} ${(result.cardNumber || "").replace("#", "")} RC`.trim();
+            const tier3Base = `${result.player} ${(result.cardNumber || "").replace("#", "")} RC`.trim();
+            const tier3Query = `${tier3Base} -digital -reprint -lot -pick -choose -upick`.trim();
             console.log(`[Tier 3] Rookie Query: "${tier3Query}"`);
             ebayData = await ebay.searchActiveItems(tier3Query, 10);
             rawItems = ebayData.itemSummaries || [];
@@ -233,28 +249,38 @@ Return a JSON object:
 
           // Tier 4 (The Hammer)
           if (rawItems.length === 0) {
-            const tier4Query = `${result.player} ${(result.cardNumber || "").replace("#", "")}`.trim();
+            const tier4Base = `${result.player} ${(result.cardNumber || "").replace("#", "")}`.trim();
+            const tier4Query = `${tier4Base} -digital -reprint -lot -pick -choose -upick`.trim();
             console.log(`[Tier 4] Hammer Query: "${tier4Query}"`);
             ebayData = await ebay.searchActiveItems(tier4Query, 10);
             rawItems = ebayData.itemSummaries || [];
           }
 
-          // Calculate Valuation (Price + Shipping Average)
+          // Calculate Valuation (Median of Lowest 3 - The "Market Floor" Rule)
           if (rawItems.length > 0) {
-            let totalVal = 0;
-            let count = 0;
-            rawItems.forEach((item: any) => {
-              const price = parseFloat(item.price?.value || "0");
-              const shipping = parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || "0");
-              if (price > 0) {
-                totalVal += (price + shipping);
-                count++;
-              }
-            });
-            
-            const averageValue = count > 0 ? Math.round((totalVal / count) * 100) / 100 : 0;
-            (result as any).estimatedMarketValue = averageValue;
-            console.log(`eBay enrichment successful. Avg Price+Shipping: ${averageValue} across ${count} items.`);
+            const prices = rawItems
+              .map((item: any) => {
+                const price = parseFloat(item.price?.value || "0");
+                const shipping = parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || "0");
+                return price + shipping;
+              })
+              .filter((p: number) => p > 0)
+              .sort((a: number, b: number) => a - b);
+
+            if (prices.length > 0) {
+              // Take the lowest 3 (or fewer if not available)
+              const floorPool = prices.slice(0, 3);
+              const mid = Math.floor(floorPool.length / 2);
+              const medianValue = floorPool.length % 2 !== 0
+                ? floorPool[mid]
+                : (floorPool[mid - 1] + floorPool[mid]) / 2;
+
+              const finalValue = Math.round(medianValue * 100) / 100;
+              (result as any).estimatedMarketValue = finalValue;
+              console.log(`eBay enrichment successful. Floor Pool: ${floorPool.join(", ")}. Median: ${finalValue}`);
+            } else {
+              (result as any).estimatedMarketValue = 0;
+            }
           } else {
             console.log(`FINAL ATTEMPT STRING: [FAIL] No results found for any tier.`);
             (result as any).estimatedMarketValue = 0;
