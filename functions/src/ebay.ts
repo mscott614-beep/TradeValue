@@ -1,3 +1,4 @@
+
 export interface EbayAuthResponse {
     access_token: string;
     expires_in: number;
@@ -8,14 +9,27 @@ export interface EbayAuctionResponse {
     itemSummaries?: Array<{
         itemId: string;
         title: string;
-        price: { value: string; currency: string; };
+        price: {
+            value: string;
+            currency: string;
+        };
         bidCount?: number;
         itemWebUrl: string;
-        image?: { imageUrl: string; };
-        categories?: Array<{ categoryId: string; categoryName: string; }>;
+        image?: {
+            imageUrl: string;
+        };
+        categories?: Array<{
+            categoryId: string;
+            categoryName: string;
+        }>;
         condition?: string;
         buyingOptions?: string[];
-        shippingOptions?: Array<{ shippingCost: { value: string; currency: string; }; }>;
+        shippingOptions?: Array<{
+            shippingCost: {
+                value: string;
+                currency: string;
+            };
+        }>;
     }>;
     total: number;
 }
@@ -44,9 +58,14 @@ export class EbayService {
         this.env = (env || '').toLowerCase().includes('sandbox') ? 'sandbox' : 'production';
     }
 
-    // Standard token for Active listings
     private async getAccessToken(): Promise<string> {
-        if (this.accessToken && Date.now() < this.tokenExpiry) return this.accessToken;
+        if (this.accessToken && Date.now() < this.tokenExpiry) {
+            return this.accessToken;
+        }
+
+        if (!this.clientId || !this.clientSecret) {
+            throw new Error(`eBay ${this.env} credentials not configured.`);
+        }
 
         const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
         const response = await fetch(this.BASE_URLS[this.env].auth, {
@@ -58,80 +77,74 @@ export class EbayService {
             body: 'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope',
         });
 
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Failed to fetch eBay ${this.env} access token: ${error}`);
+        }
+
         const data = await response.json() as EbayAuthResponse;
         this.accessToken = data.access_token;
         this.tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+
         return this.accessToken;
     }
 
-    // SPECIAL TOKEN: Uses your 18-month Refresh Token for "Sold" data
-    private async getUserAccessToken(refreshToken: string): Promise<string> {
-        const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-        const response = await fetch(this.BASE_URLS[this.env].auth, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': `Basic ${auth}`,
-            },
-            body: `grant_type=refresh_token&refresh_token=${refreshToken}&scope=https://api.ebay.com/oauth/api_scope/sell.analytics.readonly`,
-        });
-
-        const data = await response.json() as any;
-        return data.access_token;
-    }
-
-    async searchActiveItems(query: string, limit: number = 10): Promise<EbayAuctionResponse> {
+    /**
+     * Search for active items using the Browse API.
+     */
+    async searchActiveItems(query: string, limit: number = 10, sort: string = 'price'): Promise<EbayAuctionResponse> {
         const token = await this.getAccessToken();
+        
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328');
+        url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
         url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE}');
-
-        const response = await fetch(url.toString(), {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
-        });
-        return await response.json() as EbayAuctionResponse;
-    }
-
-    async searchActiveAuctions(query: string, limit: number = 10): Promise<EbayAuctionResponse> {
-        const token = await this.getAccessToken();
-        const url = new URL(this.BASE_URLS[this.env].browse);
-        url.searchParams.append('q', query);
-        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
-
-        const response = await fetch(url.toString(), {
-            headers: { 'Authorization': `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
-        });
-
-        if (!response.ok) throw new Error(`eBay Auction API failed`);
-
-        return await response.json() as EbayAuctionResponse;
-    } // <--- THIS WAS MISSING!
-
-    /**
-     * Search for sold items using your secret Refresh Token
-     */
-    async searchSoldItems(query: string, refreshToken: string, lastDays: number = 30): Promise<any> {
-        const token = await this.getUserAccessToken(refreshToken);
-
-        const now = new Date();
-        const startDate = new Date();
-        startDate.setDate(now.getDate() - lastDays);
-
-        const filter = `last_sold_date:[${startDate.toISOString()}..${now.toISOString()}]`;
-        const url = new URL(`https://api.ebay.com/sell/research/v1/item_summary/search`);
-        url.searchParams.append('q', query);
-        url.searchParams.append('filter', filter);
-        url.searchParams.append('category_id', '261328');
+        url.searchParams.append('sort', sort); // price (Ascending) by default
+        url.searchParams.append('fieldGroups', 'EXTENDED');
 
         const response = await fetch(url.toString(), {
             headers: {
                 'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
                 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
             },
         });
 
-        return await response.json();
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`eBay ${this.env} API search failed: ${error}`);
+        }
+
+        return await response.json() as EbayAuctionResponse;
+    }
+
+    /**
+     * Search specifically for active auctions.
+     */
+    async searchActiveAuctions(query: string, limit: number = 10): Promise<EbayAuctionResponse> {
+        const token = await this.getAccessToken();
+        
+        const url = new URL(this.BASE_URLS[this.env].browse);
+        url.searchParams.append('q', query);
+        url.searchParams.append('limit', limit.toString());
+        url.searchParams.append('category_ids', '261328');
+        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
+        url.searchParams.append('fieldGroups', 'EXTENDED');
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`eBay ${this.env} Auction API search failed: ${error}`);
+        }
+
+        return await response.json() as EbayAuctionResponse;
     }
 }

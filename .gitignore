@@ -48,11 +48,3 @@ firestore-debug.log
 # local temp/logs
 /tmp/
 logs.txt
-
-auth.json
-node_modules/
-
-auth.json
-node_modules/
-functions/node_modules/
-functions/lib/

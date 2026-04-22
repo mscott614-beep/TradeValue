@@ -418,31 +418,3 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
         logic: `Median of ${floorPool.length} lowest Fixed Price items (Floor detection). ${outliersCount} outliers rejected.`
     };
 }
-
-/**
- * Fetch and calculate the average sold price (Realized Market Value)
- */
-export async function fetchSoldPrices(ebay: any, query: string): Promise<{ average: number, count: number }> {
-    try {
-        const data = await ebay.searchSoldItems(query);
-        const items = data.itemSummaries || [];
-        if (items.length === 0) return { average: 0, count: 0 };
-
-        const prices = items.map((i: any) => {
-            const price = parseFloat(i.price?.value || '0');
-            const shipping = parseFloat(i.shippingOptions?.[0]?.shippingCost?.value || '0');
-            return price + shipping;
-        }).filter((p: number) => !isNaN(p) && p > 0);
-
-        if (prices.length === 0) return { average: 0, count: 0 };
-
-        const sum = prices.reduce((a: number, b: number) => a + b, 0);
-        return {
-            average: sum / prices.length,
-            count: prices.length
-        };
-    } catch (error) {
-        console.error("Error fetching sold prices:", error);
-        return { average: 0, count: 0 };
-    }
-}
