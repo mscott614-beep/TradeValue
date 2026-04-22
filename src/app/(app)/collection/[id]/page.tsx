@@ -340,7 +340,7 @@ export default function CardDetailsPage() {
 
     const calculatedGain = (card.currentMarketValue || 0) - (card.purchasePrice || 0);
     const calculatedGainPercentage = card.purchasePrice && card.purchasePrice > 0
-        ? ((calculatedGain / card.purchasePrice) * 100).toFixed(2)
+        ? (typeof calculatedGain === 'number' ? ((calculatedGain / card.purchasePrice) * 100).toFixed(2) : '0.00')
         : null;
 
 
@@ -365,7 +365,7 @@ export default function CardDetailsPage() {
                     title: "Market Price Updated",
                     description: (
                         <div className="flex flex-col gap-1">
-                            <div>Average Asking Price: ${response.newPrice.toFixed(2)}</div>
+                            <div>Average Asking Price: ${typeof response.newPrice === 'number' ? response.newPrice.toFixed(2) : '0.00'}</div>
                             {res.diagnostics && (
                                 <div className="text-[10px] opacity-50 font-mono mt-1 break-all bg-black/20 p-1 rounded">
                                     {res.diagnostics}
@@ -517,7 +517,7 @@ export default function CardDetailsPage() {
                             </div>
                             {avgPrices && (
                                 <Badge variant="outline" className="h-6 text-[10px] bg-background/50">
-                                    Avg Asking: ${avgPrices.active.toFixed(2)}
+                                    Avg Asking: ${typeof avgPrices.active === 'number' ? avgPrices.active.toFixed(2) : '0.00'}
                                 </Badge>
                             )}
                         </CardHeader>
@@ -556,7 +556,9 @@ export default function CardDetailsPage() {
                                                 </div>
                                             </div>
                                             <div className="mt-2 text-left space-y-0.5 px-1">
-                                                <p className="text-xs font-bold text-primary leading-tight">${listing.price.toFixed(2)}</p>
+                                                <p className="text-xs font-bold text-primary leading-tight">
+                                                    ${typeof listing.price === 'number' ? listing.price.toFixed(2) : (listing.price?.value || '0.00')}
+                                                </p>
                                                 <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight group-hover:text-foreground transition-colors" title={listing.title}>
                                                     {listing.title}
                                                 </p>
@@ -590,7 +592,7 @@ export default function CardDetailsPage() {
                             </div>
                             {avgPrices && avgPrices.sold > 0 && (
                                 <Badge variant="secondary" className="h-6 text-[10px] bg-green-500/20 text-green-600 border-none">
-                                    Avg Sale: ${avgPrices.sold.toFixed(2)}
+                                    Avg Sale: ${typeof avgPrices.sold === 'number' ? avgPrices.sold.toFixed(2) : '0.00'}
                                 </Badge>
                             )}
                         </CardHeader>
@@ -694,7 +696,9 @@ export default function CardDetailsPage() {
                                                             {sCard.listingType === 'AUCTION' ? 'Auction' : 'Buy It Now'}
                                                         </Badge>
                                                     )}
-                                                    <span className="text-[10px] text-muted-foreground font-mono">${sCard.price.toFixed(2)}</span>
+                                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                                        ${typeof sCard.price === 'number' ? sCard.price.toFixed(2) : '0.00'}
+                                                    </span>
                                                 </div>
                                             </div>
                                             <Button size="icon" variant="ghost" className="h-8 w-8" asChild>

@@ -1,4 +1,10 @@
-Visual Identity
+---
+name: trade-value
+description: Portfolio manager logic for TradeValue card collections.
+---
+
+# Visual Identity
+
 Primary Palette: Dark Mode strictly. Background: #0a0a0a. Accents: Emerald Green (#10b981) for gains, Rose Red (#f43f5e) for losses.
 
 Components: All UI elements must use Tailwind CSS.
