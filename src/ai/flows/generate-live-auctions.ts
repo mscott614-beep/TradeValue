@@ -34,8 +34,8 @@ export const generateLiveAuctions = ai.defineFlow(
         const query = input.topic || "sports trading cards PSA 10";
         
         try {
-            // 1. Fetch real data from eBay
-            const ebayResults = await ebayService.searchActiveAuctions(query, 4);
+            // 1. Fetch real data from eBay - Search ALL listings to get best images and prices
+            const ebayResults = await ebayService.searchActiveItems(query, 4, 'price', true);
             const rawItems = ebayResults.itemSummaries || [];
 
             if (rawItems.length === 0) {

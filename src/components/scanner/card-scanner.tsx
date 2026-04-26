@@ -342,13 +342,15 @@ export function CardScanner() {
         <Card className="bg-muted/50">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row gap-6">
-              <div className="shrink-0 mx-auto md:mx-0">
-                <img 
-                  src={frontPreview || ""} 
-                  alt="Scanned card" 
-                  className="rounded-lg object-contain w-[140px] h-[200px] border border-border/50 shadow-sm"
-                />
-              </div>
+              {frontPreview && (
+                <div className="shrink-0 mx-auto md:mx-0">
+                  <img 
+                    src={frontPreview} 
+                    alt="Scanned card" 
+                    className="rounded-lg object-contain w-[140px] h-[200px] border border-primary/20 shadow-md bg-background"
+                  />
+                </div>
+              )}
               <div className="flex-1">
                 <h3 className="text-lg font-semibold mb-4 text-primary">Scan Results</h3>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">

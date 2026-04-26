@@ -214,8 +214,17 @@ Return a JSON object:
           if (rawItems.length === 0) {
             const cleanNum = (result.cardNumber || "").replace("#", "").trim();
             const fallbackQuery = `${result.year} ${result.brand} ${result.player} ${cleanNum} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[Scanner Enrichment] Tier 1 failed. Trying fallback: "${fallbackQuery}"`);
+            console.log(`[Scanner Enrichment] Tier 1 failed. Trying Tier 2: "${fallbackQuery}"`);
             ebayData = await ebay.searchActiveItems(fallbackQuery, 10, 'price', true);
+            rawItems = ebayData.itemSummaries || [];
+          }
+
+          // Tier 3 Fallback: Nuclear (Player + Card # only)
+          if (rawItems.length === 0) {
+            const cleanNum = (result.cardNumber || "").replace("#", "").trim();
+            const nuclearQuery = `${result.player} ${cleanNum} -reprint -digital`.replace(/\s+/g, " ").trim();
+            console.log(`[Scanner Enrichment] Tier 2 failed. Trying Tier 3: "${nuclearQuery}"`);
+            ebayData = await ebay.searchActiveItems(nuclearQuery, 10, 'price', true);
             rawItems = ebayData.itemSummaries || [];
           }
 
