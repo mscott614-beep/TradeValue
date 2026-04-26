@@ -18,15 +18,12 @@ import {
   Scale, 
   ExternalLink, 
   RefreshCw,
-  Printer,
-  Zap
+  Printer
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { 
   Card, 
   CardContent, 
@@ -73,7 +70,8 @@ export default function MarketHubPage() {
   const [report, setReport] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
   const [auctionTopic, setAuctionTopic] = useState("");
-  const [isV2Enabled, setIsV2Enabled] = useState(false);
+  // Shadow Engine V2 is always enabled
+  const isV2Enabled = true;
   const [isFocusMode, setIsFocusMode] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("market-focus-mode") === "true";
@@ -148,6 +146,23 @@ export default function MarketHubPage() {
     }
   };
 
+  // V1 fallback — called silently when V2 fails
+  const handleGenerateReportV1 = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await generateReportAction(topic.trim() || undefined);
+      if (response.success && response.result) {
+        setReport(response.result);
+      } else {
+        toast.error(response.error || "Report generation failed.");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "An unexpected error occurred.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGenerateReport = async () => {
     setIsGenerating(true);
     setReport(null);
@@ -186,9 +201,8 @@ export default function MarketHubPage() {
           }
         }
       } catch {
-        // Silent fallback to V1 — no toast interruption
-        setIsV2Enabled(false);
-        await handleGenerateReport();
+        // Silent fallback to V1 on any V2 error
+        await handleGenerateReportV1();
         return;
       } finally {
         setIsGenerating(false);
@@ -379,24 +393,13 @@ export default function MarketHubPage() {
                       placeholder="Optional topic (e.g. Modern Hockey PSA 10)"
                       value={topic}
                       onChange={(e) => setTopic(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleGenerateReport()}
                       disabled={isGenerating}
                       className="bg-background"
                     />
                     <Button onClick={handleGenerateReport} disabled={isGenerating} className="shrink-0 gap-2">
                       {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate"}
                     </Button>
-                  </div>
-                  <div className="mt-4 flex items-center space-x-2 bg-primary/5 px-3 py-2 rounded-full border border-primary/10">
-                    <Switch 
-                      id="v2-mode" 
-                      checked={isV2Enabled} 
-                      onCheckedChange={setIsV2Enabled}
-                      disabled={isGenerating}
-                    />
-                    <Label htmlFor="v2-mode" className="text-xs font-medium flex items-center gap-1.5 cursor-pointer">
-                      <Zap className={cn("w-3 h-3", isV2Enabled ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground")} />
-                      v2 Experimental (Shadow Engine)
-                    </Label>
                   </div>
                 </Card>
               )}
