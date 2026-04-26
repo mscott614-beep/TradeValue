@@ -341,8 +341,18 @@ export function CardScanner() {
       {result && (
         <Card className="bg-muted/50">
           <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4 text-primary">Scan Results</h3>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="shrink-0 mx-auto md:mx-0">
+                <img 
+                  src={frontPreview || ""} 
+                  alt="Scanned card" 
+                  className="rounded-lg object-contain w-[140px] h-[200px] border border-border/50 shadow-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold mb-4 text-primary">Scan Results</h3>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+
               <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
               <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
               <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
@@ -365,8 +375,11 @@ export function CardScanner() {
               </Button>
               <Button variant="outline" className="flex-1" onClick={handleScanAnother}>Scan Another</Button>
             </div>
+            </div>
+            </div>
           </CardContent>
         </Card>
+
       )}
     </div>
   );
