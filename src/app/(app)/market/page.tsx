@@ -46,20 +46,31 @@ function toAuction(listing: AuctionListing) {
   return {
     id: listing.id,
     card: {
-      name: listing.title,
-      image: listing.imageUrl || "/placeholder-card.png",
-      set: listing.platform,
-      number: "",
-      rarity: "Live Auction"
-    },
-    price: listing.currentPrice,
-    endTime: listing.endTime,
-    bids: listing.bidCount,
-    shipping: 0,
+      id: listing.id,
+      userId: "",
+      cardId: listing.id,
+      title: listing.title,
+      player: listing.player,
+      year: listing.year,
+      brand: listing.brand,
+      condition: listing.condition,
+      imageUrl: listing.imageUrl || "/placeholder-card.png",
+      imageHint: listing.imageHint || listing.title,
+      set: "",
+      cardNumber: "",
+      estimatedGrade: listing.condition,
+      purchasePrice: 0,
+      currentMarketValue: listing.currentBid,
+      dateAdded: new Date().toISOString(),
+    } as any,
+    currentBid: typeof listing.currentBid === "number" ? listing.currentBid : parseFloat(String(listing.currentBid)) || 0,
+    bids: listing.bids ?? 0,
+    timeLeft: listing.timeLeft ?? "",
+    watchlist: false,
     url: listing.url,
-    platform: listing.platform as "ebay" | "pwcc" | "goldin"
   };
 }
+
 
 export default function MarketHubPage() {
   const [auctions, setAuctions] = useState<any[]>([]);
