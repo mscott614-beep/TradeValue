@@ -87,7 +87,8 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
     // Model names for Shadow Engine v2
     const models = [
       "googleai/gemini-3.1-flash-lite-preview",
-      "googleai/gemini-2.5-flash-preview",
+      "googleai/gemini-2.5-flash",
+      "googleai/gemini-2.5-pro",
     ];
 
     let lastError = "";
