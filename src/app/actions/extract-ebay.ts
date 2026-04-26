@@ -1,5 +1,6 @@
 "use server";
 
+import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { extractEbayListing } from '@/ai/flows/extract-ebay-listing';
 import { FALLBACK_MODEL, PRIMARY_MODEL } from '@/ai/genkit';
@@ -15,19 +16,15 @@ export async function extractEbayListingAction(url: string, useFallback: boolean
     try {
         console.log(`Fetching eBay URL: ${url}`);
 
-        // Fetch HTML
-        const response = await fetch(url, {
+        // Fetch HTML using axios for better error detail
+        const response = await axios.get(url, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             },
-            next: { revalidate: 3600 } // Cache for an hour if requested again
+            timeout: 10000
         });
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch page. Status: ${response.status}`);
-        }
-
-        const html = await response.text();
+        const html = response.data;
         const $ = cheerio.load(html);
 
         // eBay often puts key details in the title, meta tags, and item specifics.
