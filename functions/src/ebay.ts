@@ -1,4 +1,6 @@
 
+import axios from 'axios';
+
 export interface EbayAuthResponse {
     access_token: string;
     expires_in: number;
@@ -67,26 +69,27 @@ export class EbayService {
             throw new Error(`eBay ${this.env} credentials not configured.`);
         }
 
-        const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-        const response = await fetch(this.BASE_URLS[this.env].auth, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': `Basic ${auth}`,
-            },
-            body: 'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope',
-        });
+        try {
+            const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+            const response = await axios.post(this.BASE_URLS[this.env].auth, 
+                'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope',
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Authorization': `Basic ${auth}`,
+                    }
+                }
+            );
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`Failed to fetch eBay ${this.env} access token: ${error}`);
+            const data = response.data as EbayAuthResponse;
+            this.accessToken = data.access_token;
+            this.tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+
+            return this.accessToken;
+        } catch (error: any) {
+            const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+            throw new Error(`Failed to fetch eBay ${this.env} access token: ${detail}`);
         }
-
-        const data = await response.json() as EbayAuthResponse;
-        this.accessToken = data.access_token;
-        this.tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
-
-        return this.accessToken;
     }
 
     /**
@@ -106,20 +109,20 @@ export class EbayService {
         url.searchParams.append('sort', sort); // price (Ascending) by default
         url.searchParams.append('fieldGroups', 'EXTENDED');
 
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-            },
-        });
+        try {
+            const response = await axios.get(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                },
+            });
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`eBay ${this.env} API search failed: ${error}`);
+            return response.data as EbayAuctionResponse;
+        } catch (error: any) {
+            const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+            throw new Error(`eBay ${this.env} API search failed: ${detail}`);
         }
-
-        return await response.json() as EbayAuctionResponse;
     }
 
     /**
@@ -135,19 +138,19 @@ export class EbayService {
         url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
         url.searchParams.append('fieldGroups', 'EXTENDED');
 
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-            },
-        });
+        try {
+            const response = await axios.get(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                },
+            });
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`eBay ${this.env} Auction API search failed: ${error}`);
+            return response.data as EbayAuctionResponse;
+        } catch (error: any) {
+            const detail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+            throw new Error(`eBay ${this.env} Auction API search failed: ${detail}`);
         }
-
-        return await response.json() as EbayAuctionResponse;
     }
 }

@@ -169,21 +169,22 @@ Return a JSON object:
                 parts.push({ media: { url: jobData.payload.backPhotoDataUri, contentType: "image/jpeg" } });
             }
         }
+        const PRIMARY_MODEL = "googleai/gemini-3.1-flash-lite-preview";
+        const FALLBACK_MODEL = "googleai/gemini-2.5-flash";
         let response;
         try {
-            const primaryModel = "googleai/gemini-3.1-flash-lite-preview";
-            console.log(`[Scanner] Processing with primary model: ${primaryModel}`);
+            console.log(`[Scanner] Processing with primary model: ${PRIMARY_MODEL}`);
             response = await ai.generate({
-                model: primaryModel,
+                model: PRIMARY_MODEL,
                 prompt: parts,
                 output: { schema: ScanOutputSchema },
                 config: { temperature: 0.1, maxOutputTokens: 1024 }
             });
         }
         catch (err) {
-            console.warn(`[Scanner] Primary model failed (${err.message}). Retrying with googleai/gemini-2.5-flash-preview...`);
+            console.warn(`[Scanner] Primary model failed (${err.message}). Retrying with ${FALLBACK_MODEL}...`);
             response = await ai.generate({
-                model: "googleai/gemini-2.5-flash-preview",
+                model: FALLBACK_MODEL,
                 prompt: parts,
                 output: { schema: ScanOutputSchema },
                 config: { temperature: 0.1, maxOutputTokens: 1024 }

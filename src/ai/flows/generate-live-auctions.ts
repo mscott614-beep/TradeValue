@@ -90,7 +90,10 @@ export const generateLiveAuctions = ai.defineFlow(
                 },
             });
 
-            return response.output ?? [];
+            return (response.output ?? []).map((item: any) => ({
+                ...item,
+                imageUrl: `https://images.unsplash.com/photo-1594913785162-e678508246a4?q=80&w=400&h=400&auto=format&fit=crop`,
+            }));
         } catch (simError) {
             console.error("Simulation Fallback Error:", simError);
             return []; // Final safe return to prevent UI hang
