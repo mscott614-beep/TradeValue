@@ -171,7 +171,7 @@ Return a JSON object:
         }
         let response;
         try {
-            console.log("Attempting generation with primary model: gemini-3.1-flash-lite-preview");
+            console.log(`[Scanner] Processing with primary model: googleai/gemini-3.1-flash-lite-preview`);
             response = await ai.generate({
                 model: "googleai/gemini-3.1-flash-lite-preview",
                 prompt: parts,
@@ -180,7 +180,7 @@ Return a JSON object:
             });
         }
         catch (err) {
-            console.error("Primary model failed, falling back to gemini-1.5-flash:", err);
+            console.warn(`[Scanner] Primary model failed (${err.message}). Retrying with googleai/gemini-1.5-flash...`);
             response = await ai.generate({
                 model: "googleai/gemini-1.5-flash",
                 prompt: parts,

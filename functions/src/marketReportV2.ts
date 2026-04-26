@@ -84,11 +84,10 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
       plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
     });
 
-    // Model names that are confirmed working through the Genkit googleAI plugin
+    // Model names for Shadow Engine v2
     const models = [
       "googleai/gemini-3.1-flash-lite-preview",
-      "googleai/gemini-1.5-flash",
-      "googleai/gemini-1.5-pro",
+      "googleai/gemini-2.5-flash-preview",
     ];
 
     let lastError = "";
