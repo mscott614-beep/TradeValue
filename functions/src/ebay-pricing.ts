@@ -334,8 +334,9 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
     const serialNumber = serialMatch ? `/${serialMatch[1]}` : '';
 
     if (!hasTrueParallel) {
-        // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
-        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital';
+        // Base Card Query: Minimal Negative Keywords to exclude high-value parallels
+        // Only exclude the most obvious noise (reprints, digital, lots)
+        const negativeKeywords = '-reprint -digital -lot -set';
         // For ungraded cards: block ALL graders (psa, bgs, sgc, cgc, bccg, gma, hga, etc.)
         // For graded cards: include the grader+grade instead
         const gradingExclusions = !isGraded ? NON_GRADED_EXCLUSIONS : '';
@@ -357,8 +358,19 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
  * Step 4: Value Calculation (The TradeValue Rule)
  * Identifies the "Market Floor" using the 3 lowest fixed-price listings.
  */
-export function calculateTradeValue(items: any[]): { value: number, outliersCount: number, logic: string } {
-    if (!items || items.length === 0) return { value: 0, outliersCount: 0, logic: 'No items found' };
+export function calculateTradeValue(rawItems: any[]): { value: number, outliersCount: number, logic: string } {
+    if (!rawItems || rawItems.length === 0) return { value: 0, outliersCount: 0, logic: 'No results from eBay' };
+
+    console.log(`[Pricing Engine] Processing ${rawItems.length} raw items.`);
+
+    const items = rawItems.filter(i => {
+        const title = (i.title || '').toLowerCase();
+        // Exclude obvious noise
+        if (title.includes('lot') || title.includes('digital') || title.includes('reprint')) return false;
+        return true;
+    });
+
+    if (items.length === 0) return { value: 0, outliersCount: 0, logic: 'All items filtered out as noise (lot/digital/reprint)' };
 
     // 1. Fixed Price Priority: Prioritize FIXED_PRICE over auctions to avoid low-bid noise
     let processedItems = items.filter(i => i.buyingOptions?.includes('FIXED_PRICE'));
@@ -367,6 +379,8 @@ export function calculateTradeValue(items: any[]): { value: number, outliersCoun
     if (processedItems.length === 0) {
         processedItems = items;
     }
+
+    console.log(`[Pricing Engine] Selected ${processedItems.length} items for valuation.`);
 
     // Sort by price ascending to find the "Market Floor"
     const sortedPrices = processedItems

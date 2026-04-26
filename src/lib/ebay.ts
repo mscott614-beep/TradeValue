@@ -96,13 +96,18 @@ class EbayService {
     /**
      * Search for active items using the Browse API.
      */
-    async searchActiveItems(query: string, limit: number = 10, sort: string = 'price'): Promise<EbayAuctionResponse> {
+    async searchActiveItems(query: string, limit: number = 10, sort: string = 'price', includeAuctions: boolean = false): Promise<EbayAuctionResponse> {
         const token = await this.getAccessToken();
         
         const url = new URL(this.BASE_URLS[this.env].browse);
         url.searchParams.append('q', query);
         url.searchParams.append('limit', limit.toString());
         url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
+        
+        if (!includeAuctions) {
+            url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE}');
+        }
+
         url.searchParams.append('sort', sort); // price (Ascending) by default
         url.searchParams.append('fieldGroups', 'EXTENDED'); // To see buyingOptions and other details
 

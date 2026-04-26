@@ -75,20 +75,25 @@ export const generateLiveAuctions = ai.defineFlow(
         }
 
         // --- SIMULATION FALLBACK (original logic for robustness) ---
-        const prompt = `
-          You are a sports card analyst. eBay API is currently unavailable.
-          Generate exactly 4 realistic, PLAUSIBLE live auction listings for ${query}.
-          Include player, title, year, brand, condition, currentBid, bids, and timeLeft.
-        `;
+        try {
+            const prompt = `
+              You are a sports card analyst. eBay API is currently unavailable.
+              Generate exactly 4 realistic, PLAUSIBLE live auction listings for ${query}.
+              Include player, title, year, brand, condition, currentBid, bids, and timeLeft.
+            `;
 
-        const response = await generateWithFallback({
-            model: PRIMARY_MODEL,
-            prompt,
-            output: {
-                schema: z.array(AuctionListingSchema),
-            },
-        });
+            const response = await generateWithFallback({
+                model: PRIMARY_MODEL,
+                prompt,
+                output: {
+                    schema: z.array(AuctionListingSchema),
+                },
+            });
 
-        return response.output ?? [];
+            return response.output ?? [];
+        } catch (simError) {
+            console.error("Simulation Fallback Error:", simError);
+            return []; // Final safe return to prevent UI hang
+        }
     }
 );

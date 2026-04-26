@@ -496,6 +496,23 @@ describe('Google AI Gemini', () => {
         });
       });
 
+      it('passes serviceTier to the API', async () => {
+        const model = defineModel('gemini-flash-latest', defaultPluginOptions);
+        mockFetchResponse(defaultApiResponse);
+        const request: GenerateRequest<typeof GeminiConfigSchema> = {
+          ...minimalRequest,
+          config: {
+            serviceTier: 'flex',
+          },
+        };
+        await model.run(request);
+
+        const apiRequest: GenerateContentRequest = JSON.parse(
+          fetchStub.lastCall.args[1].body
+        );
+        assert.strictEqual(apiRequest.serviceTier, 'flex');
+      });
+
       it('passes imageConfig to the API', async () => {
         const model = defineModel(
           'gemini-2.5-flash-image',
@@ -521,7 +538,79 @@ describe('Google AI Gemini', () => {
             aspectRatio: '16:9',
             imageSize: '2K',
           },
+          responseModalities: ['TEXT', 'IMAGE'],
         });
+      });
+
+      it('defaults responseModalities to AUDIO for TTS models', async () => {
+        const model = defineModel(
+          'gemini-2.5-flash-preview-tts',
+          defaultPluginOptions
+        );
+        mockFetchResponse(defaultApiResponse);
+        await model.run(minimalRequest);
+
+        const apiRequest: GenerateContentRequest = JSON.parse(
+          fetchStub.lastCall.args[1].body
+        );
+        assert.deepStrictEqual(
+          apiRequest.generationConfig?.responseModalities,
+          ['AUDIO']
+        );
+      });
+
+      it('does not override responseModalities if specified for TTS models', async () => {
+        const model = defineModel(
+          'gemini-2.5-flash-preview-tts',
+          defaultPluginOptions
+        );
+        mockFetchResponse(defaultApiResponse);
+        const request: GenerateRequest<typeof GeminiTtsConfigSchema> = {
+          ...minimalRequest,
+          config: {
+            responseModalities: ['TEXT'],
+          },
+        };
+        await model.run(request);
+
+        const apiRequest: GenerateContentRequest = JSON.parse(
+          fetchStub.lastCall.args[1].body
+        );
+        assert.deepStrictEqual(
+          apiRequest.generationConfig?.responseModalities,
+          ['TEXT']
+        );
+      });
+
+      it('does not default responseModalities to AUDIO for non-TTS models', async () => {
+        const model = defineModel('gemini-2.5-flash', defaultPluginOptions);
+        mockFetchResponse(defaultApiResponse);
+        await model.run(minimalRequest);
+
+        const apiRequest: GenerateContentRequest = JSON.parse(
+          fetchStub.lastCall.args[1].body
+        );
+        assert.strictEqual(
+          apiRequest.generationConfig?.responseModalities,
+          undefined
+        );
+      });
+
+      it('defaults responseModalities to TEXT, IMAGE for image models', async () => {
+        const model = defineModel(
+          'gemini-2.5-flash-image',
+          defaultPluginOptions
+        );
+        mockFetchResponse(defaultApiResponse);
+        await model.run(minimalRequest);
+
+        const apiRequest: GenerateContentRequest = JSON.parse(
+          fetchStub.lastCall.args[1].body
+        );
+        assert.deepStrictEqual(
+          apiRequest.generationConfig?.responseModalities,
+          ['TEXT', 'IMAGE']
+        );
       });
     });
 
@@ -628,6 +717,14 @@ describe('Google AI Gemini', () => {
 
     it('returns a ModelReference for a tts type model string', () => {
       const name = 'gemini-2.5-flash-preview-tts';
+      const modelRef = model(name);
+      assert.strictEqual(modelRef.name, `googleai/${name}`);
+      assert.strictEqual(modelRef.info?.supports?.multiturn, false);
+      assert.strictEqual(modelRef.configSchema, GeminiTtsConfigSchema);
+    });
+
+    it('returns a ModelReference for gemini-3.1-flash-tts-preview', () => {
+      const name = 'gemini-3.1-flash-tts-preview';
       const modelRef = model(name);
       assert.strictEqual(modelRef.name, `googleai/${name}`);
       assert.strictEqual(modelRef.info?.supports?.multiturn, false);

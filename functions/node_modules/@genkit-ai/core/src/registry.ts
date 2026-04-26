@@ -197,7 +197,7 @@ export class Registry {
     const parsedKey = parseRegistryKey(key);
     if (parsedKey?.dynamicActionHost) {
       const hostId = `/dynamic-action-provider/${parsedKey.dynamicActionHost}`;
-      const dap = await this.actionsById[hostId];
+      const dap = await this.lookupAction(hostId);
       if (!dap || !isDynamicActionProvider(dap)) {
         return [];
       }
@@ -288,6 +288,7 @@ export class Registry {
       !action.__action.name.startsWith(`${opts.namespace}/`)
     ) {
       action.__action.name = `${opts.namespace}/${action.__action.name}`;
+      action.__action.key = `/${type}/${action.__action.name}`;
     }
     const key = `/${type}/${action.__action.name}`;
     logger.debug(`registering ${key}`);
@@ -335,6 +336,7 @@ export class Registry {
     await Promise.all(
       Object.entries(this.actionsById).map(async ([key, action]) => {
         actions[key] = await action;
+        actions[key].__action.key = key; // For async actions with namespace
       })
     );
     return {

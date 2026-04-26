@@ -36,6 +36,7 @@ import {
   toGeminiSystemInstruction,
   toGeminiTool,
 } from '../common/converters.js';
+import { isKnownKey } from '../common/utils.js';
 import {
   generateContent,
   generateContentStream,
@@ -262,6 +263,10 @@ export const GeminiConfigSchema = GenerationCommonConfigSchema.extend({
       GenerationCommonConfigDescriptions.topP + ' The default value is 0.95.'
     )
     .optional(),
+  serviceTier: z
+    .union([z.enum(['standard', 'flex', 'priority']), z.string()])
+    .describe('Service tier for the Gemini API.')
+    .optional(),
   thinkingConfig: z
     .object({
       includeThoughts: z
@@ -353,7 +358,19 @@ export const GeminiImageConfigSchema = GeminiConfigSchema.extend({
           '21:9',
         ])
         .optional(),
-      imageSize: z.enum(['0.5K', '1K', '2K', '4K']).optional(),
+      imageSize: z
+        .enum([
+          '256',
+          '256P',
+          '256PX',
+          '512',
+          '512P',
+          '512PX',
+          '1K',
+          '2K',
+          '4K',
+        ])
+        .optional(),
     })
     .passthrough()
     .optional(),
@@ -453,6 +470,12 @@ const GENERIC_GEMMA_MODEL = commonRef(
   undefined,
   GemmaConfigSchema
 );
+const GEMMA_3_INFO = {
+  supports: {
+    ...GENERIC_GEMMA_MODEL.info!.supports!,
+    systemRole: false,
+  },
+};
 
 const KNOWN_GEMINI_MODELS = {
   'gemini-pro-latest': commonRef('gemini-pro-latest'),
@@ -473,8 +496,8 @@ export type GeminiModelName = `gemini-${string}`;
 export function isGeminiModelName(value: string): value is GeminiModelName {
   return (
     value.startsWith('gemini-') &&
-    !value.endsWith('-tts') &&
-    !value.includes('-image')
+    !isTTSModelName(value) &&
+    !isImageModelName(value)
   );
 }
 
@@ -489,11 +512,16 @@ const KNOWN_TTS_MODELS = {
     { ...GENERIC_TTS_MODEL.info },
     GeminiTtsConfigSchema
   ),
+  'gemini-3.1-flash-tts-preview': commonRef(
+    'gemini-3.1-flash-tts-preview',
+    { ...GENERIC_TTS_MODEL.info },
+    GeminiTtsConfigSchema
+  ),
 };
 export type KnownTtsModels = keyof typeof KNOWN_TTS_MODELS;
-export type TTSModelName = `gemini-${string}-tts`;
+export type TTSModelName = `gemini-${string}-tts${string}`;
 export function isTTSModelName(value: string): value is TTSModelName {
-  return value.startsWith('gemini-') && value.endsWith('-tts');
+  return value.startsWith('gemini-') && value.includes('-tts');
 }
 
 const KNOWN_IMAGE_MODELS = {
@@ -520,11 +548,29 @@ export function isImageModelName(value: string): value is ImageModelName {
 }
 
 const KNOWN_GEMMA_MODELS = {
-  'gemma-3-12b-it': commonRef('gemma-3-12b-it', undefined, GemmaConfigSchema),
-  'gemma-3-1b-it': commonRef('gemma-3-1b-it', undefined, GemmaConfigSchema),
-  'gemma-3-27b-it': commonRef('gemma-3-27b-it', undefined, GemmaConfigSchema),
-  'gemma-3-4b-it': commonRef('gemma-3-4b-it', undefined, GemmaConfigSchema),
-  'gemma-3n-e4b-it': commonRef('gemma-3n-e4b-it', undefined, GemmaConfigSchema),
+  'gemma-4-26b-a4b-it': commonRef(
+    'gemma-4-26b-a4b-it',
+    undefined,
+    GemmaConfigSchema
+  ),
+  'gemma-4-31b-it': commonRef('gemma-4-31b-it', undefined, GemmaConfigSchema),
+  'gemma-3-12b-it': commonRef(
+    'gemma-3-12b-it',
+    GEMMA_3_INFO,
+    GemmaConfigSchema
+  ),
+  'gemma-3-1b-it': commonRef('gemma-3-1b-it', GEMMA_3_INFO, GemmaConfigSchema),
+  'gemma-3-27b-it': commonRef(
+    'gemma-3-27b-it',
+    GEMMA_3_INFO,
+    GemmaConfigSchema
+  ),
+  'gemma-3-4b-it': commonRef('gemma-3-4b-it', GEMMA_3_INFO, GemmaConfigSchema),
+  'gemma-3n-e4b-it': commonRef(
+    'gemma-3n-e4b-it',
+    GEMMA_3_INFO,
+    GemmaConfigSchema
+  ),
 } as const;
 export type KnownGemmaModels = keyof typeof KNOWN_GEMMA_MODELS;
 export type GemmaModelName = `gemma-${string}`;
@@ -544,6 +590,10 @@ export function model(
   config: ConfigSchema = {}
 ): ModelReference<ConfigSchemaType> {
   const name = checkModelName(version);
+
+  if (isKnownKey(name, KNOWN_MODELS)) {
+    return KNOWN_MODELS[name].withConfig(config);
+  }
 
   if (isTTSModelName(name)) {
     return modelRef({
@@ -672,9 +722,21 @@ export function defineModel(
         request.config
       );
 
+      const modelVersion = request.config?.version || extractVersion(ref);
+      const isGemma = isGemmaModelName(modelVersion);
+
       // Make a copy so that modifying the request will not produce side-effects
-      const messages = [...request.messages];
+      const messages = request.messages.map((m) => ({ ...m }));
       if (messages.length === 0) throw new Error('No messages provided.');
+
+      if (isGemma) {
+        // Gemma does not allow previous thoughts
+        messages.forEach((m) => {
+          m.content = m.content.filter(
+            (p) => !p.reasoning && !p.metadata?.thoughtSignature
+          );
+        });
+      }
 
       // Gemini does not support messages with role system and instead expects
       // systemInstructions to be provided as a separate input. The first
@@ -696,6 +758,7 @@ export function defineModel(
       const requestOptions: ConfigSchema = {
         ...request.config,
       };
+
       const {
         apiKey: apiKeyFromConfig,
         safetySettings: safetySettingsFromConfig,
@@ -710,6 +773,7 @@ export function defineModel(
         urlContext,
         tools: toolsFromConfig,
         retrievalConfig,
+        serviceTier,
         ...restOfConfigOptions
       } = requestOptions;
 
@@ -802,6 +866,16 @@ export function defineModel(
         responseMimeType: jsonMode ? 'application/json' : undefined,
       };
 
+      if (isTTSModelName(modelVersion)) {
+        if (!generationConfig.responseModalities) {
+          generationConfig.responseModalities = ['AUDIO'];
+        }
+      } else if (isImageModelName(modelVersion)) {
+        if (!generationConfig.responseModalities) {
+          generationConfig.responseModalities = ['TEXT', 'IMAGE'];
+        }
+      }
+
       if (request.output?.constrained && jsonMode) {
         if (pluginOptions?.legacyResponseSchema) {
           generationConfig.responseSchema = cleanSchema(request.output.schema);
@@ -821,9 +895,8 @@ export function defineModel(
           (setting) => setting.category !== 'HARM_CATEGORY_UNSPECIFIED'
         ) as SafetySetting[],
         contents: messages.map((message) => toGeminiMessage(message, ref)),
+        serviceTier,
       };
-
-      const modelVersion = versionFromConfig || extractVersion(ref);
 
       const generateApiKey = calculateApiKey(
         pluginOptions?.apiKey,

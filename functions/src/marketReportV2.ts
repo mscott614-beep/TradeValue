@@ -87,7 +87,8 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
     // Model names that are confirmed working through the Genkit googleAI plugin
     const models = [
       "googleai/gemini-3.1-flash-lite-preview",
-      "googleai/gemini-3.1-pro-preview",
+      "googleai/gemini-1.5-flash",
+      "googleai/gemini-1.5-pro",
     ];
 
     let lastError = "";
