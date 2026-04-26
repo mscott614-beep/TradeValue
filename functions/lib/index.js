@@ -226,11 +226,18 @@ Return a JSON object:
                 ebayData = await ebay.searchActiveItems(nuclearQuery, 10, 'price', true);
                 rawItems = ebayData.itemSummaries || [];
             }
-            // Tier 4 Fallback: No Number (Year + Player + Brand)
+            // Tier 4 Fallback: Player + Brand + Year (No card number)
             if (rawItems.length === 0) {
-                const tier4Query = `${result.year} ${result.brand} ${result.player} -reprint -digital`.replace(/\s+/g, " ").trim();
-                console.log(`[Scanner Enrichment] Tier 3 failed. Trying Tier 4 (No Number): "${tier4Query}"`);
-                ebayData = await ebay.searchActiveItems(tier4Query, 10, 'price', true);
+                const brandYearQuery = `${result.year} ${result.brand} ${result.player} -reprint -digital`.replace(/\s+/g, " ").trim();
+                console.log(`[Scanner Enrichment] Tier 3 failed. Trying Tier 4: "${brandYearQuery}"`);
+                ebayData = await ebay.searchActiveItems(brandYearQuery, 10, 'price', true);
+                rawItems = ebayData.itemSummaries || [];
+            }
+            // Tier 5 Fallback: Player only
+            if (rawItems.length === 0) {
+                const playerQuery = `${result.player} -reprint -digital`.replace(/\s+/g, " ").trim();
+                console.log(`[Scanner Enrichment] Tier 4 failed. Trying Tier 5: "${playerQuery}"`);
+                ebayData = await ebay.searchActiveItems(playerQuery, 10, 'price', true);
                 rawItems = ebayData.itemSummaries || [];
             }
             const calc = calculateTradeValue(rawItems);

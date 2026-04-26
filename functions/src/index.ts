@@ -160,9 +160,10 @@ Return a JSON object:
 
       let response;
       try {
-        console.log(`[Scanner] Processing with primary model: ${PRIMARY_MODEL}`);
+        const primaryModel = "googleai/gemini-3.1-flash-lite-preview";
+        console.log(`[Scanner] Processing with primary model: ${primaryModel}`);
         response = await ai.generate({
-          model: PRIMARY_MODEL,
+          model: primaryModel,
           prompt: parts,
           output: { schema: ScanOutputSchema },
           config: { temperature: 0.1, maxOutputTokens: 1024 }
