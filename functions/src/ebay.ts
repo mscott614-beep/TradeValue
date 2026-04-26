@@ -60,11 +60,15 @@ export class EbayService {
         // Hardcode to production to rule out secret issues during DNS failure investigation
         this.env = 'production';
         
-        console.log(`[EbayService] Initialized for ${this.env}. Testing DNS for api.ebay.com...`);
+        console.log(`[EbayService] Initialized for ${this.env}. Testing DNS for api.ebay.com and google.com...`);
         import('dns').then(dns => {
             dns.lookup('api.ebay.com', (err, address) => {
                 if (err) console.error(`[DNS PROBE] Failed to resolve api.ebay.com: ${err.message}`);
                 else console.log(`[DNS PROBE] api.ebay.com resolved to: ${address}`);
+            });
+            dns.lookup('google.com', (err, address) => {
+                if (err) console.error(`[DNS PROBE] Failed to resolve google.com: ${err.message}`);
+                else console.log(`[DNS PROBE] google.com resolved to: ${address}`);
             });
         });
     }
