@@ -171,18 +171,18 @@ Return a JSON object:
         }
         let response;
         try {
-            console.log(`[Scanner] Processing with primary model: googleai/gemini-3.1-flash-lite-preview`);
+            console.log(`[Scanner] Processing with primary model: ${PRIMARY_MODEL}`);
             response = await ai.generate({
-                model: "googleai/gemini-3.1-flash-lite-preview",
+                model: PRIMARY_MODEL,
                 prompt: parts,
                 output: { schema: ScanOutputSchema },
                 config: { temperature: 0.1, maxOutputTokens: 1024 }
             });
         }
         catch (err) {
-            console.warn(`[Scanner] Primary model failed (${err.message}). Retrying with googleai/gemini-1.5-flash...`);
+            console.warn(`[Scanner] Primary model failed (${err.message}). Retrying with googleai/gemini-2.5-flash-preview...`);
             response = await ai.generate({
-                model: "googleai/gemini-1.5-flash",
+                model: "googleai/gemini-2.5-flash-preview",
                 prompt: parts,
                 output: { schema: ScanOutputSchema },
                 config: { temperature: 0.1, maxOutputTokens: 1024 }
