@@ -9,15 +9,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import Image from "next/image";
-import { WandSparkles, Loader2, Info, Clock, BarChartBig, Users, ExternalLink } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { WandSparkles, Loader2, Info, Clock, BarChartBig, ExternalLink } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { cn } from "@/lib/utils";
+
+const PLACEHOLDER = "/placeholder-card.png";
+
+function CardImage({ src, alt }: { src?: string; alt: string }) {
+  return (
+    <img
+      src={src || PLACEHOLDER}
+      alt={alt}
+      className="rounded-md object-contain w-[200px] h-[280px]"
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).src = PLACEHOLDER;
+      }}
+    />
+  );
+}
 
 function AuctionItem({ auction }: { auction: Auction }) {
   const [userBid, setUserBid] = useState("");
@@ -78,30 +92,10 @@ function AuctionItem({ auction }: { auction: Auction }) {
         <div className="p-4 flex flex-col items-center justify-center bg-muted/50">
           {auction.url ? (
             <a href={auction.url} target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
-              {auction.card.imageUrl?.startsWith('data:') ? (
-                <img src={auction.card.imageUrl} alt={auction.card.title} className="rounded-md object-contain w-[200px] h-[280px]" />
-              ) : (
-                <Image
-                  src={auction.card.imageUrl || ''}
-                  alt={auction.card.title}
-                  width={200}
-                  height={280}
-                  className="rounded-md object-contain"
-                />
-              )}
+              <CardImage src={auction.card.imageUrl} alt={auction.card.title} />
             </a>
           ) : (
-            auction.card.imageUrl?.startsWith('data:') ? (
-              <img src={auction.card.imageUrl} alt={auction.card.title} className="rounded-md object-contain w-[200px] h-[280px]" />
-            ) : (
-              <Image
-                src={auction.card.imageUrl || ''}
-                alt={auction.card.title}
-                width={200}
-                height={280}
-                className="rounded-md object-contain"
-              />
-            )
+            <CardImage src={auction.card.imageUrl} alt={auction.card.title} />
           )}
         </div>
         <div className="md:col-span-2">
