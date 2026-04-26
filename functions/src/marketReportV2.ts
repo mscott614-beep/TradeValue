@@ -8,7 +8,7 @@ const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
  * Genkit-based streaming with the model names that are confirmed working.
  */
 export const marketReportV2 = onRequest({
-  region: "us-central1",
+  region: "us-east1",
   secrets: [GOOGLE_GENAI_API_KEY],
   memory: "1GiB",
   timeoutSeconds: 120,

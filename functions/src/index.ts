@@ -42,7 +42,10 @@ const GENERIC_SET_STOPWORDS = [
 ];
 
 // Producer: Triggered when a new job is created in 'scanJobs'
-export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (event) => {
+export const enqueueGeminiTask = onDocumentCreated({
+  document: "scanJobs/{jobId}",
+  region: "us-east1"
+}, async (event) => {
   const jobId = event.params.jobId;
   const jobData = event.data?.data();
 
@@ -51,7 +54,7 @@ export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (ev
     return;
   }
 
-  const queue = getFunctions().taskQueue("locations/us-central1/functions/geminiProcessingQueue");
+  const queue = getFunctions().taskQueue("locations/us-east1/functions/geminiProcessingQueue");
 
   try {
     await queue.enqueue(
@@ -81,6 +84,7 @@ export const enqueueGeminiTask = onDocumentCreated("scanJobs/{jobId}", async (ev
 // Worker: Consumes the task and calls Gemini
 export const geminiProcessingQueue = onTaskDispatched(
   {
+    region: "us-east1",
     retryConfig: {
       maxAttempts: 5,
       minBackoffSeconds: 30,
@@ -303,7 +307,7 @@ export const dailyPriceSnapshot = onSchedule(
   {
     schedule: "0 0 * * *", // Midnight UTC daily
     timeZone: "UTC",
-    region: "us-central1",
+    region: "us-east1",
     timeoutSeconds: 300,
     memory: "256MiB",
   },
@@ -384,12 +388,12 @@ export const scheduledMarketRefresh = onSchedule(
   {
     schedule: "0 8 * * *",
     timeZone: "America/New_York",
-    region: "us-central1",
+    region: "us-east1",
   },
   async () => {
     const db = admin.firestore();
     const usersSnap = await db.collection("users").listDocuments();
-    const queue = getFunctions().taskQueue("locations/us-central1/functions/refreshMarketCardTask");
+    const queue = getFunctions().taskQueue("locations/us-east1/functions/refreshMarketCardTask");
 
     console.log("[MarketRefresh] Starting scheduled morning refresh...");
     let totalEnqueued = 0;
@@ -444,7 +448,7 @@ export const refreshMarketCardTask = onTaskDispatched(
       maxConcurrentDispatches: 5,
     },
     secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
-    region: "us-central1",
+    region: "us-east1",
     timeoutSeconds: 300,
   },
   async (request) => {

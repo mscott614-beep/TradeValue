@@ -72,14 +72,17 @@ const GENERIC_SET_STOPWORDS = [
     'regular', 'common', 'standard issue', 'insert'
 ];
 // Producer: Triggered when a new job is created in 'scanJobs'
-exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)("scanJobs/{jobId}", async (event) => {
+exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)({
+    document: "scanJobs/{jobId}",
+    region: "us-east1"
+}, async (event) => {
     const jobId = event.params.jobId;
     const jobData = event.data?.data();
     if (!jobData || jobData.status !== "pending") {
         console.log(`Job ${jobId} is not pending or missing data. Status: ${jobData?.status}`);
         return;
     }
-    const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-central1/functions/geminiProcessingQueue");
+    const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-east1/functions/geminiProcessingQueue");
     try {
         await queue.enqueue({ jobId }, {
             scheduleDelaySeconds: 0,
@@ -102,6 +105,7 @@ exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)("scanJobs/{jobId}
 });
 // Worker: Consumes the task and calls Gemini
 exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
+    region: "us-east1",
     retryConfig: {
         maxAttempts: 5,
         minBackoffSeconds: 30,
