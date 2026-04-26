@@ -131,6 +131,30 @@
     background-color: rgba(120, 120, 120, 0.05);
   }
 
+  /* Intelligence Report Table Styling */
+  .prose table {
+    @apply border-collapse w-full my-8 border-2 border-slate-900 dark:border-slate-100;
+  }
+  .prose th, .prose td {
+    @apply border border-slate-200 dark:border-slate-800 p-4;
+  }
+  .prose th {
+    @apply bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-black uppercase text-xs tracking-widest;
+  }
+  .prose td {
+    @apply font-sans font-bold text-sm;
+  }
+
+  /* Explicit Grid Restoration */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  th, td {
+    border: 1px solid rgba(120, 120, 120, 0.2) !important;
+    padding: 12px !important;
+  }
+
   @media print {
     .no-print {
       display: none !important;

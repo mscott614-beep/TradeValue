@@ -2,6 +2,7 @@
 
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { format } from "date-fns";
 import { 
   FileText, 
@@ -9,18 +10,47 @@ import {
   TrendingUp, 
   TrendingDown, 
   AlertTriangle,
-  Info
+  Info,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MarketReportDocumentProps {
   content: string;
   date?: Date;
+  isFocusMode?: boolean;
+  onToggleFocus?: () => void;
 }
 
-export function MarketReportDocument({ content, date = new Date() }: MarketReportDocumentProps) {
+export function MarketReportDocument({ 
+  content, 
+  date = new Date(),
+  isFocusMode = false,
+  onToggleFocus
+}: MarketReportDocumentProps) {
+  const [reportId, setReportId] = React.useState("");
+
+  React.useEffect(() => {
+    setReportId(`TV-INTEL-${Math.random().toString(36).substring(7).toUpperCase()}`);
+  }, []);
+
   return (
-    <div className="report-card bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-10 md:p-16 shadow-2xl border border-slate-200 dark:border-slate-800 rounded-none max-w-4xl mx-auto report-container animate-fade-in relative overflow-hidden">
+    <div className={cn(
+      "report-card bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-10 md:p-16 shadow-2xl border border-slate-200 dark:border-slate-800 rounded-none mx-auto report-container animate-fade-in relative overflow-hidden transition-all duration-700",
+      isFocusMode ? "max-w-none w-full" : "max-w-4xl"
+    )}>
+      
+      {/* FOCUS TOGGLE */}
+      {onToggleFocus && (
+        <button 
+          onClick={onToggleFocus}
+          className="absolute top-6 right-6 p-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:scale-110 transition-transform no-print z-50 shadow-lg"
+          title={isFocusMode ? "Exit Focus Mode" : "Enter Focus Mode"}
+        >
+          {isFocusMode ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+        </button>
+      )}
       
       {/* WATERMARK */}
       <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none select-none">
@@ -46,7 +76,7 @@ export function MarketReportDocument({ content, date = new Date() }: MarketRepor
             <ShieldCheck className="w-5 h-5 fill-current" />
             <span className="text-sm font-black font-sans uppercase tracking-widest">Confidential Market Intelligence</span>
           </div>
-          <p className="text-lg font-sans font-bold border-t border-slate-200 dark:border-slate-800 pt-1 mt-1">
+          <p className="text-lg font-sans font-bold border-t border-slate-200 dark:border-slate-800 pt-1 mt-1" suppressHydrationWarning>
             {format(date, "MMMM d, yyyy")}
           </p>
         </div>
@@ -64,6 +94,7 @@ export function MarketReportDocument({ content, date = new Date() }: MarketRepor
       {/* CONTENT */}
       <article className="prose prose-slate dark:prose-invert max-w-none prose-headings:font-sans prose-headings:font-black prose-headings:tracking-tighter prose-headings:uppercase prose-h1:text-4xl prose-h1:mb-10 prose-h1:border-b-2 prose-h1:pb-4 prose-h1:border-slate-200 dark:prose-h1:border-slate-800 prose-h2:text-2xl prose-h2:mt-16 prose-h2:mb-6 prose-h2:text-slate-900 dark:prose-h2:text-slate-100 prose-h2:border-l-4 prose-h2:border-slate-950 dark:prose-h2:border-white prose-h2:pl-4 prose-p:font-serif prose-p:text-xl prose-p:leading-[1.6] prose-p:mb-8 prose-p:text-slate-800 dark:prose-p:text-slate-200 prose-li:font-serif prose-li:text-xl prose-li:mb-2 prose-table:font-sans prose-table:text-base prose-blockquote:not-italic prose-blockquote:border-none prose-blockquote:p-0">
         <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
           components={{
             // Custom table rendering for "Market Snapshot"
             table: ({ children }) => (
@@ -122,12 +153,12 @@ export function MarketReportDocument({ content, date = new Date() }: MarketRepor
       {/* FOOTER */}
       <div className="mt-32 pt-10 border-t-2 border-slate-900 dark:border-slate-100 flex flex-col md:flex-row justify-between items-center text-[11px] uppercase tracking-[0.4em] text-slate-500 dark:text-slate-400 font-sans font-black relative z-10">
         <div className="mb-6 md:mb-0">
-          Generated via TradeValue Intelligence Core v4.2
+          Shadow Engine v2 | TradeValue Intelligence Core
         </div>
         <div className="flex items-center gap-8">
           <span>Page 01 of 01</span>
           <span className="opacity-20">|</span>
-          <span className="text-slate-900 dark:text-slate-100">ID: TV-INTEL-{Math.random().toString(36).substring(7).toUpperCase()}</span>
+          <span className="text-slate-900 dark:text-slate-100">{reportId}</span>
         </div>
       </div>
       
@@ -150,12 +181,23 @@ export function MarketReportDocument({ content, date = new Date() }: MarketRepor
             padding: 0 !important;
             margin: 0 !important;
             background: white !important;
+            border-radius: 0 !important;
           }
-          .prose-h2 {
-            page-break-before: auto;
+          .no-print {
+            display: none !important;
+          }
+          h1, h2 {
+            page-break-after: avoid;
+          }
+          table {
+            page-break-inside: avoid;
+            font-size: 9pt !important;
+            table-layout: fixed !important;
           }
           body {
             background: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>

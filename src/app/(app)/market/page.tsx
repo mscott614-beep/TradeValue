@@ -18,12 +18,15 @@ import {
   Scale, 
   ExternalLink, 
   RefreshCw,
-  Printer
+  Printer,
+  Zap
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   Card, 
   CardContent, 
@@ -39,61 +42,63 @@ import {
 } from "@/components/ui/tabs";
 import { AuctionList } from "@/components/market/auction-list";
 import { MarketReportDocument } from "@/components/market/MarketReportDocument";
+import { cn } from "@/lib/utils";
 
 // Map AI-generated listing to the Auction shape expected by AuctionList
 function toAuction(listing: AuctionListing) {
   return {
     id: listing.id,
     card: {
-      id: listing.id,
-      userId: 'ai',
-      cardId: listing.id,
-      title: listing.title,
-      year: listing.year,
-      brand: listing.brand,
-      player: listing.player,
-      cardNumber: '',
-      estimatedGrade: listing.condition,
-      condition: listing.condition,
-      purchasePrice: 0,
-      currentMarketValue: listing.currentBid,
-      dateAdded: new Date().toISOString().split('T')[0],
-      imageUrl: listing.imageUrl || `https://images.unsplash.com/photo-1620336655055-088d06e76fd0?q=80&w=400&h=560&auto=format&fit=crop`, // Use real image or generic card placeholder
-      valueChange24h: 0,
-      valueChange24hPercent: 0,
-      imageHint: listing.imageHint,
+      name: listing.title,
+      image: listing.imageUrl || "/placeholder-card.png",
+      set: listing.platform,
+      number: "",
+      rarity: "Live Auction"
     },
-    currentBid: listing.currentBid,
-    bids: listing.bids,
-    timeLeft: listing.timeLeft,
-    watchlist: false,
+    price: listing.currentPrice,
+    endTime: listing.endTime,
+    bids: listing.bidCount,
+    shipping: 0,
     url: listing.url,
+    platform: listing.platform as "ebay" | "pwcc" | "goldin"
   };
 }
 
-export default function MarketPage() {
+export default function MarketHubPage() {
+  const [auctions, setAuctions] = useState<any[]>([]);
+  const [trending, setTrending] = useState<TrendingCard[]>([]);
+  const [isLoadingAuctions, setIsLoadingAuctions] = useState(false);
+  const [isLoadingTrending, setIsLoadingTrending] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [report, setReport] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const [auctions, setAuctions] = useState<ReturnType<typeof toAuction>[]>([]);
-  const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
   const [auctionTopic, setAuctionTopic] = useState("");
+  const [isV2Enabled, setIsV2Enabled] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("market-focus-mode") === "true";
+    }
+    return false;
+  });
 
-  const [trending, setTrending] = useState<TrendingCard[]>([]);
-  const [isLoadingTrending, setIsLoadingTrending] = useState(true);
+  const toggleFocusMode = () => {
+    setIsFocusMode(prev => {
+      const next = !prev;
+      localStorage.setItem("market-focus-mode", String(next));
+      return next;
+    });
+  };
 
   const loadAuctions = async (searchTopic?: string) => {
     setIsLoadingAuctions(true);
     try {
       const response = await generateAuctionsAction(searchTopic);
-      if (response.success && response.result && Array.isArray(response.result)) {
+      if (response.success && response.result) {
         setAuctions(response.result.map(toAuction));
-      } else {
-        toast.error(`Could not load AI auctions: ${response.error || 'Unknown error'}`);
       }
-    } catch (error: any) {
-      toast.error(`Failed to load auctions: ${error.message}`);
+    } catch (error) {
+      console.error("Failed to load auctions:", error);
+      toast.error("Failed to load live auctions.");
     } finally {
       setIsLoadingAuctions(false);
     }
@@ -105,11 +110,9 @@ export default function MarketPage() {
       const response = await generateTrendingCardsAction();
       if (response.success && response.result) {
         setTrending(response.result);
-      } else {
-        toast.error(`Could not load trending cards: ${response.error}`);
       }
-    } catch (error: any) {
-      toast.error(`Failed to load trending cards: ${error.message}`);
+    } catch (error) {
+      console.error("Failed to load trending cards:", error);
     } finally {
       setIsLoadingTrending(false);
     }
@@ -148,6 +151,51 @@ export default function MarketPage() {
   const handleGenerateReport = async () => {
     setIsGenerating(true);
     setReport(null);
+
+    if (isV2Enabled) {
+      setReport("");
+      try {
+        const response = await fetch("https://marketreportv2-i2233dwbnq-uk.a.run.app", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            topic: topic.trim() || undefined,
+            trendingData: trending.map(t => ({
+              player: t.player,
+              title: t.title,
+              value: t.value,
+              change: t.change,
+              trend: t.trend
+            }))
+          }),
+        });
+
+        if (!response.ok) throw new Error(`V2 Engine error: ${response.statusText}`);
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        if (reader) {
+          let accumulated = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            accumulated += chunk;
+            setReport(accumulated);
+          }
+        }
+      } catch {
+        // Silent fallback to V1 — no toast interruption
+        setIsV2Enabled(false);
+        await handleGenerateReport();
+        return;
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
+
     try {
       const response = await generateReportAction(topic.trim() || undefined);
       if (response.success && response.result) {
@@ -155,11 +203,7 @@ export default function MarketPage() {
         toast.success("Investor-grade report generated!");
       } else {
         const errMsg = response.error || "";
-        if (errMsg.includes("429") || errMsg.includes("Quota exceeded")) {
-          toast.error("AI Quota Exceeded. Please try again in 60 seconds.");
-        } else {
-          toast.error(`Report generation failed: ${errMsg}`);
-        }
+        toast.error(`Report generation failed: ${errMsg}`);
       }
     } catch (error: any) {
       toast.error(error.message || "An unexpected error occurred.");
@@ -170,7 +214,10 @@ export default function MarketPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 no-print">
+      <div className={cn(
+        "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 no-print transition-all duration-500",
+        isFocusMode && "opacity-0 h-0 overflow-hidden mb-0"
+      )}>
         <PageHeader
           title="Market Hub"
           description="Track live auctions, analyze trending cards, and generate AI market reports."
@@ -184,7 +231,10 @@ export default function MarketPage() {
       </div>
 
       <Tabs defaultValue="auctions" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] no-print">
+        <TabsList className={cn(
+          "grid w-full grid-cols-2 lg:w-[400px] no-print transition-all duration-500",
+          isFocusMode && "opacity-0 h-0 overflow-hidden"
+        )}>
           <TabsTrigger value="auctions">Live Auctions</TabsTrigger>
           <TabsTrigger value="intelligence">Market Intelligence</TabsTrigger>
         </TabsList>
@@ -228,9 +278,10 @@ export default function MarketPage() {
 
         <TabsContent value="intelligence" className="mt-6 space-y-6">
           <div className="grid gap-6 lg:grid-cols-3">
-            
-            {/* Trending Cards Column */}
-            <div className="lg:col-span-1 no-print">
+            <div className={cn(
+              "lg:col-span-1 no-print transition-all duration-500",
+              isFocusMode && "opacity-0 w-0 h-0 overflow-hidden p-0 m-0"
+            )}>
               <Card className="sticky top-6">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -275,27 +326,23 @@ export default function MarketPage() {
                           </div>
                         </div>
                       ))}
-
-                      <div className="pt-4 border-t border-border/50">
-                        <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                          <span className="font-bold text-primary/70">Note:</span> These values and trends are AI-synthesized projections based on real-time listing volumes. They are for informational purposes and may not reflect exact calculated market floors.
-                        </p>
-                      </div>
                     </div>
                   )}
                 </CardContent>
               </Card>
             </div>
 
-            {/* Report Column */}
-            <div className="lg:col-span-2">
+            <div className={cn(
+              "transition-all duration-700 ease-in-out",
+              isFocusMode ? "lg:col-span-3 max-w-5xl mx-auto" : "lg:col-span-2"
+            )}>
               <div className="flex items-center justify-between mb-4 no-print">
                 <div>
                   <h3 className="text-lg font-bold flex items-center gap-2">
                     <FileText className="w-5 h-5 text-primary" />
                     Market Intelligence Report
                   </h3>
-                  <p className="text-sm text-muted-foreground italic">Generated: {new Date().toLocaleDateString()}</p>
+                  <p className="text-sm text-muted-foreground italic" suppressHydrationWarning>Generated: {new Date().toLocaleDateString()}</p>
                 </div>
                 {report && (
                   <div className="flex items-center gap-2">
@@ -311,7 +358,11 @@ export default function MarketPage() {
 
               {report ? (
                 <div className="print:shadow-none bg-transparent">
-                  <MarketReportDocument content={report} />
+                  <MarketReportDocument 
+                    content={report} 
+                    isFocusMode={isFocusMode}
+                    onToggleFocus={toggleFocusMode}
+                  />
                 </div>
               ) : (
                 <Card className="flex flex-col items-center justify-center text-center p-12 border-dashed bg-muted/20">
@@ -335,6 +386,18 @@ export default function MarketPage() {
                       {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate"}
                     </Button>
                   </div>
+                  <div className="mt-4 flex items-center space-x-2 bg-primary/5 px-3 py-2 rounded-full border border-primary/10">
+                    <Switch 
+                      id="v2-mode" 
+                      checked={isV2Enabled} 
+                      onCheckedChange={setIsV2Enabled}
+                      disabled={isGenerating}
+                    />
+                    <Label htmlFor="v2-mode" className="text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+                      <Zap className={cn("w-3 h-3", isV2Enabled ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground")} />
+                      v2 Experimental (Shadow Engine)
+                    </Label>
+                  </div>
                 </Card>
               )}
             </div>
@@ -344,13 +407,62 @@ export default function MarketPage() {
       
       <style jsx global>{`
         @media print {
-          .no-print, header, nav, footer, aside, .sidebar { 
-            display: none !important; 
+          /* Hide all chrome */
+          .no-print, header, nav, footer, aside, .sidebar,
+          [data-radix-tabs-list], [data-radix-tab-content]:not([data-state="active"]) {
+            display: none !important;
           }
-          body {
-            background-color: white !important;
+
+          /* Page setup: Letter 8.5x11 with 0.75in margins */
+          @page {
+            size: letter portrait;
+            margin: 0.75in 0.75in 0.75in 0.75in;
+          }
+
+          html, body {
+            background: white !important;
             color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 11pt !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
+
+          /* Report card fills the page */
+          .report-card {
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            background: white !important;
+            border-radius: 0 !important;
+          }
+
+          /* Tables must fit within letter width */
+          table {
+            width: 100% !important;
+            table-layout: fixed !important;
+            font-size: 9pt !important;
+            page-break-inside: avoid;
+          }
+          th, td {
+            padding: 6px 8px !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+
+          /* Prevent sections from being cut mid-page */
+          h1, h2 {
+            page-break-after: avoid !important;
+          }
+          .report-callout {
+            page-break-inside: avoid !important;
+          }
+
+          /* Parent layout cleanup */
           .space-y-6 {
             margin: 0 !important;
             padding: 0 !important;
@@ -359,8 +471,4 @@ export default function MarketPage() {
       `}</style>
     </div>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }
