@@ -110,7 +110,7 @@ export const getCardDeepDive = ai.defineFlow(
             return {
                 marketFloor: rawOutput.marketFloor || marketFloor,
                 recentVelocity: rawOutput.recentVelocity || velocitySummary,
-                investmentGrade: (rawOutput.investmentGrade || 'Hold') as any,
+                investmentGrade: (rawOutput.investmentGrade || 'Hold') as 'Strong Buy' | 'Buy' | 'Neutral' | 'Hold' | 'Sell' | 'Strong Sell',
                 analysis: rawOutput.analysis || (typeof rawOutput === 'string' ? rawOutput : "Analysis generated."),
                 isGrounded: true
             };
