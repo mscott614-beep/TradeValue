@@ -6,7 +6,7 @@ export const PRIMARY_MODEL = gemini15Flash;
 export const FALLBACK_MODEL = gemini15Pro;
 
 export const ai = genkit({
-  plugins: [vertexAI({ location: 'us-east4' })],
+  plugins: [vertexAI({ location: 'us-central1' })],
   model: PRIMARY_MODEL,
 });
 

@@ -81,7 +81,7 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
     const { vertexAI, gemini15Flash, gemini15Pro } = await import("@genkit-ai/vertexai");
 
     const ai = genkit({
-      plugins: [vertexAI({ location: 'us-east4' })],
+      plugins: [vertexAI({ location: 'us-central1' })],
     });
 
     // Model names for Shadow Engine v2 (Vertex AI versions)

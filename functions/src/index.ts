@@ -125,7 +125,7 @@ export const geminiProcessingQueue = onTaskDispatched(
       const { gemini15Flash, gemini15Pro } = await import("@genkit-ai/vertexai");
 
       const ai = genkit({
-        plugins: [vertexAI({ location: 'us-east4' })],
+        plugins: [vertexAI({ location: 'us-central1' })],
       });
 
       const ScanOutputSchema = z.object({
