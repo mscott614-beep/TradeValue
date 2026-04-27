@@ -76,43 +76,63 @@ export function EbayUrlImport() {
     };
 
     const handleAddToCollection = async () => {
-        if (!result || !user || !firestore) return;
+        if (!result || !user || !firestore) {
+            toast({
+                title: "Error",
+                description: "Missing data or session. Please try again.",
+                variant: "destructive",
+            });
+            return;
+        }
 
         setIsLoading(true);
         try {
             const portfoliosCollection = collection(firestore, `users/${user.uid}/portfolios`);
 
+            // Defensive data extraction
+            const brand = (result.brand || "Unknown").toString();
+            const player = (result.player || "Unknown").toString();
+            const year = (result.year || "").toString();
+            const cleanCardNumber = (result.cardNumber || "").toString().replace('#', '').trim();
+            const setName = (result.set || "").toString().trim();
+            const currentMarketValue = result.currentMarketValue || 0;
+
             const cardDataForDb = {
                 userId: user.uid,
                 cardId: `ebay-${Date.now()}`,
-                title: `${result.year} ${result.brand}${result.set ? ' ' + result.set : ''} ${result.player}`,
-                condition: result.condition,
-                purchasePrice: result.currentMarketValue || 0, 
-                currentMarketValue: result.currentMarketValue || 0,
+                title: `${year} ${brand} ${setName} ${player}`.replace(/\s+/g, ' ').trim(),
+                condition: result.condition || "Raw",
+                purchasePrice: currentMarketValue, 
+                currentMarketValue: currentMarketValue,
                 dateAdded: new Date().toISOString(),
-                // Map AI result to database schema
-                year: result.year.toString(),
-                brand: result.brand,
-                player: result.player,
-                set: result.set || "",
-                cardNumber: (result.cardNumber || "").toString().replace('#', '').trim(),
-                estimatedGrade: result.estimatedGrade || (result.condition.includes(" ") ? result.condition.split(" ").pop() : ""),
+                year,
+                brand,
+                player,
+                set: setName,
+                cardNumber: cleanCardNumber,
+                estimatedGrade: result.estimatedGrade || "",
                 parallel: result.parallel || "",
                 grader: result.grader || "None",
                 features: result.features || []
             };
 
-            addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
+            await addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
 
             toast({
                 title: "Card Added",
                 description: `${cardDataForDb.title} has been added to your collection.`,
-                action: <PlusCircle className="text-green-500" />
             });
 
             // Reset
             setUrl("");
             setResult(null);
+        } catch (error: any) {
+            console.error("Failed to add card to collection:", error);
+            toast({
+                title: "Error",
+                description: error.message || "Failed to add card to collection.",
+                variant: "destructive",
+            });
         } finally {
             setIsLoading(false);
         }

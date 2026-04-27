@@ -220,18 +220,12 @@ export function CardScanner() {
   };
 
   const handleAddToCollection = async () => {
-    if (!result || !user || !firestore) {
-      toast({
-        title: "Error",
-        description: "Cannot add card to collection. Missing data or user not logged in.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsLoading(true);
-
     try {
+      if (!result || !user || !firestore) {
+        throw new Error("Missing data or user session. Please ensure you are logged in and the scan is complete.");
+      }
+
       let compressedImageUrl = null;
       if (frontFile) {
         try {
@@ -239,41 +233,53 @@ export function CardScanner() {
           compressedImageUrl = await compressImage(frontFile);
         } catch (error) {
           console.error("Failed to compress image:", error);
-          toast({
-            title: "Warning",
-            description: "Could not compress the image, it will be skipped. The card will still be saved.",
-            variant: "destructive"
-          })
+          // Non-fatal, just log and continue
         }
       }
 
       const portfoliosCollection = collection(firestore, `users/${user.uid}/portfolios`);
 
+      // Defensive data extraction
+      const brand = (result.brand || "Unknown").toString();
+      const player = (result.player || "Unknown").toString();
+      const year = (result.year || "").toString();
       const cleanCardNumber = (result.cardNumber || "").toString().replace('#', '').trim();
       const setName = (result.set || "").toString().trim();
+      
       const cardDataForDb = {
         userId: user.uid,
-        cardId: `${result.brand}-${cleanCardNumber}-${result.player.replace(/\s+/g, '-')}`,
-        title: `${result.year} ${result.brand} ${setName} ${result.player} ${cleanCardNumber.match(/^\d+$/) ? '#' + cleanCardNumber : cleanCardNumber}`.replace(/\s+/g, ' ').trim(),
-        condition: result.estimatedGrade,
+        cardId: `${brand}-${cleanCardNumber}-${player.replace(/\s+/g, '-')}`,
+        title: `${year} ${brand} ${setName} ${player} ${cleanCardNumber.match(/^\d+$/) ? '#' + cleanCardNumber : cleanCardNumber}`.replace(/\s+/g, ' ').trim(),
+        condition: result.estimatedGrade || "Raw",
         purchasePrice: 0,
         currentMarketValue: result.estimatedMarketValue || 0,
         dateAdded: new Date().toISOString(),
+        year,
+        brand,
+        player,
+        set: setName,
+        cardNumber: cleanCardNumber,
+        estimatedGrade: result.estimatedGrade || "Raw",
+        grader: result.grader || "None",
         ...(compressedImageUrl ? { imageUrl: compressedImageUrl } : {}),
-        ...result,
-        cardNumber: cleanCardNumber 
       };
 
-      addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
+      await addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
 
       toast({
         title: "Card Added",
         description: `${cardDataForDb.title} has been added to your collection.`,
-        action: <PlusCircle className="text-green-500" />
       });
 
       handleRemoveFrontImage();
       handleRemoveBackImage();
+    } catch (error: any) {
+      console.error("Failed to add card to collection:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add card to collection. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
