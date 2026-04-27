@@ -42,6 +42,10 @@ import { CARD_ATTRIBUTES, CARD_PARALLELS, CARD_CONDITIONS, CARD_GRADERS, CARD_GR
 import { compressImage } from "@/lib/image-utils";
 import { cn } from "@/lib/utils";
 import { cleanTitle } from "@/lib/card-utils";
+import { getCardDeepDiveAction } from "@/app/actions/get-card-deep-dive";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { ShieldCheck, AlertCircle } from 'lucide-react';
 import { useRef, useMemo } from 'react';
 import {
     AreaChart,
@@ -87,6 +91,8 @@ export default function CardDetailsPage() {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [titleInput, setTitleInput] = useState<string>('');
     const [isEditingInfo, setIsEditingInfo] = useState(false);
+    const [deepDive, setDeepDive] = useState<any | null>(null);
+    const [isDeepDiving, setIsDeepDiving] = useState(false);
 
     // Listing image context menu
     const [listingContextMenu, setListingContextMenu] = useState<{
@@ -416,6 +422,32 @@ export default function CardDetailsPage() {
         }
     };
 
+    const handleRunDeepDive = async () => {
+        if (!card) return;
+        setIsDeepDiving(true);
+        try {
+            const response = await getCardDeepDiveAction(card);
+            if (response.success && response.result) {
+                setDeepDive(response.result);
+                toast({
+                    title: "Deep Dive Complete",
+                    description: "Shadow Engine has verified current market conditions.",
+                });
+            } else {
+                toast({
+                    title: "Deep Dive Failed",
+                    description: response.error,
+                    variant: "destructive"
+                });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Error", description: "Deep Dive technical failure", variant: "destructive" });
+        } finally {
+            setIsDeepDiving(false);
+        }
+    };
+
     const handleListingContextMenu = (e: React.MouseEvent, imageUrl: string, title: string) => {
         e.preventDefault();
         e.stopPropagation();
@@ -452,12 +484,12 @@ export default function CardDetailsPage() {
                 </Button>
                 <Button
                     variant="outline"
-                    className="border-primary/50 text-primary hover:bg-primary/10"
-                    onClick={handleRunAnalysis}
-                    disabled={isAnalyzing}
+                    className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10 flex items-center gap-2"
+                    onClick={handleRunDeepDive}
+                    disabled={isDeepDiving}
                 >
-                    {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                    {analysis ? "Refresh Analysis" : "Run AI Deep Dive"}
+                    {isDeepDiving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                    {deepDive ? "Refresh Deep Dive" : "Shadow Deep Dive"}
                 </Button>
             </div>
 
@@ -502,6 +534,9 @@ export default function CardDetailsPage() {
                     <TabsTrigger value="grading" disabled={!analysis}>Grading ROI</TabsTrigger>
                     <TabsTrigger value="history">Price History</TabsTrigger>
                     <TabsTrigger value="insights" disabled={!analysis}>AI Insights</TabsTrigger>
+                    <TabsTrigger value="deepdive" className="data-[state=active]:text-blue-400 data-[state=active]:border-blue-500/50" disabled={!deepDive}>
+                        Shadow Deep Dive
+                    </TabsTrigger>
                 </TabsList>
 
                 {/* LIVE MARKET TAB */}
@@ -1177,6 +1212,83 @@ export default function CardDetailsPage() {
                                     </div>
                                 </CardContent>
                             </Card>
+                        </div>
+                    )}
+                </TabsContent>
+
+                {/* SHADOW DEEP DIVE TAB */}
+                <TabsContent value="deepdive" className="space-y-6">
+                    {deepDive && (
+                        <div className="grid gap-6 md:grid-cols-3">
+                            <div className="md:col-span-2 space-y-6">
+                                <Card className="border-blue-500/20 bg-blue-500/[0.02]">
+                                    <CardHeader className="border-b border-blue-500/10">
+                                        <div className="flex items-center justify-between">
+                                            <CardTitle className="text-blue-400 flex items-center gap-2">
+                                                <ShieldCheck className="h-5 w-5" />
+                                                Grounded Analysis Report
+                                            </CardTitle>
+                                            {deepDive.isGrounded && (
+                                                <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                                                    Verified by Shadow Engine
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="pt-6">
+                                        {deepDive.insufficientData ? (
+                                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                                <AlertCircle className="h-12 w-12 text-amber-500 opacity-50 mb-4" />
+                                                <h3 className="text-lg font-semibold text-foreground">Insufficient Market Data</h3>
+                                                <p className="text-sm text-muted-foreground max-w-md mt-2">
+                                                    {deepDive.analysis}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="prose prose-sm prose-invert max-w-none text-muted-foreground">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {deepDive.analysis}
+                                                </ReactMarkdown>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            <div className="space-y-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Market Grounding</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="p-4 rounded-lg bg-background border space-y-1">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Market Floor</p>
+                                            <p className="text-2xl font-bold text-blue-400">${deepDive.marketFloor.toFixed(2)}</p>
+                                        </div>
+                                        <div className="p-4 rounded-lg bg-background border space-y-1">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Investment Grade</p>
+                                            <p className={cn(
+                                                "text-xl font-bold",
+                                                deepDive.investmentGrade.includes('Buy') ? "text-green-400" : 
+                                                deepDive.investmentGrade.includes('Sell') ? "text-red-400" : "text-amber-400"
+                                            )}>
+                                                {deepDive.investmentGrade}
+                                            </p>
+                                        </div>
+                                        <div className="p-4 rounded-lg bg-background border space-y-1">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Recent Velocity</p>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">{deepDive.recentVelocity}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+
+                                <div className="p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-start gap-3">
+                                    <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+                                    <p className="text-[11px] text-blue-300/80 leading-relaxed italic">
+                                        This deep dive utilized a real-time grounded search across active and sold listings. All metrics represent live market conditions at the time of the scan.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </TabsContent>
