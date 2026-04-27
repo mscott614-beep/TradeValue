@@ -378,10 +378,15 @@ export function CardScanner() {
               </p>
             </div>
             <div className="flex gap-2 mt-6">
-              <Button className="flex-1" onClick={handleAddToCollection} disabled={isLimitReached}>
+              <Button className="flex-1" onClick={handleAddToCollection} disabled={isLoading || isLimitReached}>
+                {isLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                )}
                 {isLimitReached ? "Portfolio Full" : "Add to Collection"}
               </Button>
-              <Button variant="outline" className="flex-1" onClick={handleScanAnother}>Scan Another</Button>
+              <Button variant="outline" className="flex-1" onClick={handleScanAnother} disabled={isLoading}>Scan Another</Button>
             </div>
             </div>
             </div>
