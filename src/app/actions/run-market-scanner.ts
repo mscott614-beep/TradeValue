@@ -1,7 +1,7 @@
 "use server";
 
 import { runMarketScanner } from "@/ai/flows/market-scanner";
-import { getUserPortfolioServer, getUserAlertConfigsServer } from "@/lib/firebase-server";
+import { getUserPortfolioServer, getUserAlertConfigsServer, getAdminDb } from "@/lib/firebase-server";
 
 export async function runMarketScannerAction(
     userId: string,
