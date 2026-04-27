@@ -78,10 +78,10 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
 
   try {
     const { genkit } = await import("genkit");
-    const { vertexAI, gemini15Flash, gemini15Pro } = await import("@genkit-ai/vertexai");
+    const { googleAI, gemini15Flash, gemini15Pro } = await import("@genkit-ai/google-genai");
 
     const ai = genkit({
-      plugins: [vertexAI({ location: 'us-central1' })],
+      plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
     });
 
     // Model names for Shadow Engine v2 (Vertex AI versions)

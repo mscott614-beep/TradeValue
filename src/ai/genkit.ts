@@ -1,12 +1,12 @@
 import { genkit } from 'genkit';
-import { vertexAI, gemini15Flash, gemini15Pro } from '@genkit-ai/vertexai';
+import { googleAI, gemini15Flash, gemini15Pro } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
 export const PRIMARY_MODEL = gemini15Flash;
 export const FALLBACK_MODEL = gemini15Pro;
 
 export const ai = genkit({
-  plugins: [vertexAI({ location: 'us-central1' })],
+  plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
   model: PRIMARY_MODEL,
 });
 

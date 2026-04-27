@@ -140,7 +140,7 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
         const { genkit, z, vertexAI } = await loadGenkit();
         const { gemini15Flash, gemini15Pro } = await Promise.resolve().then(() => __importStar(require("@genkit-ai/vertexai")));
         const ai = genkit({
-            plugins: [vertexAI({ location: 'us-east4' })],
+            plugins: [vertexAI({ location: 'us-central1' })],
         });
         const ScanOutputSchema = z.object({
             year: z.string(),
