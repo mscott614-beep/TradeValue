@@ -41,14 +41,7 @@ export default function InsightsPage() {
 
     const { data: cards, isLoading: cardsLoading } = useCollection<Portfolio>(portfoliosCollection);
 
-    const momentumCards = useMemo(() => {
-        if (!cards) return { hotProspects: [], safeHavens: [], waitAndSee: [] };
-        return {
-            hotProspects: cards.filter(c => c.momentumLabel === 'Hot Prospect'),
-            safeHavens: cards.filter(c => c.momentumLabel === 'Safe Haven'),
-            waitAndSee: cards.filter(c => c.momentumLabel === 'Wait-and-See')
-        };
-    }, [cards]);
+
 
     const handleGenerateInsights = async () => {
         if (!cards || cards.length === 0) return;
@@ -103,50 +96,7 @@ export default function InsightsPage() {
                 description="Personalized investment advice and portfolio risk assessment."
             />
 
-            {(momentumCards.hotProspects.length > 0 || momentumCards.safeHavens.length > 0) && (
-                <div className="grid gap-4 md:grid-cols-2 mb-6">
-                    {momentumCards.hotProspects.length > 0 && (
-                        <Card className="border-emerald-500/20 bg-emerald-500/5">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-emerald-500 flex items-center gap-2">
-                                    <TrendingUp className="w-5 h-5" />
-                                    Hot Prospects
-                                </CardTitle>
-                                <CardDescription>High velocity and volume detected.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex flex-wrap gap-2">
-                                    {momentumCards.hotProspects.map(c => (
-                                        <Badge key={c.id} className="bg-emerald-500 text-white">
-                                            {c.player} ({c.year})
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                    {momentumCards.safeHavens.length > 0 && (
-                        <Card className="border-sky-500/20 bg-sky-500/5">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sky-500 flex items-center gap-2">
-                                    <CheckCircle2 className="w-5 h-5" />
-                                    Safe Havens
-                                </CardTitle>
-                                <CardDescription>Stable vintage assets.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex flex-wrap gap-2">
-                                    {momentumCards.safeHavens.map(c => (
-                                        <Badge key={c.id} className="bg-sky-500 text-white">
-                                            {c.player} ({c.year})
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
-            )}
+
 
             {cardsLoading ? (
                 <div className="flex justify-center py-12">
