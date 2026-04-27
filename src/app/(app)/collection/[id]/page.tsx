@@ -93,6 +93,7 @@ export default function CardDetailsPage() {
     const [isEditingInfo, setIsEditingInfo] = useState(false);
     const [deepDive, setDeepDive] = useState<any | null>(null);
     const [isDeepDiving, setIsDeepDiving] = useState(false);
+    const [activeTab, setActiveTab] = useState<string>('overview');
 
     // Listing image context menu
     const [listingContextMenu, setListingContextMenu] = useState<{
@@ -429,6 +430,7 @@ export default function CardDetailsPage() {
             const response = await getCardDeepDiveAction(card);
             if (response.success && response.result) {
                 setDeepDive(response.result);
+                setActiveTab('deepdive');
                 toast({
                     title: "Deep Dive Complete",
                     description: "Shadow Engine has verified current market conditions.",
@@ -524,10 +526,10 @@ export default function CardDetailsPage() {
                         </Button>
                     </div>
                 )}
-                <p className="text-muted-foreground mt-1.5">{`Details for your ${card.year} ${card.brand} ${card.set} ${card.player} card.`}</p>
+                <p className="text-muted-foreground mt-1.5">{`Details for your ${card.year || ''} ${card.brand || ''} ${card.set || ''} ${card.player || ''} card.`}</p>
             </div>
 
-            <Tabs defaultValue="overview" className="space-y-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <TabsList className="bg-muted/50 border">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="market">Live Market</TabsTrigger>
