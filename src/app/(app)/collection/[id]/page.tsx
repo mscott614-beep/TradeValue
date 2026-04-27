@@ -589,11 +589,11 @@ export default function CardDetailsPage() {
                                         >
                                             <div
                                                 className="relative aspect-[3/4] bg-muted/50 rounded-lg overflow-hidden border border-border group-hover:border-primary/50 transition-all shadow-sm"
-                                                onContextMenu={listing.imageUrl ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl, listing.title); } : undefined}
+                                                onContextMenu={(listing.imageUrl || listing.image?.imageUrl) ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl || listing.image?.imageUrl, listing.title); } : undefined}
                                             >
-                                                {listing.imageUrl ? (
+                                                { (listing.imageUrl || listing.image?.imageUrl) ? (
                                                     <Image
-                                                        src={listing.imageUrl}
+                                                        src={listing.imageUrl || listing.image?.imageUrl}
                                                         alt={listing.title}
                                                         fill
                                                         className="object-cover group-hover:scale-110 transition-transform duration-500"
@@ -658,11 +658,11 @@ export default function CardDetailsPage() {
                                         <div key={i} className="group flex flex-col">
                                             <div
                                                 className="relative aspect-[3/4] bg-muted/30 rounded-lg overflow-hidden border border-border group-hover:border-green-500/30 transition-all shadow-sm"
-                                                onContextMenu={listing.imageUrl ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl, listing.title); } : undefined}
+                                                onContextMenu={(listing.imageUrl || listing.image?.imageUrl) ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl || listing.image?.imageUrl, listing.title); } : undefined}
                                             >
-                                                {listing.imageUrl ? (
+                                                {(listing.imageUrl || listing.image?.imageUrl) ? (
                                                     <Image
-                                                        src={listing.imageUrl}
+                                                        src={listing.imageUrl || listing.image?.imageUrl}
                                                         alt={listing.title}
                                                         fill
                                                         className="object-cover group-hover:scale-105 transition-transform duration-500"

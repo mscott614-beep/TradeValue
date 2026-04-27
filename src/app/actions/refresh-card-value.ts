@@ -183,6 +183,14 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
             }
 
+            // Map active items to harmonized format for UI
+            const activeItems = rawItems.slice(0, 10).map(item => ({
+                title: item.title,
+                price: parseFloat(item.price?.value || '0') + parseFloat(item.shippingOptions?.[0]?.shippingCost?.value || '0'),
+                url: item.itemWebUrl,
+                imageUrl: item.image?.imageUrl
+            }));
+
             // Update the card reference with new value and metrics
             await cardRef.update({
                 currentMarketValue: calc.value,
@@ -191,7 +199,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 lastMarketValueUpdate: timestamp,
                 marketPrices: {
                     median: calc.value,
-                    activeItems: rawItems.slice(0, 10),
+                    activeItems: activeItems,
                     soldItems: soldItems,
                     avgSoldPrice,
                     lowVolumeData,
