@@ -372,20 +372,7 @@ export default function CollectionPage() {
                             <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{card.grader}</Badge>
                           )}
                           <Badge variant="secondary">{card.condition}</Badge>
-                          {card.features && Array.isArray(card.features) && card.features.map(feature => (
-                            <Badge key={feature} variant="outline">{feature}</Badge>
-                          ))}
                           {card.parallel && <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>}
-                          {card.momentumLabel && (
-                            <Badge className={cn(
-                              card.momentumLabel === 'Hot Prospect' && "bg-emerald-500 hover:bg-emerald-600 text-white",
-                              card.momentumLabel === 'Wait-and-See' && "bg-amber-500 hover:bg-amber-600 text-white",
-                              card.momentumLabel === 'Safe Haven' && "bg-sky-500 hover:bg-sky-600 text-white",
-                              card.momentumLabel === 'Stable' && "bg-slate-500 hover:bg-slate-600 text-white",
-                            )}>
-                              {card.momentumLabel}
-                            </Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell>{card.year}</TableCell>
@@ -476,17 +463,6 @@ export default function CollectionPage() {
                     <div className="flex gap-1 mt-2 flex-wrap">
                       <Badge variant="outline" className="text-[10px] px-1 py-0">{card.condition}</Badge>
                       {card.parallel && <Badge variant="secondary" className="text-[10px] px-1 py-0 text-purple-400 bg-purple-400/10 border-purple-400/20">{card.parallel}</Badge>}
-                      {card.momentumLabel && (
-                        <Badge className={cn(
-                          "text-[10px] px-1 py-0",
-                          card.momentumLabel === 'Hot Prospect' && "bg-emerald-500 text-white",
-                          card.momentumLabel === 'Wait-and-See' && "bg-amber-500 text-white",
-                          card.momentumLabel === 'Safe Haven' && "bg-sky-500 text-white",
-                          card.momentumLabel === 'Stable' && "bg-slate-500 text-white",
-                        )}>
-                          {card.momentumLabel}
-                        </Badge>
-                      )}
                     </div>
                   </CardContent>
                 </Card>

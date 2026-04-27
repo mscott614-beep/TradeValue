@@ -1,12 +1,12 @@
 import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
+import { vertexAI, gemini15Flash, gemini15Pro } from '@genkit-ai/vertexai';
 import { z } from 'zod';
 
-export const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
-export const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+export const PRIMARY_MODEL = gemini15Flash;
+export const FALLBACK_MODEL = gemini15Pro;
 
 export const ai = genkit({
-  plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
+  plugins: [vertexAI({ location: 'us-east4' })],
   model: PRIMARY_MODEL,
 });
 
@@ -33,7 +33,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
                         errorMsg.includes('Quota exceeded');
 
     if (isRetryable) {
-      console.warn(`[Genkit] Primary model failed (${errorMsg}). Retrying with fallback: ${FALLBACK_MODEL}`);
+      console.warn(`[Genkit] Primary model failed (${errorMsg}). Retrying with fallback: ${(FALLBACK_MODEL as any).name}`);
       
       // Attempt 2: Use the designated fallback model
       return await ai.generate({

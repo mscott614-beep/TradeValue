@@ -181,7 +181,7 @@ export default function MarketHubPage() {
     if (isV2Enabled) {
       setReport("");
       try {
-        const response = await fetch("https://marketreportv2-i2233dwbnq-uk.a.run.app", {
+        const response = await fetch("https://us-east4-puckvaluebak-38609945-5e85c.cloudfunctions.net/marketReportV2", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 

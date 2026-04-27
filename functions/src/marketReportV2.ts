@@ -8,7 +8,7 @@ const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
  * Genkit-based streaming with the model names that are confirmed working.
  */
 export const marketReportV2 = onRequest({
-  region: "us-east1",
+  region: "us-east4",
   secrets: [GOOGLE_GENAI_API_KEY],
   memory: "1GiB",
   timeoutSeconds: 120,
@@ -78,17 +78,16 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
 
   try {
     const { genkit } = await import("genkit");
-    const { googleAI } = await import("@genkit-ai/google-genai");
+    const { vertexAI, gemini15Flash, gemini15Pro } = await import("@genkit-ai/vertexai");
 
     const ai = genkit({
-      plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
+      plugins: [vertexAI({ location: 'us-east4' })],
     });
 
-    // Model names for Shadow Engine v2
+    // Model names for Shadow Engine v2 (Vertex AI versions)
     const models = [
-      "googleai/gemini-3.1-flash-lite-preview",
-      "googleai/gemini-2.5-flash",
-      "googleai/gemini-2.5-pro",
+      gemini15Flash,
+      gemini15Pro,
     ];
 
     let lastError = "";
@@ -108,13 +107,12 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
         res.setHeader("Transfer-Encoding", "chunked");
 
         for await (const chunk of response.stream) {
-          // In Genkit, chunk.text is a property (string), not a method
           if (chunk.text) {
             res.write(chunk.text);
           }
         }
 
-        res.write(`\n\n---\n*Shadow Engine v2 | Model: ${modelName.split("/")[1]}*`);
+        res.write(`\n\n---\n*Shadow Engine v2 | Model: ${(modelName as any).name}*`);
         res.end();
         console.log(`[Shadow] Report complete with ${modelName}.`);
         return;

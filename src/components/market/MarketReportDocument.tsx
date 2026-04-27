@@ -98,19 +98,19 @@ export function MarketReportDocument({
           components={{
             // Custom table rendering for "Market Snapshot"
             table: ({ children }) => (
-              <div className="my-12 overflow-hidden border-2 border-slate-900 dark:border-slate-100">
-                <table className="w-full text-left border-collapse">
+              <div className="my-12 overflow-hidden border border-slate-200 dark:border-slate-800 rounded-lg">
+                <table className="w-full text-left border-collapse bg-white dark:bg-slate-950">
                   {children}
                 </table>
               </div>
             ),
             thead: ({ children }) => (
-              <thead className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-sans uppercase text-xs tracking-widest">
+              <thead className="bg-slate-50 dark:bg-slate-900 font-sans uppercase text-[10px] tracking-widest text-slate-500 border-b border-slate-200 dark:border-slate-800">
                 {children}
               </thead>
             ),
-            th: ({ children }) => <th className="p-5 font-black uppercase">{children}</th>,
-            td: ({ children }) => <td className="p-5 border-t border-slate-200 dark:border-slate-800 font-bold">{children}</td>,
+            th: ({ children }) => <th className="p-4 font-black uppercase border-r last:border-r-0 border-slate-200 dark:border-slate-800">{children}</th>,
+            td: ({ children }) => <td className="p-4 border-t border-r last:border-r-0 border-slate-200 dark:border-slate-800 font-bold text-sm">{children}</td>,
             
             // Custom blockquote for "Investment Recommendation"
             blockquote: ({ children }) => (

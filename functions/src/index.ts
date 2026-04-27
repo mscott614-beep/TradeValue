@@ -7,7 +7,7 @@ import { defineSecret } from "firebase-functions/params";
 // Lazy load heavy dependencies to avoid 10s initialization timeout
 let EbayService: any;
 let genkit: any;
-let googleAI: any;
+let vertexAI: any;
 let z: any;
 
 async function loadEbay() {
@@ -21,12 +21,12 @@ async function loadEbay() {
 async function loadGenkit() {
   if (!genkit) {
     const genkitMod = await import("genkit");
-    const aiMod = await import("@genkit-ai/google-genai");
+    const aiMod = await import("@genkit-ai/vertexai");
     genkit = genkitMod.genkit;
     z = genkitMod.z;
-    googleAI = aiMod.googleAI;
+    vertexAI = aiMod.vertexAI;
   }
-  return { genkit, z, googleAI };
+  return { genkit, z, vertexAI };
 }
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
@@ -44,7 +44,7 @@ const GENERIC_SET_STOPWORDS = [
 // Producer: Triggered when a new job is created in 'scanJobs'
 export const enqueueGeminiTask = onDocumentCreated({
   document: "scanJobs/{jobId}",
-  region: "us-east1"
+  region: "us-east4"
 }, async (event) => {
   const jobId = event.params.jobId;
   const jobData = event.data?.data();
@@ -54,7 +54,7 @@ export const enqueueGeminiTask = onDocumentCreated({
     return;
   }
 
-  const queue = getFunctions().taskQueue("locations/us-east1/functions/geminiProcessingQueue");
+  const queue = getFunctions().taskQueue("locations/us-east4/functions/geminiProcessingQueue");
 
   try {
     await queue.enqueue(
@@ -84,7 +84,7 @@ export const enqueueGeminiTask = onDocumentCreated({
 // Worker: Consumes the task and calls Gemini
 export const geminiProcessingQueue = onTaskDispatched(
   {
-    region: "us-east1",
+    region: "us-east4",
     retryConfig: {
       maxAttempts: 5,
       minBackoffSeconds: 30,
@@ -121,22 +121,22 @@ export const geminiProcessingQueue = onTaskDispatched(
         updatedAt: new Date().toISOString(),
       });
 
-      const { genkit: genkitFunc, googleAI: googleAIFunc, z: zod } = await loadGenkit();
-      const ai = genkitFunc({
-        plugins: [googleAIFunc({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
-        model: "googleai/gemini-3.1-flash-lite-preview",
+      const { genkit, z, vertexAI } = await loadGenkit();
+      const { gemini15Flash, gemini15Pro } = await import("@genkit-ai/vertexai");
+
+      const ai = genkit({
+        plugins: [vertexAI({ location: 'us-east4' })],
       });
 
-      // Define Output Schema
-      const ScanOutputSchema = zod.object({
-        year: zod.string(),
-        brand: zod.string(),
-        set: zod.string().nullable(),
-        player: zod.string(),
-        cardNumber: zod.string(),
-        parallel: zod.string().default("Base"),
-        grade: zod.string().nullable(),
-        grader: zod.string().nullable(),
+      const ScanOutputSchema = z.object({
+        year: z.string(),
+        brand: z.string(),
+        set: z.string().nullable(),
+        player: z.string(),
+        cardNumber: z.string(),
+        parallel: z.string().default("Base"),
+        grade: z.string().nullable(),
+        grader: z.string().nullable(),
       });
 
       const promptText = `You are an expert trading card authenticator. 
@@ -162,8 +162,8 @@ Return a JSON object:
         }
       }
 
-      const PRIMARY_MODEL = "googleai/gemini-3.1-flash-lite-preview";
-      const FALLBACK_MODEL = "googleai/gemini-2.5-flash";
+      const PRIMARY_MODEL = gemini15Flash;
+      const FALLBACK_MODEL = gemini15Pro;
 
       let response;
       try {
@@ -269,12 +269,6 @@ Return a JSON object:
 
       console.log(`Job ${jobId} completed successfully`);
 
-      // Artificially sleep for 6.5 seconds to pace the queue.
-      // With maxConcurrentDispatches: 1, this guarantees we stay well below 
-      // the Gemini 2.5 Flash Free Tier limit of 15 Requests Per Minute (RPM)
-      // (Total execution time ~8 seconds per card = ~7.5 RPM)
-      await new Promise((resolve) => setTimeout(resolve, 6500));
-
     } catch (error: any) {
       console.error(`Error processing job ${jobId}:`, error);
 
@@ -307,7 +301,7 @@ export const dailyPriceSnapshot = onSchedule(
   {
     schedule: "0 0 * * *", // Midnight UTC daily
     timeZone: "UTC",
-    region: "us-east1",
+    region: "us-east4",
     timeoutSeconds: 300,
     memory: "256MiB",
   },
@@ -388,12 +382,12 @@ export const scheduledMarketRefresh = onSchedule(
   {
     schedule: "0 8 * * *",
     timeZone: "America/New_York",
-    region: "us-east1",
+    region: "us-east4",
   },
   async () => {
     const db = admin.firestore();
     const usersSnap = await db.collection("users").listDocuments();
-    const queue = getFunctions().taskQueue("locations/us-east1/functions/refreshMarketCardTask");
+    const queue = getFunctions().taskQueue("locations/us-east4/functions/refreshMarketCardTask");
 
     console.log("[MarketRefresh] Starting scheduled morning refresh...");
     let totalEnqueued = 0;
@@ -448,7 +442,7 @@ export const refreshMarketCardTask = onTaskDispatched(
       maxConcurrentDispatches: 5,
     },
     secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
-    region: "us-east1",
+    region: "us-east4",
     timeoutSeconds: 300,
   },
   async (request) => {

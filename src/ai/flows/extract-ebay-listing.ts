@@ -20,7 +20,7 @@ export const extractEbayListing = ai.defineFlow({
     name: 'extractEbayListing',
     inputSchema: z.object({
         text: z.string(),
-        model: z.string().optional()
+        model: z.any().optional()
     }),
     outputSchema: ExtractEbayOutputSchema,
 }, async (input) => {
