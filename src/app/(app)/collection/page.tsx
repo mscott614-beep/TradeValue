@@ -372,7 +372,9 @@ export default function CollectionPage() {
                             <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{card.grader}</Badge>
                           )}
                           <Badge variant="secondary">{card.condition}</Badge>
-                          {card.parallel && <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>}
+                          {card.parallel && !['Wait-and-See', 'Hot Prospect', 'Safe Haven', 'Stable'].includes(card.parallel) && (
+                            <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>{card.year}</TableCell>
