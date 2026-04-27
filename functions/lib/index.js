@@ -55,12 +55,12 @@ async function loadEbay() {
 async function loadGenkit() {
     if (!genkit) {
         const genkitMod = await Promise.resolve().then(() => __importStar(require("genkit")));
-        const aiMod = await Promise.resolve().then(() => __importStar(require("@genkit-ai/vertexai")));
+        const aiMod = await Promise.resolve().then(() => __importStar(require("@genkit-ai/google-genai")));
         genkit = genkitMod.genkit;
         z = genkitMod.z;
-        vertexAI = aiMod.vertexAI;
+        vertexAI = aiMod.googleAI;
     }
-    return { genkit, z, vertexAI };
+    return { genkit, z, googleAI: vertexAI };
 }
 const GOOGLE_GENAI_API_KEY = (0, params_1.defineSecret)("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
@@ -137,10 +137,10 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
             status: "processing",
             updatedAt: new Date().toISOString(),
         });
-        const { genkit, z, vertexAI } = await loadGenkit();
-        const { gemini15Flash, gemini15Pro } = await Promise.resolve().then(() => __importStar(require("@genkit-ai/vertexai")));
+        const { genkit, z, googleAI } = await loadGenkit();
+        const { gemini15Flash, gemini15Pro } = await Promise.resolve().then(() => __importStar(require("@genkit-ai/google-genai")));
         const ai = genkit({
-            plugins: [vertexAI({ location: 'us-central1' })],
+            plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
         });
         const ScanOutputSchema = z.object({
             year: z.string(),

@@ -78,16 +78,18 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
 
   try {
     const { genkit } = await import("genkit");
-    const { googleAI, gemini15Flash, gemini15Pro } = await import("@genkit-ai/google-genai");
+    const { googleAI } = await import("@genkit-ai/googleai");
 
     const ai = genkit({
       plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
     });
 
-    // Model names for Shadow Engine v2 (Vertex AI versions)
+    const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
+    const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+
     const models = [
-      gemini15Flash,
-      gemini15Pro,
+      PRIMARY_MODEL,
+      FALLBACK_MODEL,
     ];
 
     let lastError = "";

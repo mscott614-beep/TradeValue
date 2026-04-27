@@ -21,13 +21,16 @@ async function loadEbay() {
 async function loadGenkit() {
   if (!genkit) {
     const genkitMod = await import("genkit");
-    const aiMod = await import("@genkit-ai/google-genai");
+    const aiMod = await import("@genkit-ai/googleai");
     genkit = genkitMod.genkit;
     z = genkitMod.z;
     vertexAI = aiMod.googleAI;
   }
   return { genkit, z, googleAI: vertexAI };
 }
+
+const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
+const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");
@@ -122,7 +125,6 @@ export const geminiProcessingQueue = onTaskDispatched(
       });
 
       const { genkit, z, googleAI } = await loadGenkit();
-      const { gemini15Flash, gemini15Pro } = await import("@genkit-ai/google-genai");
 
       const ai = genkit({
         plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
@@ -161,9 +163,6 @@ Return a JSON object:
           parts.push({ media: { url: jobData.payload.backPhotoDataUri, contentType: "image/jpeg" } });
         }
       }
-
-      const PRIMARY_MODEL = gemini15Flash;
-      const FALLBACK_MODEL = gemini15Pro;
 
       let response;
       try {
