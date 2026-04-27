@@ -44,10 +44,8 @@ export const generateLiveAuctions = ai.defineFlow(
             } else {
                 // 2. Use AI to standardize and enhance the real eBay data
                 const prompt = `
-                  I have raw sports card data from eBay. 
-                  Standardize this data into a consistent JSON array of exactly ${rawItems.length} objects.
-                  Extract the player name, year, and brand from the titles. 
-                  Estimate the sport if not explicit.
+                  Standardize the following eBay sports card data into a valid JSON array.
+                  Extract player, year, brand, and condition for each item.
                   
                   Raw Data:
                   ${JSON.stringify(rawItems)}

@@ -54,24 +54,16 @@ export const generateTrendingCards = ai.defineFlow(
         );
 
         const prompt = `
-      You are a sports card market analyst at TradeValue. Analyze the provided real-time market liquidity 
-      indicators (active listing counts) and generate exactly 4 trending sports cards for this week.
+      Analyze the provided real-time market liquidity indicators and generate exactly 4 trending sports cards.
 
-      Today's Date: ${new Date().toLocaleDateString()}
-      
-      Market Intelligence (Current Active Volume):
+      Market Intelligence:
       ${JSON.stringify(marketIntelligence)}
 
-      Requirements:
-      - Select exactly 4 cards from the provided list of players or closely related star athletes.
-      - 3 cards should be trending UP (+5% to +40%)
-      - 1 card should be trending DOWN (-3% to -20%)
-      - Ensure the "reason" is specific to current (simulated or real) market catalysts like 
-        standout performances, playoff positioning, injuries, or significant card set releases.
-      - **CRITICAL**: Do Not return the same 4 cards every time. Use the variety in the input 
-        to ensure different players are featured each week.
-      
-      Return a valid JSON array of exactly 4 objects.
+      Instructions:
+      1. Choose exactly 4 different players.
+      2. Set 3 to trend "up" and 1 to trend "down".
+      3. Provide a data-backed reason for each.
+      4. Return ONLY a valid JSON array of 4 objects.
     `;
 
         const response = await generateWithFallback({

@@ -55,13 +55,15 @@ async function loadEbay() {
 async function loadGenkit() {
     if (!genkit) {
         const genkitMod = await Promise.resolve().then(() => __importStar(require("genkit")));
-        const aiMod = await Promise.resolve().then(() => __importStar(require("@genkit-ai/google-genai")));
+        const aiMod = await Promise.resolve().then(() => __importStar(require("@genkit-ai/googleai")));
         genkit = genkitMod.genkit;
         z = genkitMod.z;
         vertexAI = aiMod.googleAI;
     }
     return { genkit, z, googleAI: vertexAI };
 }
+const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
+const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 const GOOGLE_GENAI_API_KEY = (0, params_1.defineSecret)("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
@@ -138,7 +140,6 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
             updatedAt: new Date().toISOString(),
         });
         const { genkit, z, googleAI } = await loadGenkit();
-        const { gemini15Flash, gemini15Pro } = await Promise.resolve().then(() => __importStar(require("@genkit-ai/google-genai")));
         const ai = genkit({
             plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
         });
@@ -172,8 +173,6 @@ Return a JSON object:
                 parts.push({ media: { url: jobData.payload.backPhotoDataUri, contentType: "image/jpeg" } });
             }
         }
-        const PRIMARY_MODEL = gemini15Flash;
-        const FALLBACK_MODEL = gemini15Pro;
         let response;
         try {
             console.log(`[Scanner] Processing with primary model: ${PRIMARY_MODEL}`);
