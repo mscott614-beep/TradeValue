@@ -31,12 +31,6 @@ export type Portfolio = {
     soldItems?: any[];
     lastUpdated: string;
   };
-  momentumLabel?: 'Hot Prospect' | 'Wait-and-See' | 'Safe Haven' | 'Stable';
-  momentumMetrics?: {
-    velocity: number;
-    volume: number;
-    updatedAt: any;
-  };
 };
 
 export type Auction = {

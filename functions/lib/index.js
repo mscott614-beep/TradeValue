@@ -144,17 +144,22 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
             plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
         });
         const ScanOutputSchema = z.object({
-            year: z.string(),
-            brand: z.string(),
-            set: z.string().nullable(),
-            player: z.string(),
-            cardNumber: z.string(),
-            parallel: z.string().default("Base"),
+            year: z.string().describe("Year of the card, e.g. 2015"),
+            brand: z.string().describe("Brand of the card, e.g. Topps"),
+            set: z.string().nullable().describe("Set name, e.g. Young Guns"),
+            player: z.string().describe("Full name of the player. MUST NOT BE EMPTY."),
+            cardNumber: z.string().describe("Card number, e.g. 201"),
+            parallel: z.string().default("Base").describe("Parallel or variation, e.g. Silver Prizm"),
             grade: z.string().nullable(),
             grader: z.string().nullable(),
         });
         const promptText = `You are an expert trading card authenticator. 
-Analyze the card and return year, brand, player, card number, parallel, and grading info.
+Analyze the provided card image(s) and extract the exact details.
+CRITICAL: You must return a valid JSON object matching the schema. 
+Ensure the 'player' field is populated with the player's full name (e.g., "Connor McDavid").
+If a value is not found, use null for nullable fields, but NEVER omit the 'player', 'year', 'brand', or 'cardNumber' fields.
+
+Identify the card as accurately as possible.
 
 Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both to null.
 

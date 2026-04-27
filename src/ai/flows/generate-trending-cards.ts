@@ -54,17 +54,24 @@ export const generateTrendingCards = ai.defineFlow(
         );
 
         const prompt = `
-      Analyze the provided real-time market liquidity indicators and generate exactly 4 trending sports cards.
+          You are a sports card market analyst. Analyze the provided real-time market liquidity indicators and generate exactly 4 trending sports cards.
 
-      Market Intelligence:
-      ${JSON.stringify(marketIntelligence)}
+          Market Intelligence Data:
+          ${JSON.stringify(marketIntelligence)}
 
-      Instructions:
-      1. Choose exactly 4 different players.
-      2. Set 3 to trend "up" and 1 to trend "down".
-      3. Provide a data-backed reason for each.
-      4. Return ONLY a valid JSON array of 4 objects.
-    `;
+          Instructions:
+          1. Choose exactly 4 different players from the intelligence data.
+          2. Set 3 cards to trend "up" and 1 card to trend "down" based on liquidity and player popularity.
+          3. For each card, provide:
+             - id: A unique string like "t-1", "t-2", etc.
+             - player: Full name.
+             - title: A specific card title (e.g. "2023-24 Prizm Silver Refractor").
+             - change: A realistic percentage change (e.g. "+15.2%").
+             - value: A realistic market price (e.g. "$450").
+             - trend: "up" or "down".
+             - reason: A concise, data-backed one-sentence explanation.
+          4. Return ONLY a valid JSON array of 4 objects. No conversational text.
+        `;
 
         const response = await generateWithFallback({
             model: PRIMARY_MODEL,

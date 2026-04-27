@@ -320,10 +320,7 @@ export default function CollectionPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead onClick={() => handleSort('player')} className="cursor-pointer">
-                    Card {renderSortArrow('player')}
-                  </TableHead>
-                  <TableHead onClick={() => handleSort('grader')} className="cursor-pointer">
-                    Details {renderSortArrow('grader')}
+                    Name {renderSortArrow('player')}
                   </TableHead>
                   <TableHead onClick={() => handleSort('year')} className="cursor-pointer">
                     Year {renderSortArrow('year')}
@@ -364,17 +361,6 @@ export default function CollectionPage() {
                             </div>
                           )}
                           <div className="font-medium">{card.title}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {isGraded(card.grader) && (
-                            <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">{card.grader}</Badge>
-                          )}
-                          <Badge variant="secondary">{card.condition}</Badge>
-                          {card.parallel && !['Wait-and-See', 'Hot Prospect', 'Safe Haven', 'Stable'].includes(card.parallel) && (
-                            <Badge variant="outline" className="text-purple-400 border-purple-400">{card.parallel}</Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell>{card.year}</TableCell>
@@ -462,10 +448,6 @@ export default function CollectionPage() {
                   <CardContent className="p-3">
                     <p className="text-xs text-muted-foreground truncate">{card.year} {card.brand}</p>
                     <p className="font-semibold text-sm truncate" title={card.player}>{card.player}</p>
-                    <div className="flex gap-1 mt-2 flex-wrap">
-                      <Badge variant="outline" className="text-[10px] px-1 py-0">{card.condition}</Badge>
-                      {card.parallel && <Badge variant="secondary" className="text-[10px] px-1 py-0 text-purple-400 bg-purple-400/10 border-purple-400/20">{card.parallel}</Badge>}
-                    </div>
                   </CardContent>
                 </Card>
               </Link>
