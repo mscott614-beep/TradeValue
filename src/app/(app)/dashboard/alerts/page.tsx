@@ -8,11 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Bell, TrendingUp, TrendingDown, AlertTriangle, Settings, RefreshCw, CheckCircle2, Trash2, CheckCheck } from "lucide-react";
 import { useCollection, useFirestore, useUser, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, updateDoc, doc, setDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { ShieldCheck, Info } from "lucide-react";
 import type { AlertConfig, Portfolio, MarketAlert } from "@/lib/types";
 import { runMarketScannerAction } from "@/app/actions/run-market-scanner";
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function AlertsDashboardPage() {
     const firestore = useFirestore();
@@ -329,9 +332,29 @@ export default function AlertsDashboardPage() {
                                                     {new Date(alert.timestamp).toLocaleDateString()}
                                                 </span>
                                             </div>
-                                            <p className={cn("text-sm", alert.read ? "text-muted-foreground" : "text-foreground")}>
-                                                {alert.message}
-                                            </p>
+                                            <div className="flex flex-wrap gap-2 mb-1">
+                                                {alert.isVerified && (
+                                                    <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] h-5 flex items-center gap-1">
+                                                        <ShieldCheck className="w-3 h-3" />
+                                                        Verified by Shadow Engine
+                                                    </Badge>
+                                                )}
+                                                {alert.liquidityLevel && (
+                                                    <Badge variant="outline" className="text-[10px] h-5">
+                                                        Liquidity: {alert.liquidityLevel}
+                                                    </Badge>
+                                                )}
+                                                {alert.groundedPrice && (
+                                                    <Badge variant="outline" className="text-[10px] h-5 bg-primary/5">
+                                                        Floor: ${alert.groundedPrice.toFixed(2)}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <div className={cn("text-sm prose prose-sm prose-invert max-w-none", alert.read ? "text-muted-foreground" : "text-foreground")}>
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {alert.message}
+                                                </ReactMarkdown>
+                                            </div>
 
                                             {!alert.read && (
                                                 <div className="pt-2 flex justify-end">

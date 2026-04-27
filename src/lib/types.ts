@@ -75,15 +75,6 @@ export interface Alert {
   active: boolean;
 }
 
-export interface Alert {
-  id: string;
-  cardId: string;
-  cardTitle: string;
-  targetPrice: number;
-  type: 'above' | 'below';
-  active: boolean;
-}
-
 export interface MarketAlert {
   id?: string;
   type: 'rise' | 'drop' | 'optimal_sell' | 'red_flag';
@@ -92,6 +83,9 @@ export interface MarketAlert {
   timestamp: string;
   relatedCardId?: string;
   read: boolean;
+  isVerified?: boolean;
+  groundedPrice?: number;
+  liquidityLevel?: 'Low' | 'Moderate' | 'High';
 }
 
 export interface CardAnalysisResult {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 import { AlertConfig, Portfolio } from '@/lib/types';
 import { ebayService } from '@/lib/ebay';
+import { buildEbayQuery, calculateTradeValue } from '@/lib/ebay-pricing';
 
 export const runMarketScannerSchema = z.object({
     cards: z.array(z.any()), // Portfolio[]
@@ -18,7 +19,11 @@ const MarketAlertSchema = z.object({
 });
 
 export const runMarketScannerOutputSchema = z.object({
-    alerts: z.array(MarketAlertSchema),
+    alerts: z.array(MarketAlertSchema.extend({
+        isVerified: z.boolean().optional(),
+        groundedPrice: z.number().optional(),
+        liquidityLevel: z.enum(['Low', 'Moderate', 'High']).optional(),
+    })),
 });
 
 export const runMarketScanner = ai.defineFlow(
@@ -56,24 +61,53 @@ export const runMarketScanner = ai.defineFlow(
 
         const marketDataContext = await Promise.all(targetCards.map(async (card) => {
             try {
-                const query = `${card.year} ${card.brand} ${card.player} ${card.parallel || ''} ${card.cardNumber || ''}`.trim();
-                const listings = await ebayService.searchActiveItems(query, 5);
+                // Grounded Search via Lead Data Architect logic
+                const { query: groundedQuery } = buildEbayQuery({
+                    year: card.year,
+                    brand: card.brand,
+                    set: card.set,
+                    player: card.player,
+                    cardNumber: card.cardNumber,
+                    parallel: card.parallel,
+                    condition: card.condition
+                });
+
+                const activeResponse = await ebayService.searchActiveItems(groundedQuery, 10);
+                const rawItems = activeResponse.itemSummaries || [];
                 
-                const prices = (listings.itemSummaries || []).map(item => parseFloat(item.price.value));
-                const avgPrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
-                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                // Calculate Grounded Price
+                const calc = calculateTradeValue(rawItems);
+                const groundedPrice = calc.value;
+
+                // Logical Discrepancy Check
+                // If the grounded price is suspiciously low compared to the portfolio value (e.g. $1.38 vs $141)
+                // we flag it for re-scan or discard to prevent hallucinations.
+                const portfolioValue = card.currentMarketValue || 0;
+                const isIllogical = portfolioValue > 20 && groundedPrice < (portfolioValue * 0.1);
+
+                if (isIllogical) {
+                    console.log(`[Shadow] Discrepancy detected for ${card.player}: $${groundedPrice} vs $${portfolioValue}. Discarding hallucinated data.`);
+                    return {
+                        id: card.id,
+                        name: `${card.year} ${card.brand} ${card.player}`,
+                        currentMarketValue: portfolioValue,
+                        hasLiveData: false,
+                        isHallucination: true
+                    };
+                }
 
                 return {
                     id: card.id,
                     name: `${card.year} ${card.brand} ${card.player}`,
-                    currentMarketValue: card.currentMarketValue,
-                    liveListingsCount: listings.total || 0,
-                    liveMinPrice: minPrice,
-                    liveAvgPrice: avgPrice,
-                    hasLiveData: (listings.total || 0) > 0
+                    currentMarketValue: portfolioValue,
+                    liveListingsCount: activeResponse.total || 0,
+                    liveAvgPrice: groundedPrice,
+                    hasLiveData: (activeResponse.total || 0) > 0,
+                    isVerified: true,
+                    liquidity: activeResponse.total > 15 ? 'High' : activeResponse.total > 5 ? 'Moderate' : 'Low'
                 };
             } catch (error) {
-                console.error(`Failed to fetch market data for ${card.player}:`, error);
+                console.error(`Failed to fetch grounded market data for ${card.player}:`, error);
                 return {
                     id: card.id,
                     name: `${card.year} ${card.brand} ${card.player}`,
@@ -85,7 +119,9 @@ export const runMarketScanner = ai.defineFlow(
 
         const marketSummaryLines = marketDataContext.map(ctx => {
             if (ctx.hasLiveData) {
-                return `[LIVE DATA] ${ctx.name}: Found ${ctx.liveListingsCount} listings. Min: $${ctx.liveMinPrice?.toFixed(2)}, Avg: $${ctx.liveAvgPrice?.toFixed(2)}. Your Value: $${ctx.currentMarketValue}`;
+                return `[VERIFIED] ${ctx.name}: Liquidity: ${ctx.liquidity}. Grounded Price: $${ctx.liveAvgPrice?.toFixed(2)}. Your Value: $${ctx.currentMarketValue}`;
+            } else if ((ctx as any).isHallucination) {
+                return `[BLOCK] ${ctx.name}: Grounded search returned illogical pricing ($${(ctx as any).liveAvgPrice || 'N/A'}). Data discarded to prevent hallucination.`;
             } else {
                 return `[NO LIVE DATA] ${ctx.name}: No active eBay listings found for this specific card today. Fall back to historical context.`;
             }
@@ -96,8 +132,8 @@ export const runMarketScanner = ai.defineFlow(
         ).join('\n');
 
         const prompt = `
-      You are an automated, high-frequency AI market watchdog for a sports card portfolio. 
-      You have access to a user's current Portfolio, their custom Alert Rules, and REAL-TIME Live eBay Data for key items.
+      You are the "Shadow" Market Intelligence Engine v2 for TradeValue. 
+      You provide premium, confidential market analysis and "Smart Notifications" for high-net-worth investors.
 
       Scan Type: ${scanType === 'deep' ? "FULL PORTFOLIO DEEP SCAN" : "STANDARD SWEEP"}
 
@@ -105,18 +141,18 @@ export const runMarketScanner = ai.defineFlow(
       ${configSummary || "No custom rules set."}
 
       ---
-      MARKET CONTEXT (LIVE + HISTORICAL FALLBACK):
+      GROUNDED MARKET CONTEXT:
       ${marketSummaryLines}
       ---
 
       Your task is to analyze these market conditions against this portfolio and the user's rules.
 
-      FOLLOW THESE CRITICAL RULES:
-      1. Use [LIVE DATA] where available. Compare actual Min/Avg prices against alert thresholds. Be specific in messages.
-      2. If [NO LIVE DATA] is reported for a card, DO NOT ignore it. Instead, FALL BACK to your historical knowledge of the sports market.
-         - Mention that no live auctions were found, but provide context based on the player's recent performance or general historical trends for that series.
-      3. Supply Surges: If 'liveListingsCount' is unusually high (e.g. > 50 for a mid-tier card), flag it as a 'red_flag' for potential dumping.
-      4. Discrepancies: If currentMarketValue in the portfolio is significantly different from liveAvgPrice, suggest an 'optimal_sell' or high risk 'drop'.
+      CRITICAL PERSONA & FORMATTING RULES:
+      1. Use [VERIFIED] data where available. Compare actual Grounded Prices against alert thresholds.
+      2. Persona: Be concise, authoritative, and data-driven. 
+      3. Formatting: Use Markdown for the message. Bold key price points. Use professional investor-grade language.
+      4. If [BLOCK] or [NO LIVE DATA] is reported, provide historical context but do NOT use the discarded price.
+      5. Output EXACTLY 100% valid JSON matching the schema.
 
       Output JSON format:
       {
@@ -124,8 +160,11 @@ export const runMarketScanner = ai.defineFlow(
           {
              "type": "rise" | "drop" | "optimal_sell" | "red_flag",
              "title": "Short catchy title",
-             "message": "Detailed explanation. Use REAL prices if live, or HISTORICAL context if no live results found.",
-             "relatedCardId": "ID of the specific card"
+             "message": "Markdown formatted explanation. e.g. **Market Surge detected.** Price is up to **$150.00**.",
+             "relatedCardId": "ID",
+             "isVerified": boolean,
+             "groundedPrice": number,
+             "liquidityLevel": "Low" | "Moderate" | "High"
           }
         ]
       }
@@ -138,6 +177,9 @@ export const runMarketScanner = ai.defineFlow(
             prompt: prompt,
             output: { format: 'json' }
         });
+
+        // Add 120s timeout reliability context to the call
+        // (Handled by the execution environment, but we ensure prompt doesn't ask for massive tasks)
 
         return response.output as any;
     }
