@@ -23,6 +23,8 @@ export const runMarketScannerOutputSchema = z.object({
         isVerified: z.boolean().optional(),
         groundedPrice: z.number().optional(),
         liquidityLevel: z.enum(['Low', 'Moderate', 'High']).optional(),
+        requiresUpdate: z.boolean().optional(),
+        suggestedPrice: z.number().optional(),
     })),
 });
 
@@ -79,14 +81,19 @@ export const runMarketScanner = ai.defineFlow(
                 const calc = calculateTradeValue(rawItems);
                 const groundedPrice = calc.value;
 
-                // Logical Discrepancy Check
-                // If the grounded price is suspiciously low compared to the portfolio value (e.g. $1.38 vs $141)
-                // we flag it for re-scan or discard to prevent hallucinations.
+                // Data Sanity Filter (80% Discrepancy Rule)
+                // If grounded price differs from internal average by > 80%, flag for update
                 const portfolioValue = card.currentMarketValue || 0;
+                const diffPercent = portfolioValue > 0 ? Math.abs(groundedPrice - portfolioValue) / portfolioValue : 0;
+                const requiresUpdate = diffPercent > 0.8 && groundedPrice > 0;
+
+                // Logical Discrepancy Check (Hallucination Block)
+                // If the grounded price is suspiciously low compared to the portfolio value (e.g. $1.38 vs $141)
+                // we still block it if it looks like a base-card-match for a parallel
                 const isIllogical = portfolioValue > 20 && groundedPrice < (portfolioValue * 0.1);
 
                 if (isIllogical) {
-                    console.log(`[Shadow] Discrepancy detected for ${card.player}: $${groundedPrice} vs $${portfolioValue}. Discarding hallucinated data.`);
+                    console.log(`[Shadow] Discrepancy blocked for ${card.player}: $${groundedPrice} vs $${portfolioValue}.`);
                     return {
                         id: card.id,
                         name: `${card.year} ${card.brand} ${card.player}`,
@@ -104,7 +111,9 @@ export const runMarketScanner = ai.defineFlow(
                     liveAvgPrice: groundedPrice,
                     hasLiveData: (activeResponse.total || 0) > 0,
                     isVerified: true,
-                    liquidity: activeResponse.total > 15 ? 'High' : activeResponse.total > 5 ? 'Moderate' : 'Low'
+                    liquidity: activeResponse.total > 15 ? 'High' : activeResponse.total > 5 ? 'Moderate' : 'Low',
+                    requiresUpdate,
+                    suggestedPrice: groundedPrice
                 };
             } catch (error) {
                 console.error(`Failed to fetch grounded market data for ${card.player}:`, error);
@@ -164,7 +173,9 @@ export const runMarketScanner = ai.defineFlow(
              "relatedCardId": "ID",
              "isVerified": boolean,
              "groundedPrice": number,
-             "liquidityLevel": "Low" | "Moderate" | "High"
+             "liquidityLevel": "Low" | "Moderate" | "High",
+             "requiresUpdate": boolean (true if current internal value is > 80% off),
+             "suggestedPrice": number (the grounded price)
           }
         ]
       }

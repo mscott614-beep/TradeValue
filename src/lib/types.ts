@@ -86,6 +86,8 @@ export interface MarketAlert {
   isVerified?: boolean;
   groundedPrice?: number;
   liquidityLevel?: 'Low' | 'Moderate' | 'High';
+  requiresUpdate?: boolean;
+  suggestedPrice?: number;
 }
 
 export interface CardAnalysisResult {

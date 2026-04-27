@@ -31,6 +31,37 @@ export async function runMarketScannerAction(
             userEmail 
         });
 
+        // Data Sanity: Automatic Updates for Flagged Cards
+        // If the grounded search found a massive discrepancy (> 80%), we update the card now.
+        if (result.alerts && result.alerts.length > 0) {
+            const db = getAdminDb();
+            const updates = result.alerts
+                .filter(a => a.requiresUpdate && a.relatedCardId && a.suggestedPrice)
+                .map(async (alert) => {
+                    try {
+                        const cardRef = db.doc(`users/${userId}/portfolios/${alert.relatedCardId}`);
+                        const cardSnap = await cardRef.get();
+                        
+                        if (cardSnap.exists) {
+                            const oldVal = cardSnap.data()?.currentMarketValue || 0;
+                            const newVal = alert.suggestedPrice!;
+                            
+                            await cardRef.update({
+                                currentMarketValue: newVal,
+                                valueChange24h: newVal - oldVal,
+                                lastMarketValueUpdate: new Date().toISOString(),
+                                dataFlags: ['GROUNDED_UPDATE']
+                            });
+                            console.log(`[Shadow] Auto-updated card ${alert.relatedCardId}: $${oldVal} -> $${newVal}`);
+                        }
+                    } catch (e) {
+                        console.error(`[Shadow] Failed to auto-update card ${alert.relatedCardId}:`, e);
+                    }
+                });
+            
+            await Promise.all(updates);
+        }
+
         return { success: true as const, result };
     } catch (error: any) {
         console.error("Failed to run market scanner:", error);

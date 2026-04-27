@@ -261,7 +261,7 @@ export default function AlertsDashboardPage() {
                     </Link>
                     <Button onClick={handleRunScan} disabled={isScanning} className="bg-primary text-primary-foreground shadow-md hover:bg-primary/90">
                         {isScanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                        {scanType === 'deep' ? 'Run Deep Scan' : 'Run Market Scan'}
+                        {scanType === 'deep' ? 'Run Deep Scan' : 'Run Deep Scan'}
                     </Button>
                 </div>
             </div>
@@ -334,19 +334,25 @@ export default function AlertsDashboardPage() {
                                             </div>
                                             <div className="flex flex-wrap gap-2 mb-1">
                                                 {alert.isVerified && (
-                                                    <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] h-5 flex items-center gap-1">
+                                                    <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] h-5 flex items-center gap-1">
                                                         <ShieldCheck className="w-3 h-3" />
                                                         Verified by Shadow Engine
                                                     </Badge>
                                                 )}
+                                                {alert.requiresUpdate && (
+                                                    <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/20 text-[10px] h-5 flex items-center gap-1">
+                                                        <Info className="w-3 h-3" />
+                                                        Data Drift Detected
+                                                    </Badge>
+                                                )}
                                                 {alert.liquidityLevel && (
-                                                    <Badge variant="outline" className="text-[10px] h-5">
+                                                    <Badge variant="outline" className="text-[10px] h-5 border-muted-foreground/30">
                                                         Liquidity: {alert.liquidityLevel}
                                                     </Badge>
                                                 )}
                                                 {alert.groundedPrice && (
-                                                    <Badge variant="outline" className="text-[10px] h-5 bg-primary/5">
-                                                        Floor: ${alert.groundedPrice.toFixed(2)}
+                                                    <Badge variant="outline" className="text-[10px] h-5 bg-primary/5 border-primary/20">
+                                                        Grounded: ${alert.groundedPrice.toFixed(2)}
                                                     </Badge>
                                                 )}
                                             </div>
