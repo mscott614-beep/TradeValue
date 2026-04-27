@@ -426,19 +426,32 @@ export default function CardDetailsPage() {
     const handleRunDeepDive = async () => {
         if (!card) return;
         setIsDeepDiving(true);
+        setIsAnalyzing(true);
         try {
-            const response = await getCardDeepDiveAction(card);
-            if (response.success && response.result) {
-                setDeepDive(response.result);
+            // Run both in parallel for efficiency
+            const [deepDiveResponse, analysisResponse] = await Promise.all([
+                getCardDeepDiveAction(card),
+                analyzeCardAction(card)
+            ]);
+
+            if (deepDiveResponse.success && deepDiveResponse.result) {
+                setDeepDive(deepDiveResponse.result);
                 setActiveTab('deepdive');
+            }
+
+            if (analysisResponse.success && analysisResponse.result) {
+                setAnalysis(analysisResponse.result);
+            }
+
+            if (deepDiveResponse.success || analysisResponse.success) {
                 toast({
                     title: "Deep Dive Complete",
-                    description: "Shadow Engine has verified current market conditions.",
+                    description: "Shadow Engine has verified market conditions and generated grading insights.",
                 });
             } else {
                 toast({
-                    title: "Deep Dive Failed",
-                    description: response.error,
+                    title: "Deep Dive Partial Failure",
+                    description: "One or more analysis engines failed to return data.",
                     variant: "destructive"
                 });
             }
@@ -447,6 +460,7 @@ export default function CardDetailsPage() {
             toast({ title: "Error", description: "Deep Dive technical failure", variant: "destructive" });
         } finally {
             setIsDeepDiving(false);
+            setIsAnalyzing(false);
         }
     };
 
@@ -526,7 +540,11 @@ export default function CardDetailsPage() {
                         </Button>
                     </div>
                 )}
-                <p className="text-muted-foreground mt-1.5">{`Details for your ${card.year || ''} ${card.brand || ''} ${card.set || ''} ${card.player || ''} card.`}</p>
+                <p className="text-muted-foreground mt-1.5">
+                    {`Details for your ${[card.year, card.brand, card.set, card.player]
+                        .filter(v => v && v !== 'undefined')
+                        .join(' ')} card.`}
+                </p>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
