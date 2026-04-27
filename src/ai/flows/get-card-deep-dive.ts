@@ -89,6 +89,8 @@ export const getCardDeepDive = ai.defineFlow(
             const response = await generateWithFallback({
                 model: PRIMARY_MODEL,
                 prompt: prompt,
+            });
+
             let rawOutput = response.output as any;
 
             // Sanitization: If AI returned a string with JSON inside, parse it
