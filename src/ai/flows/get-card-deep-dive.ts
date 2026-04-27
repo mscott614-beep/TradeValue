@@ -46,7 +46,7 @@ export const getCardDeepDive = ai.defineFlow(
                 return {
                     marketFloor: 0,
                     recentVelocity: 'No data',
-                    investmentGrade: 'Hold',
+                    investmentGrade: 'Hold' as const,
                     analysis: "Insufficient Market Data: The Shadow Engine could not find enough matching listings to generate a high-confidence report. Data discarded to prevent hallucination.",
                     isGrounded: false,
                     insufficientData: true
@@ -108,10 +108,10 @@ export const getCardDeepDive = ai.defineFlow(
             }
 
             return {
-                marketFloor: rawOutput.marketFloor || marketFloor,
-                recentVelocity: rawOutput.recentVelocity || velocitySummary,
+                marketFloor: (rawOutput.marketFloor || marketFloor) as number,
+                recentVelocity: (rawOutput.recentVelocity || velocitySummary) as string,
                 investmentGrade: (rawOutput.investmentGrade || 'Hold') as 'Strong Buy' | 'Buy' | 'Neutral' | 'Hold' | 'Sell' | 'Strong Sell',
-                analysis: rawOutput.analysis || (typeof rawOutput === 'string' ? rawOutput : "Analysis generated."),
+                analysis: (rawOutput.analysis || (typeof rawOutput === 'string' ? rawOutput : "Analysis generated.")) as string,
                 isGrounded: true
             };
 
@@ -120,7 +120,7 @@ export const getCardDeepDive = ai.defineFlow(
             return {
                 marketFloor: 0,
                 recentVelocity: 'Error',
-                investmentGrade: 'Hold',
+                investmentGrade: 'Hold' as const,
                 analysis: "The Shadow Engine encountered a technical error during grounding. Please try again.",
                 isGrounded: false,
                 insufficientData: true
