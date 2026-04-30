@@ -571,9 +571,21 @@ export default function CardDetailsPage() {
                                 <CardDescription className="text-[10px]">Current market availability · <span className="text-primary/70 font-medium">Right-click any image to use it as this card&apos;s photo</span></CardDescription>
                             </div>
                             {avgPrices && (
-                                <Badge variant="outline" className="h-6 text-[10px] bg-background/50">
-                                    Avg Asking: ${typeof avgPrices.active === 'number' ? avgPrices.active.toFixed(2) : '0.00'}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-[10px] border-primary/30 text-primary hover:bg-primary/10"
+                                        onClick={handleRefreshValue}
+                                        disabled={isRefreshingValue}
+                                    >
+                                        {isRefreshingValue ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
+                                        Sync Market Data
+                                    </Button>
+                                    <Badge variant="outline" className="h-7 text-[10px] bg-background/50">
+                                        Avg Asking: ${typeof avgPrices.active === 'number' ? avgPrices.active.toFixed(2) : '0.00'}
+                                    </Badge>
+                                </div>
                             )}
                         </CardHeader>
                         <CardContent className="p-0">

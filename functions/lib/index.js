@@ -32,6 +32,9 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.marketReportV2 = exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
@@ -39,6 +42,7 @@ const tasks_1 = require("firebase-functions/v2/tasks");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const functions_1 = require("firebase-admin/functions");
 const admin = __importStar(require("firebase-admin"));
+const axios_1 = __importDefault(require("axios"));
 const params_1 = require("firebase-functions/params");
 // Lazy load heavy dependencies to avoid 10s initialization timeout
 let EbayService;
@@ -351,7 +355,7 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
     const db = admin.firestore();
     // Use collectionGroup for cross-user efficiency
     const cardsSnap = await db.collectionGroup("portfolios").get();
-    const queue = (0, functions_1.getFunctions)().taskQueue("refreshMarketCardTask", "us-east4");
+    const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-east4/functions/refreshMarketCardTask");
     console.log(`[MarketRefresh] Starting scheduled morning refresh for ${cardsSnap.size} cards...`);
     let totalEnqueued = 0;
     try {
@@ -409,29 +413,27 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
     const cardData = cardSnap.data();
     try {
         console.log(`[RefreshTask] Calling Python Agent for ${cardData.player} (${cardId})...`);
-        const response = await fetch(`${AGENT_SERVICE_URL.value()}/value-card`, {
-            method: "POST",
+        const agentUrl = `${AGENT_SERVICE_URL.value().trim()}/value-card`;
+        console.log(`[RefreshTask] Sending card to Python Agent at: ${agentUrl}`);
+        const agentResponse = await axios_1.default.post(agentUrl, {
+            userId,
+            cardId,
+            cardDetails: {
+                year: cardData.year || "",
+                brand: cardData.brand || "",
+                manufacturer: cardData.manufacturer || "",
+                set: cardData.set || cardData.set_name || "",
+                player: cardData.player || "",
+                cardNumber: cardData.cardNumber || "",
+                parallel: cardData.parallel || "",
+                grade: cardData.grade || cardData.estimatedGrade || "",
+                gradingCompany: cardData.gradingCompany || cardData.grader || ""
+            }
+        }, {
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                userId,
-                cardId,
-                cardDetails: {
-                    year: cardData.year || "",
-                    brand: cardData.brand || "",
-                    manufacturer: cardData.manufacturer || "",
-                    set: cardData.set || cardData.set_name || "",
-                    player: cardData.player || "",
-                    cardNumber: cardData.cardNumber || "",
-                    parallel: cardData.parallel || "",
-                    grade: cardData.grade || cardData.estimatedGrade || "",
-                    gradingCompany: cardData.gradingCompany || cardData.grader || ""
-                }
-            })
+            timeout: 90000 // 90 seconds
         });
-        if (!response.ok) {
-            throw new Error(`Agent service returned ${response.status}: ${await response.text()}`);
-        }
-        const result = await response.json();
+        const result = agentResponse.data;
         let newPrice = result.final_price;
         if (typeof newPrice === "string") {
             newPrice = parseFloat(newPrice.replace(/[^0-9.]/g, ""));
@@ -460,6 +462,27 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             valueChange24h = newPrice - cardData.currentMarketValue;
             valueChange24hPercent = Math.round((valueChange24h / cardData.currentMarketValue) * 100 * 100) / 100;
         }
+        // Also prepare market data for the UI
+        const research = result.research_results || {};
+        const marketPrices = {
+            median: newPrice,
+            activeItems: (research.top_listings || []).map((item) => ({
+                title: item.title,
+                price: item.price,
+                url: item.url,
+                imageUrl: item.image_url
+            })),
+            soldItems: (research.sold_listings || []).map((item) => ({
+                title: item.title,
+                price: item.price,
+                url: item.url,
+                imageUrl: item.image_url,
+                endDate: item.end_date
+            })),
+            avgSoldPrice: research.avg_sold_price || 0,
+            lowVolumeData: research.low_volume || false,
+            lastUpdated: timestamp
+        };
         // Atomic update of current value and audit fields
         await cardRef.update({
             currentMarketValue: newPrice,
@@ -470,7 +493,8 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             valuationMethod: result.valuation_method || "Unknown",
             watcher_alert: result.alert_status || null,
             is_10_percent_diff: result.is_10_percent_diff || false,
-            data_source: "GEMINI_WATCHER_AGENT_PRO"
+            data_source: "GEMINI_WATCHER_AGENT_PRO",
+            marketPrices
         });
         // Add to history for performance tracking
         await cardRef.collection("priceHistory").doc(today).set({

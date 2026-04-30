@@ -334,7 +334,7 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
-        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital -lot -lots -upick -pick -choose -you';
+        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital -lot -lots -upick -pick -choose -you -rainbow -atomic -pulsar -velocity -blue -red -gold -green -orange -purple -pink -black';
         // For ungraded cards: block ALL graders (psa, bgs, sgc, cgc, bccg, gma, hga, etc.)
         // For graded cards: include the grader+grade instead
         const gradingExclusions = !isGraded ? NON_GRADED_EXCLUSIONS : '';

@@ -56,19 +56,21 @@ class AgentClass:
 Mission: PROVE THE PIPELINE WORKS. Return the most recent SOLD price for the card provided. Use 'Sold-BIN' as the default valuation_method.
 
 BATCH & BUCKET RULES:
-0. STRICT QUERY PROTOCOL: All search queries must follow: [Year] [Brand] [Player] #[Number]. Expand single years (e.g. 1980) to season format (1980-81). Ensure # precedes the card number. For Red Rooster/Foodland/National Hockey Day, ensure the set name is explicitly included. For high-parallel sets (OPC Platinum, Prizm, Select), use negative keywords to exclude other parallels (e.g., -Rainbow -Traxx -Ice). For OPC Platinum Marquee Rookies, include 'Marquee Rookies' in the title.
+0. STRICT QUERY PROTOCOL: All search queries must follow: [Year] [Brand] [Player] #[Number]. For high-parallel sets (OPC Platinum, Prizm, Select), you MUST use negative keywords to exclude other parallels (e.g., -Rainbow -Traxx -Ice -Refractor). NEVER use a price from a parallel card for a base card valuation. This is 'Rainbow Pollution' and is a critical error.
 1. EBAY FILTER: Use 'Buy It Now' (BIN) results ONLY. PURGE ALL AUCTION DATA. 
 2. ACTIVE ANCHOR TRIGGER: If you cannot find recent 'Sold' data, or if the valuation hits a 'Flatline' floor (e.g. $25.00 for specialty sets), you MUST perform a secondary search specifically for Active Buy It Now listings.
 3. WEIGHTED VALUATION: If 'Sold' data is missing but Active listings exist (e.g. at $200), value the card at 85% of the lowest Active BIN price. Set 'valuation_method' to 'Active-Floor'.
 4. RAW CARD PRICING:
-   - NM Price (ID 400010): Primary floor is $0.99, but specialty sets (e.g. Red Rooster) may have higher floors. 
+   - NM Price (ID 400010): Primary floor is $0.99. 
    - If 'Sold' results hit a floor that seems low for the specific card, trigger the Active Anchor.
    - Return 'price_raw_nm' and 'price_raw_ex'. Set 'final_price' to 'price_raw_nm'.
-5. GRADED CARD PRICING (12 Pro Slabs):
+5. GRADED CARD PRICING (PSA 10 / BGS 9.5 / SGC 10):
    - SEPARATION: Never use raw floors for professional slabs.
-   - If no 'Sold' results exist for the exact grade (e.g. PSA 10), use the Lowest Active BIN price for that grade minus 15%.
+   - If no 'Sold' results exist for the exact grade (e.g. PSA 10), use the Lowest Active BIN price for that grade minus 15%. 
+   - VERIFICATION: When using an Active Anchor for a base card, you MUST verify the listing title does NOT contain parallel keywords like 'Rainbow', 'Refractor', or 'Traxx'.
    - Set 'valuation_method' to 'Graded-10-Anchor' in this case.
-6. JSON ONLY: Return ONLY a JSON object with: final_price, price_raw_nm, price_raw_ex, valuation_method, alert_status, is_10_percent_diff.''' ,
+6. JSON ONLY: Return ONLY a JSON object with: final_price, price_raw_nm, price_raw_ex, valuation_method, last_search_query, research_results.
+''' ,
 
       tools=[
 
@@ -180,11 +182,18 @@ async def run_cli():
     
     if is_platinum or is_prizm_select:
         # Strict Numbering for OPC Platinum Marquee Rookies
-        if is_platinum and card_num.startswith('M') and 'Marquee Rookies' not in brand:
-             brand = f"{brand} Marquee Rookies".strip()
+        if is_platinum and card_num.startswith('M') and '"Marquee Rookies"' not in brand:
+            brand = f'{brand} "Marquee Rookies"'.strip()
+        
+        # Stage 1: Parallel Exclusion (Aggressive for Base Cards)
+        # If no parallel is specified, or it's explicitly 'Base'/'Raw', exclude high-volume parallels
+        is_base = not details.get('parallel') or details.get('parallel').lower() in ['base', 'raw', 'none', 'null']
+        if is_base:
+            # Aggressive exclusion for base cards to prevent 'Rainbow Pollution'
+            negative_filters.extend(["-parallel", "-refractor", "-holo", "-prism", "-rainbow", "-atomic", "-pulsar", "-velocity", "-blue", "-red", "-gold", "-green", "-orange", "-purple", "-pink", "-black", "-retro", "-traxx", "-ice", "-seismic"])
         
         if not parallel or parallel.lower() == 'base':
-            negative_filters = [f"-{kw}" for kw in parallel_keywords]
+            negative_filters.extend([f"-{kw}" for kw in parallel_keywords])
         else:
             # Include current parallel and exclude all OTHERS
             if parallel.lower() not in brand.lower():
