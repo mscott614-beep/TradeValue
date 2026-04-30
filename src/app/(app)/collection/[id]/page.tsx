@@ -372,7 +372,7 @@ export default function CardDetailsPage() {
                     title: "Market Price Updated",
                     description: (
                         <div className="flex flex-col gap-1">
-                            <div>Average Asking Price: ${typeof response.newPrice === 'number' ? response.newPrice.toFixed(2) : '0.00'}</div>
+                            <div>Estimated Current Value: ${typeof response.newPrice === 'number' ? response.newPrice.toFixed(2) : '0.00'}</div>
                             {res.diagnostics && (
                                 <div className="text-[10px] opacity-50 font-mono mt-1 break-all bg-black/20 p-1 rounded">
                                     {res.diagnostics}
@@ -583,7 +583,7 @@ export default function CardDetailsPage() {
                                         Sync Market Data
                                     </Button>
                                     <Badge variant="outline" className="h-7 text-[10px] bg-background/50">
-                                        Avg Asking: ${typeof avgPrices.active === 'number' ? avgPrices.active.toFixed(2) : '0.00'}
+                                        Estimated Current Value: ${typeof avgPrices.active === 'number' ? avgPrices.active.toFixed(2) : '0.00'}
                                     </Badge>
                                 </div>
                             )}
@@ -930,7 +930,7 @@ export default function CardDetailsPage() {
                                             <DollarSign className="h-5 w-5 text-green-400 shrink-0 mt-0.5" />
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Average Asking Price</p>
+                                                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Estimated Current Value</p>
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
