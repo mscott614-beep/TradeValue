@@ -159,8 +159,9 @@ export default function DashboardPage() {
 
         const uBrands = new Set(cards.map(c => c.brand)).size;
 
-        const rCount = cards.filter(c => !isGraded(c.grader)).length;
-        const gCount = cards.length - rCount;
+        const gCount = cards.filter(c => isGraded(c.grader) || isGraded(c.estimatedGrade)).length;
+        const rCount = cards.length - gCount;
+
 
         return { totalValue: tValue, totalGain: tGain, change24h: c24h, topMovers: tMovers, uniqueBrands: uBrands, rawCount: rCount, gradedCount: gCount };
     }, [cards]);

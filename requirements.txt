@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+google-genai
+google-cloud-aiplatform
+google-adk
+vertexai
+python-multipart
+requests

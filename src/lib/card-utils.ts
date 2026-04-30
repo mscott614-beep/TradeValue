@@ -23,13 +23,14 @@ export const isGraded = (grader?: string): boolean => {
     // Priority 2: Raw/Condition Keywords (Blacklist)
     // If it contains these, it's definitely not a slab.
     const rawKeywords = [
-        'none', 'raw', 'uncertified', 'ungraded', 'loose', 'n/a', 
+        'none', 'raw', 'uncertified', 'ungraded', 'loose', 'n/a', 'null',
         'binder', 'sleeve', 'excellent', 'mint', 'near mint', 
         'nm', 'ex', 'vg', 'fair', 'good', 'poor', 'played', 
         'mp', 'hp', 'lp'
     ];
     return !rawKeywords.some(kw => v.includes(kw));
 };
+
 
 /**
  * Strips common noise from titles to help with visual consistency in the UI.

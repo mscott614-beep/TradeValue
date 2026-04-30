@@ -39,11 +39,6 @@ const EBAY_ENV = defineSecret("EBAY_ENV");
 
 admin.initializeApp();
 
-const GENERIC_SET_STOPWORDS = [
-  'base set', 'base', 'hockey', 'nhl', 'nfl', 'nba', 'mlb', 'mls', 'standard',
-  'regular', 'common', 'standard issue', 'insert'
-];
-
 // Producer: Triggered when a new job is created in 'scanJobs'
 export const enqueueGeminiTask = onDocumentCreated({
   document: "scanJobs/{jobId}",
@@ -378,6 +373,8 @@ export const dailyPriceSnapshot = onSchedule(
 
 // --- Morning Refresh: Updates Prices From eBay ---
 
+const AGENT_SERVICE_URL = defineSecret("AGENT_SERVICE_URL");
+
 /**
  * Triggered at 8:00 AM EST (12:00/13:00 UTC)
  * Iterates through all cards and enqueues them for price refreshing.
@@ -390,42 +387,39 @@ export const scheduledMarketRefresh = onSchedule(
   },
   async () => {
     const db = admin.firestore();
-    const usersSnap = await db.collection("users").listDocuments();
+    // Use collectionGroup for cross-user efficiency
+    const cardsSnap = await db.collectionGroup("portfolios").get();
     const queue = getFunctions().taskQueue("locations/us-east4/functions/refreshMarketCardTask");
 
-    console.log("[MarketRefresh] Starting scheduled morning refresh...");
+    console.log(`[MarketRefresh] Starting scheduled morning refresh for ${cardsSnap.size} cards...`);
     let totalEnqueued = 0;
-    let userCount = 0;
 
     try {
-      for (const userDoc of usersSnap) {
-        userCount++;
-        const cardsSnap = await userDoc.collection("portfolios").listDocuments();
-        console.log(`[MarketRefresh] Processing user ${userDoc.id} (${cardsSnap.length} cards)`);
+      // Parallelize enqueuing
+      const enqueuePromises = cardsSnap.docs.map(async (cardDoc) => {
+        const userId = cardDoc.ref.parent.parent?.id;
+        if (!userId) return false;
+        
+        try {
+          await queue.enqueue(
+            {
+              userId: userId,
+              cardId: cardDoc.id
+            },
+            {
+              oidcToken: {}
+            } as any
+          );
+          return true;
+        } catch (err) {
+          console.error(`[MarketRefresh] Failed to enqueue card ${cardDoc.id} for user ${userId}:`, err);
+          return false;
+        }
+      });
 
-        // Parallelize enqueuing within each user's portfolio
-        const enqueuePromises = cardsSnap.map(async (cardDoc) => {
-          try {
-            await queue.enqueue(
-              {
-                userId: userDoc.id,
-                cardId: cardDoc.id
-              },
-              {
-                oidcToken: {}
-              } as any
-            );
-            return true;
-          } catch (err) {
-            console.error(`[MarketRefresh] Failed to enqueue card ${cardDoc.id} for user ${userDoc.id}:`, err);
-            return false;
-          }
-        });
-
-        const results = await Promise.all(enqueuePromises);
-        totalEnqueued += results.filter(r => r).length;
-      }
-      console.log(`[MarketRefresh] Scheduled trigger complete. Enqueued ${totalEnqueued} total cards across ${userCount} users.`);
+      const results = await Promise.all(enqueuePromises);
+      totalEnqueued = results.filter(r => r).length;
+      console.log(`[MarketRefresh] Scheduled trigger complete. Enqueued ${totalEnqueued} total cards.`);
     } catch (globalErr) {
       console.error("[MarketRefresh] Critical failure during scheduled refresh:", globalErr);
     }
@@ -433,8 +427,7 @@ export const scheduledMarketRefresh = onSchedule(
 );
 
 /**
- * Worker: Refreshes a single card's value from eBay.
- * Using Task Queue to manage rate limits and long execution times for large portfolios.
+ * Worker: Refreshes a single card's value using the Python Market Watcher Agent.
  */
 export const refreshMarketCardTask = onTaskDispatched(
   {
@@ -443,11 +436,12 @@ export const refreshMarketCardTask = onTaskDispatched(
       minBackoffSeconds: 60,
     },
     rateLimits: {
-      maxConcurrentDispatches: 5,
+      maxConcurrentDispatches: 10,
     },
-    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
+    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, AGENT_SERVICE_URL],
     region: "us-east4",
     timeoutSeconds: 300,
+    memory: "512MiB",
   },
   async (request) => {
     const { userId, cardId } = request.data as { userId: string, cardId: string };
@@ -459,130 +453,92 @@ export const refreshMarketCardTask = onTaskDispatched(
       console.log(`[RefreshTask] Card ${cardId} for user ${userId} not found.`);
       return;
     }
-    const card = cardSnap.data()!;
+    const cardData = cardSnap.data()!;
 
     try {
-      const EbayServiceClass = await loadEbay();
-      const ebay = new EbayServiceClass(
-        EBAY_CLIENT_ID.value(),
-        EBAY_CLIENT_SECRET.value(),
-        EBAY_ENV.value()
-      );
-
-      const { buildEbayQuery, calculateTradeValue } = await import("./ebay-pricing");
-
-      // Construct precise query for this card
-      const { query: searchQuery } = buildEbayQuery({
-        year: card.year,
-        brand: card.brand,
-        set: card.set,
-        player: card.player,
-        cardNumber: card.cardNumber,
-        parallel: card.parallel,
-        title: card.title
+      console.log(`[RefreshTask] Calling Python Agent for ${cardData.player} (${cardId})...`);
+      
+      const response = await fetch(`${AGENT_SERVICE_URL.value()}/value-card`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          cardId,
+          cardDetails: {
+            year: cardData.year || "",
+            brand: cardData.brand || "",
+            manufacturer: cardData.manufacturer || "",
+            set: cardData.set || cardData.set_name || "",
+            player: cardData.player || "",
+            cardNumber: cardData.cardNumber || "",
+            parallel: cardData.parallel || "",
+            grade: cardData.grade || cardData.estimatedGrade || "",
+            gradingCompany: cardData.gradingCompany || cardData.grader || ""
+          }
+        })
       });
 
-      // Fetch active listings
-      let usedQuery = searchQuery;
-      let response = await ebay.searchActiveItems(searchQuery, 10, 'price', true);
-      let items = response.itemSummaries || [];
-
-      // Stage 2 (Variant-First): Prioritize Variant / Parallel but DROP the brittle card number.
-      if (items.length === 0 && (card.parallel || card.set)) {
-        const set = card.set && !GENERIC_SET_STOPWORDS.includes(card.set.toLowerCase()) ? card.set : "";
-        const variantQuery = `${card.year} ${card.brand} ${set} ${card.player} ${card.parallel || ""} -reprint -digital`.replace(/\s+/g, " ").trim();
-
-        console.log(`[RefreshTask] Stage 1 failed. Trying Stage 2 (Variant-First): "${variantQuery}"`);
-        usedQuery = variantQuery;
-        response = await ebay.searchActiveItems(variantQuery, 10, 'price', true);
-        items = response.itemSummaries || [];
+      if (!response.ok) {
+        throw new Error(`Agent service returned ${response.status}: ${await response.text()}`);
       }
 
-      // Stage 3 (Identifier-First): Try the Card Number but DROP the Parallel/Set.
-      if (items.length === 0) {
-        const cleanNum = (card.cardNumber || "").toString().replace("#", "").trim();
-        const formattedNum = cleanNum.match(/^\d+$/) ? `#${cleanNum}` : cleanNum;
-        const identifierQuery = `${card.year} ${card.brand} ${card.player} ${formattedNum} -reprint -digital`.replace(/\s+/g, " ").trim();
-
-        console.log(`[RefreshTask] Stage 2 failed. Trying Stage 3 (Identifier-First): "${identifierQuery}"`);
-        usedQuery = identifierQuery;
-        response = await ebay.searchActiveItems(identifierQuery, 10, 'price', true);
-        items = response.itemSummaries || [];
+      const result = await response.json() as any;
+      
+      let newPrice = result.final_price;
+      if (typeof newPrice === "string") {
+        newPrice = parseFloat(newPrice.replace(/[^0-9.]/g, ""));
       }
 
-      // Stage 4 (Nuclear Fallback): Inject critical keywords (Auto, Patch, Jersey, Rookie).
-      if (items.length === 0) {
-        const featureStr = [
-          card.parallel || "",
-          ...(card.features || []),
-          card.title || "",
-          card.set || "",
-        ].join(" ").toLowerCase();
-
-        let keywords = "";
-        if (featureStr.includes("auto") || featureStr.includes("signature")) keywords += " auto";
-        if (featureStr.includes("patch") || featureStr.includes("threads")) keywords += " patch";
-        if (featureStr.includes("jersey") || featureStr.includes("relic") || featureStr.includes("memo")) keywords += " jersey";
-        if (featureStr.includes("rookie") || featureStr.includes("debut")) keywords += " rookie";
-
-        const nuclearQuery = `${card.year} ${card.brand} ${card.set || ""} ${card.player}${keywords} -reprint -digital`.replace(/\s+/g, " ").trim();
-
-        console.log(`[RefreshTask] Stage 3 failed. Trying Stage 4 (Nuclear): "${nuclearQuery}"`);
-        usedQuery = nuclearQuery;
-        response = await ebay.searchActiveItems(nuclearQuery, 10, 'price', true);
-        items = response.itemSummaries || [];
+      if (isNaN(newPrice) || typeof newPrice !== "number") {
+        newPrice = 0.99; // Default floor
       }
 
-      const calc = calculateTradeValue(items);
+      // Finalize Update: Calculate 24h changes
+      const timestamp = new Date().toISOString();
+      const today = timestamp.split("T")[0];
+      const yesterdayDate = new Date();
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterday = yesterdayDate.toISOString().split("T")[0];
 
-      if (calc.value > 0) {
-        // 5. Finalize Update: Calculate 24h changes
-        const timestamp = new Date().toISOString();
-        const today = timestamp.split("T")[0];
-        const yesterdayDate = new Date();
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        const yesterday = yesterdayDate.toISOString().split("T")[0];
+      // Fetch yesterday's value from priceHistory
+      const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
+      let valueChange24h = 0;
+      let valueChange24hPercent = 0;
 
-        // Fetch yesterday's value from priceHistory
-        const yesterdaySnap = await cardRef.collection("priceHistory").doc(yesterday).get();
-        let valueChange24h = 0;
-        let valueChange24hPercent = 0;
-
-        if (yesterdaySnap.exists) {
-          const yesterdayValue = yesterdaySnap.data()?.value;
-          if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
-            valueChange24h = calc.value - yesterdayValue;
-            valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
-          }
-        } else if (typeof card.currentMarketValue === "number" && card.currentMarketValue > 0) {
-          // Fallback: If no yesterday's snapshot, compare with currentMarketValue
-          // This is useful for the first time the sync runs or if a previous sync succeeded but no snapshot was saved
-          valueChange24h = calc.value - card.currentMarketValue;
-          valueChange24hPercent = Math.round((valueChange24h / card.currentMarketValue) * 100 * 100) / 100;
+      if (yesterdaySnap.exists) {
+        const yesterdayValue = yesterdaySnap.data()?.value;
+        if (typeof yesterdayValue === "number" && yesterdayValue > 0) {
+          valueChange24h = newPrice - yesterdayValue;
+          valueChange24hPercent = Math.round((valueChange24h / yesterdayValue) * 100 * 100) / 100;
         }
-
-        // Atomic update of current value and 24h change metrics
-        await cardRef.update({
-          currentMarketValue: calc.value,
-          valueChange24h,
-          valueChange24hPercent,
-          lastChecked: timestamp,
-          updatedAt: timestamp
-        });
-
-        // Add to history for performance tracking
-        await cardRef.collection("priceHistory").doc(today).set({
-          value: calc.value,
-          timestamp: timestamp,
-        }, { merge: true });
-
-        console.log(`[RefreshTask] Successfully updated ${card.title} (${cardId}) to $${calc.value} using: ${usedQuery}`);
-      } else {
-        console.log(`[RefreshTask] No market matches found for ${card.title}. Keeping existing value.`);
+      } else if (typeof cardData.currentMarketValue === "number" && cardData.currentMarketValue > 0) {
+        valueChange24h = newPrice - cardData.currentMarketValue;
+        valueChange24hPercent = Math.round((valueChange24h / cardData.currentMarketValue) * 100 * 100) / 100;
       }
+
+      // Atomic update of current value and audit fields
+      await cardRef.update({
+        currentMarketValue: newPrice,
+        valueChange24h,
+        valueChange24hPercent,
+        lastMarketValueUpdate: timestamp,
+        lastSearchQuery: result.last_search_query || null,
+        valuationMethod: result.valuation_method || "Unknown",
+        watcher_alert: result.alert_status || null,
+        is_10_percent_diff: result.is_10_percent_diff || false,
+        data_source: "GEMINI_WATCHER_AGENT_PRO"
+      });
+
+      // Add to history for performance tracking
+      await cardRef.collection("priceHistory").doc(today).set({
+        value: newPrice,
+        timestamp: timestamp,
+      }, { merge: true });
+
+      console.log(`[RefreshTask] Updated ${cardData.player} (${cardId}) to $${newPrice} using logic: ${result.valuation_method}`);
     } catch (error: any) {
       console.error(`[RefreshTask] Failed to refresh card ${cardId}:`, error);
-      throw error; // Task queue will retry based on config
+      throw error; // Task queue will retry
     }
   }
 );

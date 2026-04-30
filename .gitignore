@@ -48,3 +48,5 @@ firestore-debug.log
 # local temp/logs
 /tmp/
 logs.txt
+service-account.json
+scratch/
