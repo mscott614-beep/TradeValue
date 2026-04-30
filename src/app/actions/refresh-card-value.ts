@@ -108,6 +108,9 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             success: true,
             value: newPrice,
             top5,
+            soldItems, // Added to fix the 'listings not filling' issue
+            avgSoldPrice,
+            lowVolumeData,
             diagnostics: `[Agent] Method: ${result.valuation_method} | Query: ${result.last_search_query}`
         };
 
