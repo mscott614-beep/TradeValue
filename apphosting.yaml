@@ -15,3 +15,5 @@ env:
     value: production
   - variable: GEMINI_API_KEY
     value: ${GEMINI_API_KEY}
+  - variable: AGENT_SERVICE_URL
+    value: ${AGENT_SERVICE_URL}
