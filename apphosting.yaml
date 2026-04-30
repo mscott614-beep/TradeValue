@@ -7,13 +7,16 @@ runConfig:
 
 # Environment variables for the App Hosting backend
 env:
-  - variable: EBAY_CLIENT_ID
-    value: ${EBAY_CLIENT_ID}
-  - variable: EBAY_CLIENT_SECRET
-    value: ${EBAY_CLIENT_SECRET}
   - variable: EBAY_ENV
     value: production
+
+# Secrets for the App Hosting backend
+secrets:
+  - variable: EBAY_CLIENT_ID
+    secret: EBAY_CLIENT_ID
+  - variable: EBAY_CLIENT_SECRET
+    secret: EBAY_CLIENT_SECRET
   - variable: GEMINI_API_KEY
-    value: ${GEMINI_API_KEY}
+    secret: GEMINI_API_KEY
   - variable: AGENT_SERVICE_URL
-    value: ${AGENT_SERVICE_URL}
+    secret: AGENT_SERVICE_URL
