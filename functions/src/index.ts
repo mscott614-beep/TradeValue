@@ -389,7 +389,7 @@ export const scheduledMarketRefresh = onSchedule(
     const db = admin.firestore();
     // Use collectionGroup for cross-user efficiency
     const cardsSnap = await db.collectionGroup("portfolios").get();
-    const queue = getFunctions().taskQueue("locations/us-east4/functions/refreshMarketCardTask");
+    const queue = getFunctions().taskQueue("refreshMarketCardTask", "us-east4");
 
     console.log(`[MarketRefresh] Starting scheduled morning refresh for ${cardsSnap.size} cards...`);
     let totalEnqueued = 0;

@@ -28,7 +28,7 @@ export async function triggerAdminMarketRefreshAction(adminEmail: string) {
         const userIdsUsed = new Set<string>();
 
         // Standardized Task Queue
-        const queue = getFunctions(app).taskQueue("locations/us-central1/functions/refreshMarketCardTask");
+        const queue = getFunctions(app).taskQueue("locations/us-east4/functions/refreshMarketCardTask");
 
         // --- STRATEGY 1: Collection Group Discovery ---
         console.log(`[AdminRefresh] Strategy 1: Discovering via collectionGroup("portfolios")...`);
