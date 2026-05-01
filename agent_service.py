@@ -17,6 +17,71 @@ class ValuationRequest(BaseModel):
 def health():
     return {"status": "healthy"}
 
+class ExtractRequest(BaseModel):
+    url: str
+
+@app.post("/extract-ebay")
+async def extract_ebay(req: ExtractRequest):
+    import requests
+    from bs4 import BeautifulSoup
+    
+    url = req.url
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'max-age=0',
+        'Connection': 'keep-alive',
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code == 403:
+            # Try one more time with a different UA
+            headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+            response = requests.get(url, headers=headers, timeout=15)
+            
+        if response.status_code != 200:
+            return {"success": False, "error": f"eBay returned status {response.status_code}"}
+            
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Extract basic info
+        title = ""
+        title_tag = soup.find(class_="x-item-title__mainTitle") or soup.find(id="itemTitle")
+        if title_tag:
+            title = title_tag.get_text().replace("Details about", "").strip()
+            
+        price = ""
+        price_tag = soup.find(class_="x-price-primary") or soup.find(class_="x-bin-price__content")
+        if price_tag:
+            price = price_tag.get_text().strip()
+            
+        # AI Parsing
+        agent_app = AgentClass(model_name='gemini-3.1-flash-lite-preview')
+        agent_app.set_up()
+        
+        prompt = f"Parse this eBay listing into a JSON card object: Title: {title}, Price: {price}. " \
+                 f"HTML Content Snippet: {response.text[:2000]}. " \
+                 f"Return JSON: {{'year': '', 'brand': '', 'player': '', 'cardNumber': '', 'set': '', 'parallel': '', 'condition': '', 'grader': '', 'estimatedGrade': '', 'currentMarketValue': 0}}"
+        
+        full_response = ""
+        async for chunk in agent_app.app.async_stream_query(message=prompt, user_id="system"):
+            if hasattr(chunk, 'text'):
+                full_response += chunk.text
+            elif isinstance(chunk, str):
+                full_response += chunk
+                
+        match = re.search(r'(\{[\s\S]*\})', full_response)
+        if match:
+            json_str = match.group(1).replace('```json', '').replace('```', '').strip()
+            return json.loads(json_str)
+            
+        return {"title": title, "currentMarketValue": 0}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.post("/value-card")
 async def value_card(req: ValuationRequest):
     details = req.cardDetails

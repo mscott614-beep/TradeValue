@@ -163,6 +163,8 @@ Return a JSON object:
         if (jobData.payload.backPhotoDataUri) {
           parts.push({ media: { url: jobData.payload.backPhotoDataUri, contentType: "image/jpeg" } });
         }
+      } else if (jobData.type === "text-parse") {
+        parts.push({ text: `Card Title/Description to parse: ${jobData.payload.title}` });
       }
 
       let response;
@@ -197,7 +199,7 @@ Return a JSON object:
         const agentUrl = `${AGENT_SERVICE_URL.value().trim()}/value-card`;
         const agentResponse = await axios.post(agentUrl, {
           userId: jobData.userId,
-          cardId: "SCAN_PREVIEW",
+          cardId: jobData.type === "text-parse" ? "CSV_IMPORT" : "SCAN_PREVIEW",
           cardDetails: {
             year: result.year,
             brand: result.brand,
