@@ -593,44 +593,28 @@ export default function CardDetailsPage() {
                         </CardHeader>
                         <CardContent className="p-0">
                             {liveListings.length > 0 ? (
-                                <div className="grid grid-cols-5 gap-3 p-4">
+                                <div className="divide-y divide-border/30">
                                     {liveListings.map((listing, i) => (
                                         <a
                                             key={i}
                                             href={listing.url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="group cursor-pointer"
+                                            className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors group"
                                         >
-                                            <div
-                                                className="relative aspect-[3/4] bg-muted/50 rounded-lg overflow-hidden border border-border group-hover:border-primary/50 transition-all shadow-sm"
-                                                onContextMenu={(listing.imageUrl || listing.image?.imageUrl) ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl || listing.image?.imageUrl, listing.title); } : undefined}
-                                            >
-                                                { (listing.imageUrl || listing.image?.imageUrl) ? (
-                                                    <Image
-                                                        src={listing.imageUrl || listing.image?.imageUrl}
-                                                        alt={listing.title}
-                                                        fill
-                                                        className="object-cover group-hover:scale-110 transition-transform duration-500"
-                                                        unoptimized
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                                        <ImageIcon className="h-8 w-8 opacity-20" />
-                                                    </div>
-                                                )}
-                                                <div className="absolute top-2 right-2">
-                                                    <Badge variant="secondary" className="text-[9px] px-1.5 h-4 bg-background/80 backdrop-blur-md border-none lowercase font-semibold shadow-sm">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors" title={listing.title}>
+                                                    {listing.title}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <Badge variant="secondary" className="text-[9px] px-1.5 h-3.5 bg-background/80 backdrop-blur-md border-none lowercase font-semibold shadow-sm">
                                                         Live
                                                     </Badge>
                                                 </div>
                                             </div>
-                                            <div className="mt-2 text-left space-y-0.5 px-1">
-                                                <p className="text-xs font-bold text-primary leading-tight">
+                                            <div className="text-right ml-4">
+                                                <p className="text-xs font-bold text-primary">
                                                     ${typeof listing.price === 'number' ? listing.price.toFixed(2) : (listing.price?.value || '0.00')}
-                                                </p>
-                                                <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight group-hover:text-foreground transition-colors" title={listing.title}>
-                                                    {listing.title}
                                                 </p>
                                             </div>
                                         </a>
@@ -668,42 +652,34 @@ export default function CardDetailsPage() {
                         </CardHeader>
                         <CardContent className="p-0">
                             {soldListings.length > 0 ? (
-                                <div className="grid grid-cols-5 gap-3 p-4">
+                                <div className="divide-y divide-border/30">
                                     {soldListings.map((listing, i) => (
-                                        <div key={i} className="group flex flex-col">
-                                            <div
-                                                className="relative aspect-[3/4] bg-muted/30 rounded-lg overflow-hidden border border-border group-hover:border-green-500/30 transition-all shadow-sm"
-                                                onContextMenu={(listing.imageUrl || listing.image?.imageUrl) ? (e) => { e.preventDefault(); handleListingContextMenu(e, listing.imageUrl || listing.image?.imageUrl, listing.title); } : undefined}
-                                            >
-                                                {(listing.imageUrl || listing.image?.imageUrl) ? (
-                                                    <Image
-                                                        src={listing.imageUrl || listing.image?.imageUrl}
-                                                        alt={listing.title}
-                                                        fill
-                                                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                                        unoptimized
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                                                        <ImageIcon className="h-8 w-8 opacity-20" />
-                                                    </div>
-                                                )}
-                                                <div className="absolute top-2 right-2">
-                                                    <Badge className="text-[9px] px-1.5 h-4 bg-green-600 text-white border-none shadow-sm">
-                                                        SOLD
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 text-left space-y-0.5 px-1 text-[10px]">
-                                                <p className="font-bold text-green-600">
-                                                    ${typeof listing.price === 'number' ? listing.price.toFixed(2) : (listing.price?.value || '0.00')}
-                                                </p>
-                                                <p className="text-muted-foreground line-clamp-2 leading-tight" title={listing.title}>
+                                        <a
+                                            key={i}
+                                            href={listing.url || "#"}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors group"
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-medium truncate group-hover:text-green-500 transition-colors" title={listing.title}>
                                                     {cleanTitle(listing.title)}
                                                 </p>
-                                                <p className="text-[8px] text-muted-foreground/60">{listing.endDate ? new Date(listing.endDate).toLocaleDateString() : 'Recent'}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <Badge className="text-[9px] px-1.5 h-3.5 bg-green-600 text-white border-none shadow-sm">
+                                                        SOLD
+                                                    </Badge>
+                                                    <span className="text-[10px] text-muted-foreground/60">
+                                                        {listing.endDate ? new Date(listing.endDate).toLocaleDateString() : 'Recent'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
+                                            <div className="text-right ml-4">
+                                                <p className="text-xs font-bold text-green-600">
+                                                    ${typeof listing.price === 'number' ? listing.price.toFixed(2) : (listing.price?.value || '0.00')}
+                                                </p>
+                                            </div>
+                                        </a>
                                     ))}
                                 </div>
                             ) : (
