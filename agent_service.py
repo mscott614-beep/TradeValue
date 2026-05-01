@@ -109,9 +109,20 @@ async def value_card(req: ValuationRequest):
         if "platinum" not in card_desc.lower():
             card_desc = f"{card_desc} Platinum".strip()
 
+    # YOUNG GUNS PROTECTION: Prevent confusion between Box Sets and flagship Young Guns
+    if "McDavid" in player and "2015-16" in year:
+        is_yg = card_num == "201" or "Young Guns" in brand
+        if not is_yg:
+            if "-Young" not in filter_str:
+                filter_str = f"{filter_str} -Young -Guns -Canvas -Refractor".strip()
+            # Re-build base_search with the new filters
+            base_search = f"{year} {brand} {player} #{card_num_str} {filter_str}".strip()
+            base_search = re.sub(r'\s+', ' ', base_search)
+            card_desc = base_search
+
     # DIRECT SNIPER QUERY
-    query = f"SEARCH AND VALUE: {card_desc} -rainbow -traxx -ice -retro -auto -lot -bundle. " \
-            f"RULES: 1. MUST BE BASE. 2. BIN ONLY. 3. Return JSON: final_price, valuation_method, research_results."
+    query = f"SEARCH AND VALUE: {card_desc} -lot -bundle -set. " \
+            f"RULES: 1. MUST BE card #{card_num_str}. 2. MUST NOT be Young Guns. 3. BIN ONLY. 4. Return JSON."
 
     # BRUTE FORCE LOGGING
     print(f"!!!DIAGNOSTIC!!! Query: {query}", flush=True)

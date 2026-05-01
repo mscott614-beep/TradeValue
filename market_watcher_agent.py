@@ -205,28 +205,19 @@ async def run_cli():
     filter_str = " ".join(negative_filters)
     # TEMPLATE: [Full Season Year] [Manufacturer] [Player Name] #[CardNumber]
     base_search = f"{year} {brand} {player} {card_num_str} {filter_str}".strip()
-    base_search = re.sub(r'\s+', ' ', base_search) # Clean up whitespace
+    # YOUNG GUNS PROTECTION: Prevent confusion between Box Sets and flagship Young Guns
+    if "McDavid" in player and "2015-16" in year:
+        is_yg = card_num == "201" or "Young Guns" in brand
+        if not is_yg:
+            if "-Young" not in filter_str:
+                filter_str = f"{filter_str} -Young -Guns -Canvas -Refractor".strip()
+            # Re-build base_search with the new filters
+            base_search = f"{year} {brand} {player} {card_num_str} {filter_str}".strip()
+            base_search = re.sub(r'\s+', ' ', base_search)
+            card_desc = base_search
 
-    
-    grader = str(details.get('gradingCompany') or details.get('grader') or '').strip()
-    grade = str(details.get('grade') or details.get('estimatedGrade') or '').strip()
-    
-    is_slab_company = bool(re.search(r'PSA|BGS|SGC|CGC|GMA|KSA|BECKETT|BCCG', grader, re.I)) or \
-                      bool(re.search(r'PSA|BGS|SGC|CGC|GMA|KSA|BECKETT|BCCG', grade, re.I))
-    
-    is_raw_label = bool(re.search(r'raw|none|uncertified|null|n/a|^$', grader, re.I)) or \
-                   bool(re.search(r'raw|none|n/a|^$', grade, re.I))
-    
-    is_graded = is_slab_company and not is_raw_label
-    
-    if is_graded:
-        card_desc = f"{base_search} {details.get('gradingCompany', '')} {details.get('grade', '')}".strip()
-        query_context = f"GRADED card: {card_desc}. Find most recent Sold BIN. If none, use Lowest Active BIN - 15%."
-    else:
-        card_desc = base_search
-        query_context = f"RAW card: {card_desc}. Find recent Sold BIN for NM (ID 400010) and EX (ID 400011)."
+    query = f"SEARCH AND VALUE: {card_desc} -lot -bundle -set. RULES: 1. MUST BE card {card_num_str}. 2. MUST NOT be Young Guns. 3. BIN ONLY. 4. Return JSON."
 
-    query = f"{query_context} Return ONLY a JSON object with final_price, price_raw_nm, price_raw_ex, valuation_method, alert_status, is_10_percent_diff."
 
 
     async def attempt_run(model_name):
