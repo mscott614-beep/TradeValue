@@ -69,8 +69,9 @@ BATCH & BUCKET RULES:
    - If no 'Sold' results exist for the exact grade (e.g. PSA 10), use the Lowest Active BIN price for that grade minus 15%. 
    - VERIFICATION: When using an Active Anchor for a base card, you MUST verify the listing title does NOT contain parallel keywords like 'Rainbow', 'Refractor', or 'Traxx'.
    - Set 'valuation_method' to 'Graded-10-Anchor' in this case.
-6. JSON ONLY: Return ONLY a JSON object with: final_price, price_raw_nm, price_raw_ex, valuation_method, last_search_query, research_results.
-7. RESEARCH STRUCTURE: 'research_results' MUST be a JSON object containing two lists: 'top_listings' (Active listings) and 'sold_listings' (Sold listings). Each listing must have: title, price, url, image_url. SOLD listings MUST also include an 'endDate' (format: YYYY-MM-DD).
+6. STRICT RAW CARD RULE: If the request is for a RAW card (grader=null), you MUST exclude all listings that mention 'PSA', 'BGS', 'SGC', 'CGC', or 'Graded' in their titles. Using graded prices for raw cards is a critical failure.
+7. JSON ONLY: Return ONLY a JSON object with: final_price, price_raw_nm, price_raw_ex, valuation_method, last_search_query, research_results.
+8. RESEARCH STRUCTURE: 'research_results' MUST be a JSON object containing two lists: 'top_listings' (Active listings) and 'sold_listings' (Sold listings). Each listing must have: title, price, url, image_url. SOLD listings MUST also include an 'endDate' (format: YYYY-MM-DD).
 ''' ,
 
       tools=[
@@ -203,8 +204,9 @@ async def run_cli():
 
     # Apply filters to base_search
     filter_str = " ".join(negative_filters)
-    # TEMPLATE: [Full Season Year] [Manufacturer] [Player Name] #[CardNumber]
     base_search = f"{year} {brand} {player} {card_num_str} {filter_str}".strip()
+    base_search = re.sub(r'\s+', ' ', base_search)
+    card_desc = base_search
     # YOUNG GUNS PROTECTION: Prevent confusion between Box Sets and flagship Young Guns
     if "McDavid" in player and "2015-16" in year:
         is_yg = card_num == "201" or "Young Guns" in brand

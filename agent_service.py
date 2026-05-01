@@ -101,7 +101,8 @@ async def value_card(req: ValuationRequest):
         card_desc = f"{base_search} {grader} {grade}".strip()
         query_context = f"GRADED card: {card_desc}. Find most recent Sold BIN. If none, use Lowest Active BIN - 15%."
     else:
-        card_desc = base_search
+        # STRICT RAW ISOLATION: Exclude all graded noise
+        card_desc = f"{base_search} -PSA -BGS -SGC -CGC -Graded".strip()
         query_context = f"RAW card: {card_desc}. Find recent Sold BIN for NM (ID 400010) and EX (ID 400011)."
 
     # EMERGENCY BRAKE: Force Platinum for M1 McDavid

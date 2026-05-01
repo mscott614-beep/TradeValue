@@ -31,6 +31,7 @@ const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = defineSecret("EBAY_CLIENT_SECRET");
 const EBAY_ENV = defineSecret("EBAY_ENV");
+const AGENT_SERVICE_URL = defineSecret("AGENT_SERVICE_URL");
 
 admin.initializeApp();
 admin.firestore().settings({ ignoreUndefinedProperties: true });
@@ -87,7 +88,7 @@ export const geminiProcessingQueue = onTaskDispatched(
       maxConcurrentDispatches: 1,
       maxDispatchesPerSecond: 1,
     },
-    secrets: [GOOGLE_GENAI_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
+    secrets: [GOOGLE_GENAI_API_KEY, EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, AGENT_SERVICE_URL],
     memory: "1GiB",
     timeoutSeconds: 300,
   },
@@ -139,19 +140,19 @@ CRITICAL: You must return a valid JSON object matching the schema.
 Ensure the 'player' field is populated with the player's full name (e.g., "Connor McDavid").
 If a value is not found, use null for nullable fields, but NEVER omit the 'player', 'year', 'brand', or 'cardNumber' fields.
 
-Identify the card as accurately as possible.
+Identify the card as accurately as possible. For hockey cards, prefer the full season format (e.g., "1980-81" instead of "1980").
 
 Assess the raw condition of the card from the photo (Near Mint, Excellent, Very Good, Good, Poor). If it looks like a standard high-quality card, default to 'Near Mint'.
 
 Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both to null.
 
 Return a JSON object:
-- year: The year of the card.
+- year: The year or season of the card (prefer YYYY-YY for hockey).
 - brand: The brand (e.g., Topps, Upper Deck).
 - player: The name of the player.
 - cardNumber: The card number (exactly as it appears).
 - parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
-- grade: The numerical grade (e.g., "10", "9.5", "Authentic") or descriptive grade (e.g. "GEM MT").
+- grade: The numerical grade (e.g., "10", "9.5", "Authentic") or descriptive grade (e.g. "GEM MT"). ONLY if a professional grading label is visible.
 - grader: The grading company (e.g., "PSA", "BGS", "SGC", "CGC") or null.
 - conditionAssessment: Your best assessment of the raw condition.`;
 
@@ -217,6 +218,15 @@ Return a JSON object:
         
         // Merge pricing data into result
         (result as any).estimatedMarketValue = agentData.final_price || 0.99;
+        
+        // Fix year display if expanded by agent
+        if (agentData.last_search_query) {
+          const yearMatch = agentData.last_search_query.match(/^\d{4}-\d{2}/);
+          if (yearMatch && result.year.length === 4) {
+            result.year = yearMatch[0];
+          }
+        }
+
         (result as any).estimatedGrade = result.grade || result.conditionAssessment || "Raw";
         (result as any).valuationMethod = agentData.valuation_method;
         (result as any).lastSearchQuery = agentData.last_search_query;
@@ -342,7 +352,7 @@ export const dailyPriceSnapshot = onSchedule(
 
 // --- Morning Refresh: Updates Prices From eBay ---
 
-const AGENT_SERVICE_URL = defineSecret("AGENT_SERVICE_URL");
+
 
 /**
  * Triggered at 8:00 AM EST (12:00/13:00 UTC)
