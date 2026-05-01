@@ -6,18 +6,12 @@ import * as admin from "firebase-admin";
 import axios from "axios";
 import { defineSecret } from "firebase-functions/params";
 // Lazy load heavy dependencies to avoid 10s initialization timeout
-let EbayService: any;
+
 let genkit: any;
 let vertexAI: any;
 let z: any;
 
-async function loadEbay() {
-  if (!EbayService) {
-    const mod = await import("./ebay");
-    EbayService = mod.EbayService;
-  }
-  return EbayService;
-}
+
 
 async function loadGenkit() {
   if (!genkit) {
@@ -136,6 +130,7 @@ export const geminiProcessingQueue = onTaskDispatched(
         parallel: z.string().default("Base").describe("Parallel or variation, e.g. Silver Prizm"),
         grade: z.string().nullable(),
         grader: z.string().nullable(),
+        conditionAssessment: z.enum(["Near Mint", "Excellent", "Very Good", "Good", "Poor"]).default("Near Mint").describe("Assess the raw condition from the photo.")
       });
 
       const promptText = `You are an expert trading card authenticator. 
@@ -146,6 +141,8 @@ If a value is not found, use null for nullable fields, but NEVER omit the 'playe
 
 Identify the card as accurately as possible.
 
+Assess the raw condition of the card from the photo (Near Mint, Excellent, Very Good, Good, Poor). If it looks like a standard high-quality card, default to 'Near Mint'.
+
 Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both to null.
 
 Return a JSON object:
@@ -155,7 +152,8 @@ Return a JSON object:
 - cardNumber: The card number (exactly as it appears).
 - parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
 - grade: The numerical grade (e.g., "10", "9.5", "Authentic") or descriptive grade (e.g. "GEM MT").
-- grader: The grading company (e.g., "PSA", "BGS", "SGC", "CGC") or null.`;
+- grader: The grading company (e.g., "PSA", "BGS", "SGC", "CGC") or null.
+- conditionAssessment: Your best assessment of the raw condition.`;
 
       const parts: any[] = [{ text: promptText }];
 
@@ -191,76 +189,45 @@ Return a JSON object:
         throw new Error("AI failed to generate a valid structured output.");
       }
 
-        // --- Post-AI Enrichment: Fetch Real-Time eBay Data (Massapequa Hammer) ---
-        try {
-          const EbayServiceClass = await loadEbay();
-          const ebay = new EbayServiceClass(
-            EBAY_CLIENT_ID.value(),
-            EBAY_CLIENT_SECRET.value(),
-            EBAY_ENV.value()
-          );
-
-          const { buildEbayQuery, calculateTradeValue } = await import("./ebay-pricing");
-
-          // Build precise query
-          const { query: precisionQuery } = buildEbayQuery({
+      // --- Post-AI Enrichment: Call Python Agent for Instant Pricing ---
+      try {
+        console.log(`[Scanner] Calling Python Agent for real-time pricing: ${result.player}...`);
+        
+        const agentUrl = `${AGENT_SERVICE_URL.value().trim()}/value-card`;
+        const agentResponse = await axios.post(agentUrl, {
+          userId: jobData.userId,
+          cardId: "SCAN_PREVIEW",
+          cardDetails: {
             year: result.year,
             brand: result.brand,
-            set: result.set || undefined,
+            set: result.set || "",
             player: result.player,
             cardNumber: result.cardNumber,
             parallel: result.parallel,
-            condition: result.grade ? `${result.grader || ""} ${result.grade}`.trim() : undefined
-          });
-
-          console.log(`[Scanner Enrichment] Tier 1 Query: "${precisionQuery}"`);
-          
-          let ebayData = await ebay.searchActiveItems(precisionQuery, 10, 'price', true);
-          let rawItems = ebayData.itemSummaries || [];
-
-          // Tier 2 Fallback: Relaxed Identifier
-          if (rawItems.length === 0) {
-            const cleanNum = (result.cardNumber || "").replace("#", "").trim();
-            const fallbackQuery = `${result.year} ${result.brand} ${result.player} ${cleanNum} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[Scanner Enrichment] Tier 1 failed. Trying Tier 2: "${fallbackQuery}"`);
-            ebayData = await ebay.searchActiveItems(fallbackQuery, 10, 'price', true);
-            rawItems = ebayData.itemSummaries || [];
+            grade: result.grade || "",
+            gradingCompany: result.grader || "",
+            conditionHint: result.conditionAssessment
           }
+        }, {
+          headers: { "Content-Type": "application/json" },
+          timeout: 120000 // 120 seconds
+        });
 
-          // Tier 3 Fallback: Nuclear (Player + Card # only)
-          if (rawItems.length === 0) {
-            const cleanNum = (result.cardNumber || "").replace("#", "").trim();
-            const nuclearQuery = `${result.player} ${cleanNum} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[Scanner Enrichment] Tier 2 failed. Trying Tier 3: "${nuclearQuery}"`);
-            ebayData = await ebay.searchActiveItems(nuclearQuery, 10, 'price', true);
-            rawItems = ebayData.itemSummaries || [];
-          }
+        const agentData = agentResponse.data;
+        
+        // Merge pricing data into result
+        (result as any).estimatedMarketValue = agentData.final_price || 0.99;
+        (result as any).estimatedGrade = result.grade || result.conditionAssessment || "Raw";
+        (result as any).valuationMethod = agentData.valuation_method;
+        (result as any).lastSearchQuery = agentData.last_search_query;
+        (result as any).marketPrices = agentData.research_results;
 
-          // Tier 4 Fallback: Player + Brand + Year (No card number)
-          if (rawItems.length === 0) {
-            const brandYearQuery = `${result.year} ${result.brand} ${result.player} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[Scanner Enrichment] Tier 3 failed. Trying Tier 4: "${brandYearQuery}"`);
-            ebayData = await ebay.searchActiveItems(brandYearQuery, 10, 'price', true);
-            rawItems = ebayData.itemSummaries || [];
-          }
+      } catch (agentErr: any) {
+        console.error(`[Scanner] Agent pricing failed: ${agentErr.message}`);
+        (result as any).estimatedMarketValue = 0.99;
+        (result as any).estimatedGrade = result.grade || result.conditionAssessment || "Raw";
+      }
 
-          // Tier 5 Fallback: Player only
-          if (rawItems.length === 0) {
-            const playerQuery = `${result.player} -reprint -digital`.replace(/\s+/g, " ").trim();
-            console.log(`[Scanner Enrichment] Tier 4 failed. Trying Tier 5: "${playerQuery}"`);
-            ebayData = await ebay.searchActiveItems(playerQuery, 10, 'price', true);
-            rawItems = ebayData.itemSummaries || [];
-          }
-
-          const calc = calculateTradeValue(rawItems);
-          (result as any).estimatedMarketValue = calc.value;
-          console.log(`[Scanner Enrichment] Valuation: $${calc.value} (${calc.logic})`);
-
-        } catch (ebayError) {
-          console.error("eBay enrichment failed:", ebayError);
-          (result as any).estimatedMarketValue = 0;
-        }
-      // --- End Enrichment ---
 
       await jobRef.update({
         status: "completed",

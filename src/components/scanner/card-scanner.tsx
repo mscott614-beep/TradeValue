@@ -85,6 +85,7 @@ export function CardScanner() {
   const [backPreview, setBackPreview] = useState<string | null>(null);
   const [result, setResult] = useState<ScanCardAndAddMetadataOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [scanStatus, setScanStatus] = useState<string | null>(null);
 
   const frontFileInputRef = useRef<HTMLInputElement>(null);
   const backFileInputRef = useRef<HTMLInputElement>(null);
@@ -187,6 +188,7 @@ export function CardScanner() {
       const unsubscribe = onSnapshot(jobDocRef, (snap) => {
         if (snap.exists()) {
           const data = snap.data() as any;
+          setScanStatus(data.status);
           if (data.status === "completed") {
             setResult(data.result);
             setIsLoading(false);
@@ -325,7 +327,7 @@ export function CardScanner() {
           ) : (
             <WandSparkles className="mr-2 h-5 w-5" />
           )}
-          {isLoading ? "Scanning..." : isLimitReached ? "Limit Reached" : "Scan Card with AI"}
+          {isLoading ? (scanStatus === "processing" ? "Fetching Market Data..." : "Scanning...") : isLimitReached ? "Limit Reached" : "Scan Card with AI"}
         </Button>
       </div>
 
@@ -369,13 +371,19 @@ export function CardScanner() {
               <p className="font-medium">
                 {result.cardNumber?.toString().match(/^\d+$/) ? `#${result.cardNumber}` : result.cardNumber}
               </p>
-              <p className="text-muted-foreground">Est. Grade:</p><p className="font-medium">{result.estimatedGrade}</p>
+              <p className="text-muted-foreground">Condition:</p><p className="font-medium text-green-400">{(result as any).conditionAssessment || result.estimatedGrade}</p>
               <p className="text-muted-foreground">Grader:</p>
-              <p className="font-medium text-purple-400">{result.grader}</p>
+              <p className="font-medium text-purple-400">{result.grader || 'None'}</p>
               <p className="text-primary font-bold">Est. Value:</p>
               <p className="text-primary font-bold">
                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}
               </p>
+              {(result as any).valuationMethod && (
+                <>
+                  <p className="text-[10px] text-muted-foreground">Method:</p>
+                  <p className="text-[10px] text-muted-foreground">{(result as any).valuationMethod}</p>
+                </>
+              )}
             </div>
             <div className="flex gap-2 mt-6">
               <Button className="flex-1" onClick={handleAddToCollection} disabled={isLoading || isLimitReached}>
