@@ -582,8 +582,11 @@ export default function CardDetailsPage() {
                                         {isRefreshingValue ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-2 h-3 w-3" />}
                                         Sync Market Data
                                     </Button>
-                                    <Badge variant="outline" className="h-7 text-[10px] bg-background/50">
-                                        Estimated Current Value: ${typeof avgPrices.active === 'number' ? avgPrices.active.toFixed(2) : '0.00'}
+                                    <Badge variant="secondary" className="h-7 text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20 whitespace-nowrap flex items-center gap-1.5">
+                                        <span className="uppercase tracking-wider opacity-70">Estimated Current Value:</span>
+                                        <span className="text-white font-bold">
+                                            {avgPrices.sold ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(avgPrices.sold) : 'N/A'}
+                                        </span>
                                     </Badge>
                                 </div>
                             )}
@@ -659,7 +662,7 @@ export default function CardDetailsPage() {
                             </div>
                             {avgPrices && avgPrices.sold > 0 && (
                                 <Badge variant="secondary" className="h-6 text-[10px] bg-green-500/20 text-green-600 border-none">
-                                    Avg Sale: ${typeof avgPrices.sold === 'number' ? avgPrices.sold.toFixed(2) : '0.00'}
+                                    Estimated Current Value: ${typeof avgPrices.sold === 'number' ? avgPrices.sold.toFixed(2) : '0.00'}
                                 </Badge>
                             )}
                         </CardHeader>

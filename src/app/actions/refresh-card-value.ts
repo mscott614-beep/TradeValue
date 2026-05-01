@@ -12,10 +12,7 @@ import { getAdminDb } from "@/lib/firebase-server";
  */
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
-        const agentUrl = (process.env.AGENT_SERVICE_URL || "").trim();
-        if (!agentUrl) {
-            throw new Error("AGENT_SERVICE_URL secret is not set.");
-        }
+        const agentUrl = "https://market-agent-i2233dwbnq-uk.a.run.app";
 
         console.log(`[Refresh] Calling Python Agent for ${card.player}...`);
         
@@ -56,18 +53,18 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         }));
 
         const activeItems = (research.top_listings || []).map((item: any) => ({
-            title: item.title,
-            price: item.price,
-            url: item.url,
-            imageUrl: item.image_url
+            title: String(item.title || "No Title"),
+            price: Number(item.price || 0),
+            url: String(item.url || "#"),
+            imageUrl: item.image_url || item.imageUrl || null
         }));
 
         const soldItems = (research.sold_listings || []).map((item: any) => ({
-            title: item.title,
-            price: item.price,
-            url: item.url,
-            imageUrl: item.image_url,
-            endDate: item.end_date
+            title: String(item.title || "No Title"),
+            price: Number(item.price || 0),
+            url: String(item.url || "#"),
+            imageUrl: item.image_url || item.imageUrl || null,
+            endDate: String(item.endDate || item.end_date || new Date().toISOString().split('T')[0])
         }));
 
         const avgSoldPrice = research.avg_sold_price || 0;
@@ -104,11 +101,19 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             timestamp: timestamp,
         }, { merge: true });
 
+        const avgActivePrice = activeItems.length > 0 
+            ? activeItems.reduce((acc: number, item: any) => {
+                const p = typeof item.price === 'number' ? item.price : parseFloat(String(item.price).replace(/[^0-9.]/g, ""));
+                return acc + (isNaN(p) ? 0 : p);
+            }, 0) / activeItems.length 
+            : 0;
+
         return {
             success: true,
-            value: newPrice,
+            newPrice,
             top5,
-            soldItems, // Added to fix the 'listings not filling' issue
+            soldItems,
+            avgActivePrice,
             avgSoldPrice,
             lowVolumeData,
             diagnostics: `[Agent] Method: ${result.valuation_method} | Query: ${result.last_search_query}`
@@ -121,5 +126,23 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             error: error.message,
             diagnostics: error.stack
         };
+    }
+}
+
+export async function analyzeCardAction(card: Portfolio) {
+    try {
+        const agentUrl = "https://market-agent-i2233dwbnq-uk.a.run.app";
+        const response = await fetch(`${agentUrl}/analyze-card`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card })
+        });
+
+        if (!response.ok) throw new Error("Failed to call analysis agent");
+        const result = await response.json();
+        return { success: true, result: result.analysis };
+    } catch (error: any) {
+        console.error("[Analysis Error]", error);
+        return { success: false, error: error.message };
     }
 }

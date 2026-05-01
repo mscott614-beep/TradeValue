@@ -39,6 +39,7 @@ const EBAY_CLIENT_SECRET = defineSecret("EBAY_CLIENT_SECRET");
 const EBAY_ENV = defineSecret("EBAY_ENV");
 
 admin.initializeApp();
+admin.firestore().settings({ ignoreUndefinedProperties: true });
 
 // Producer: Triggered when a new job is created in 'scanJobs'
 export const enqueueGeminiTask = onDocumentCreated({
@@ -385,6 +386,8 @@ export const scheduledMarketRefresh = onSchedule(
     schedule: "0 8 * * *",
     timeZone: "America/New_York",
     region: "us-east4",
+    memory: "512MiB",
+    timeoutSeconds: 540,
   },
   async () => {
     const db = admin.firestore();
@@ -478,10 +481,13 @@ export const refreshMarketCardTask = onTaskDispatched(
         }
       }, {
         headers: { "Content-Type": "application/json" },
-        timeout: 90000 // 90 seconds
+        timeout: 180000 // 180 seconds
       });
 
       const result = agentResponse.data as any;
+      if (!result || typeof result !== 'object') {
+        throw new Error("Python Agent returned invalid or empty data");
+      }
       
       let newPrice = result.final_price;
       if (typeof newPrice === "string") {
@@ -519,19 +525,27 @@ export const refreshMarketCardTask = onTaskDispatched(
       const research = result.research_results || {};
       const marketPrices = {
         median: newPrice,
-        activeItems: (research.top_listings || []).map((item: any) => ({
-          title: item.title,
-          price: item.price,
-          url: item.url,
-          imageUrl: item.image_url
-        })),
-        soldItems: (research.sold_listings || []).map((item: any) => ({
-          title: item.title,
-          price: item.price,
-          url: item.url,
-          imageUrl: item.image_url,
-          endDate: item.end_date
-        })),
+        activeItems: (research.top_listings || []).map((item: any) => {
+          let p = item.price;
+          if (typeof p === 'string') p = parseFloat(p.replace(/[^0-9.]/g, ''));
+          return {
+            title: String(item.title || "No Title"),
+            price: Number(p || 0),
+            url: String(item.url || "#"),
+            imageUrl: item.image_url || item.imageUrl || null
+          };
+        }),
+        soldItems: (research.sold_listings || []).map((item: any) => {
+          let p = item.price;
+          if (typeof p === 'string') p = parseFloat(p.replace(/[^0-9.]/g, ''));
+          return {
+            title: String(item.title || "No Title"),
+            price: Number(p || 0),
+            url: String(item.url || "#"),
+            imageUrl: item.image_url || item.imageUrl || null,
+            endDate: String(item.endDate || item.end_date || new Date().toISOString().split('T')[0])
+          };
+        }),
         avgSoldPrice: research.avg_sold_price || 0,
         lowVolumeData: research.low_volume || false,
         lastUpdated: timestamp

@@ -56,7 +56,7 @@ class AgentClass:
 Mission: PROVE THE PIPELINE WORKS. Return the most recent SOLD price for the card provided. Use 'Sold-BIN' as the default valuation_method.
 
 BATCH & BUCKET RULES:
-0. STRICT QUERY PROTOCOL: All search queries must follow: [Year] [Brand] [Player] #[Number]. For high-parallel sets (OPC Platinum, Prizm, Select), you MUST use negative keywords to exclude other parallels (e.g., -Rainbow -Traxx -Ice -Refractor). NEVER use a price from a parallel card for a base card valuation. This is 'Rainbow Pollution' and is a critical error.
+0. STRICT QUERY PROTOCOL: All search queries must follow: [Year] [Brand] [Player] #[Number]. For high-parallel sets (OPC Platinum, Prizm, Select), you MUST use negative keywords to exclude other parallels (e.g., -Rainbow -Traxx -Ice -Refractor). NEVER use a price from a parallel card for a base card valuation. THIS IS 'RAINBOW POLLUTION' AND IS A CRITICAL FAILURE. If you see 'Rainbow' or 'Traxx' in a title and you are valuating a 'Base' card, you MUST DISCARD that listing immediately.
 1. EBAY FILTER: Use 'Buy It Now' (BIN) results ONLY. PURGE ALL AUCTION DATA. 
 2. ACTIVE ANCHOR TRIGGER: If you cannot find recent 'Sold' data, or if the valuation hits a 'Flatline' floor (e.g. $25.00 for specialty sets), you MUST perform a secondary search specifically for Active Buy It Now listings.
 3. WEIGHTED VALUATION: If 'Sold' data is missing but Active listings exist (e.g. at $200), value the card at 85% of the lowest Active BIN price. Set 'valuation_method' to 'Active-Floor'.
@@ -70,6 +70,7 @@ BATCH & BUCKET RULES:
    - VERIFICATION: When using an Active Anchor for a base card, you MUST verify the listing title does NOT contain parallel keywords like 'Rainbow', 'Refractor', or 'Traxx'.
    - Set 'valuation_method' to 'Graded-10-Anchor' in this case.
 6. JSON ONLY: Return ONLY a JSON object with: final_price, price_raw_nm, price_raw_ex, valuation_method, last_search_query, research_results.
+7. RESEARCH STRUCTURE: 'research_results' MUST be a JSON object containing two lists: 'top_listings' (Active listings) and 'sold_listings' (Sold listings). Each listing must have: title, price, url, image_url. SOLD listings MUST also include an 'endDate' (format: YYYY-MM-DD).
 ''' ,
 
       tools=[

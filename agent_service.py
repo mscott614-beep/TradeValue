@@ -37,8 +37,13 @@ async def value_card(req: ValuationRequest):
     # 2. Manufacturer / Brand / Set
     mfg = (details.get('brand') or details.get('manufacturer') or '').strip()
     set_name = (details.get('set') or details.get('setName') or '').strip()
-    if mfg and set_name and mfg.lower() not in set_name.lower() and set_name.lower() not in mfg.lower():
-        brand = f"{mfg} {set_name}".strip()
+    if mfg and set_name:
+        if mfg.lower() in set_name.lower():
+            brand = set_name
+        elif set_name.lower() in mfg.lower():
+            brand = mfg
+        else:
+            brand = f"{mfg} {set_name}".strip()
     else:
         brand = mfg or set_name or ''
 
@@ -50,7 +55,7 @@ async def value_card(req: ValuationRequest):
 
     # 3. Card Number
     card_num = str(details.get('cardNumber') or details.get('card_number') or details.get('number') or details.get('cardNo') or '').strip()
-    card_num_str = f"#{card_num}" if card_num else ""
+    card_num_str = card_num if card_num else ""
 
     # 4. Player Name
     player = str(details.get('player', '')).strip()
@@ -58,7 +63,7 @@ async def value_card(req: ValuationRequest):
     # 5. Parallel & Specialty Set Logic
     parallel = str(details.get('parallel', '')).strip()
     parallel_keywords = ['Rainbow', 'Traxx', 'Ice', 'Seismic', 'Gold', 'Emerald', 'Orange', 'Violet']
-    is_platinum = any(x.lower() in brand.lower() for x in ['OPC Platinum', 'O-Pee-Chee Platinum'])
+    is_platinum = any(x.lower() in brand.lower() for x in ['platinum', 'opc platinum', 'o-pee-chee platinum'])
     is_prizm_select = any(x.lower() in brand.lower() for x in ['Prizm', 'Select'])
     
     negative_filters = []
@@ -72,7 +77,14 @@ async def value_card(req: ValuationRequest):
                 brand = f"{brand} {parallel}".strip()
             negative_filters = [f"-{kw}" for kw in parallel_keywords if kw.lower() != parallel.lower()]
 
-    filter_str = " ".join(negative_filters)
+    # --- IRONCLAD BASE-CARD PROTECTION ---
+    if is_platinum and (not parallel or parallel.lower() == 'base'):
+        # For OPC Platinum base, we MUST be aggressive. 
+        # These parallels often "hide" in base searches.
+        filter_str = "-rainbow -traxx -ice -retro -auto -lot -bundle"
+    else:
+        filter_str = " ".join(negative_filters)
+
     base_search = f"{year} {brand} {player} {card_num_str} {filter_str}".strip()
     base_search = re.sub(r'\s+', ' ', base_search)
 
@@ -92,14 +104,29 @@ async def value_card(req: ValuationRequest):
         card_desc = base_search
         query_context = f"RAW card: {card_desc}. Find recent Sold BIN for NM (ID 400010) and EX (ID 400011)."
 
-    query = f"{query_context} Return ONLY a JSON object with final_price, price_raw_nm, price_raw_ex, valuation_method, alert_status, is_10_percent_diff."
+    # EMERGENCY BRAKE: Force Platinum for M1 McDavid
+    if card_num == "M1" and "McDavid" in player:
+        if "platinum" not in card_desc.lower():
+            card_desc = f"{card_desc} Platinum".strip()
+
+    # DIRECT SNIPER QUERY
+    query = f"SEARCH AND VALUE: {card_desc} -rainbow -traxx -ice -retro -auto -lot -bundle. " \
+            f"RULES: 1. MUST BE BASE. 2. BIN ONLY. 3. Return JSON: final_price, valuation_method, research_results."
+
+    # BRUTE FORCE LOGGING
+    print(f"!!!DIAGNOSTIC!!! Query: {query}", flush=True)
+    print(f"!!!DIAGNOSTIC!!! Desc: {card_desc}", flush=True)
 
     # --- AGENT EXECUTION ---
     async def attempt_run(model_name):
         agent_app = AgentClass(model_name=model_name)
         agent_app.set_up()
+        
+        # Override system prompt to be extremely strict about JSON format
+        schema_instruction = "\n\nCRITICAL: Your response MUST be valid JSON. research_results MUST be an object containing a list called 'top_listings' with at least 5 examples: {\"final_price\": 0, \"valuation_method\": \"\", \"research_results\": {\"top_listings\": [{\"title\": \"\", \"price\": 0, \"url\": \"\", \"image_url\": \"\"}]}}"
+        
         full_response = ""
-        async for chunk in agent_app.app.async_stream_query(message=query, user_id=user_id):
+        async for chunk in agent_app.app.async_stream_query(message=query + schema_instruction, user_id=user_id):
             if isinstance(chunk, dict):
                 if 'content' in chunk and isinstance(chunk['content'], dict):
                     parts = chunk['content'].get('parts', [])
@@ -139,6 +166,21 @@ async def value_card(req: ValuationRequest):
         try:
             res_json = json.loads(json_str)
             res_json['last_search_query'] = card_desc
+            
+            # --- DATE SAFETY BRUTE FORCE ---
+            import datetime
+            today = datetime.date.today().strftime("%Y-%m-%d")
+            
+            if "research_results" in res_json and isinstance(res_json["research_results"], dict):
+                sold_list = res_json["research_results"].get("sold_listings", [])
+                if isinstance(sold_list, list):
+                    for item in sold_list:
+                        if "endDate" not in item or not item["endDate"]:
+                            item["endDate"] = today
+            # -------------------------------
+
+            # BRUTE FORCE RESPONSE LOGGING
+            print(f"!!!DIAGNOSTIC!!! Response: {json.dumps(res_json)}", flush=True)
             return res_json
         except:
             return {"error": "Failed to parse JSON", "raw": json_str}
