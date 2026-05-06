@@ -399,13 +399,14 @@ async def value_card(req: ValuationRequest):
 
     # --- IRONCLAD FALLBACK ---
     error_fallback = {
+        "final_price": 0.00,
         "currentMarketValue": 0.00,
         "status": "manual_review",
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "active_listings": [],
         "sold_listings": [],
         "supporting_data": {"error": "Search failed"},
-        "search_query": "Unknown",
+        "query": "Unknown",
         "method": "direct_search"
     }
 
