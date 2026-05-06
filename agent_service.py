@@ -376,9 +376,11 @@ async def extract_ebay(req: ExtractRequest):
 
 @app.post("/value-card")
 async def value_card(req: ValuationRequest):
-    # Fix: Initialize variables at the VERY top to prevent 'name not defined' errors
+    # Synchronized Fix: Initialize ALL variables at the absolute top
     is_graded = False
     cleaned_num = "Unknown"
+    query = ""
+    method = ""
     details = {}
     
     # Fix: Explicitly log the incoming request body
@@ -416,7 +418,7 @@ async def value_card(req: ValuationRequest):
         "active_listings": [],
         "sold_listings": [],
         "supporting_data": {"error": "Search failed"},
-        "query": "Unknown",
+        "query": "Manual Search Required",
         "method": "direct_search"
     }
 

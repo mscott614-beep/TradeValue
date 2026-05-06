@@ -121,7 +121,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             avgActivePrice,
             avgSoldPrice,
             lowVolumeData,
-            diagnostics: `[Agent] Method: ${result.method || result.valuation_method} | Query: ${result.query || result.last_search_query}`
+            diagnostics: `[Agent] Method: ${result.method || result.valuation_method || "direct_search"} | Query: ${result.query || result.last_search_query || "Manual Search Required"}`
         };
 
     } catch (error: any) {
