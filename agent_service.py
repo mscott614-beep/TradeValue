@@ -182,9 +182,14 @@ async def execute_batch_sync_worker(userId: str):
     print(f"[BatchSync] Worker started for user: {userId}")
     try:
         db = get_db()
-        # Find cards needing valuation (Limit increased to 200 total per run)
+        # MCP Timeout: Ensure we don't hang the parent process
+        # Wrap the fetch in a 25s timeout for 30s MCP deadlines
         cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(200)
-        cards = list(cards_ref.stream())
+        try:
+            cards = await asyncio.wait_for(asyncio.to_thread(lambda: list(cards_ref.stream())), timeout=25.0)
+        except asyncio.TimeoutError:
+            print("[BatchSync] TIMEOUT: Firestore fetch exceeded 25s limit.")
+            return
         
         if not cards:
             print("[BatchSync] No cards found needing sync.")
@@ -399,8 +404,8 @@ async def value_card(req: ValuationRequest):
 
     # --- IRONCLAD FALLBACK ---
     error_fallback = {
-        "final_price": 0.00,
-        "currentMarketValue": 0.00,
+        "final_price": details.get('currentMarketValue', 0.00),
+        "currentMarketValue": details.get('currentMarketValue', 0.00),
         "status": "manual_review",
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "active_listings": [],
@@ -409,6 +414,10 @@ async def value_card(req: ValuationRequest):
         "query": "Unknown",
         "method": "direct_search"
     }
+
+    # Fix: Initialize variables to prevent 'name not defined' errors
+    is_graded = False
+    cleaned_num = ""
 
     try:
         # 1. Date Expansion
@@ -422,12 +431,21 @@ async def value_card(req: ValuationRequest):
         set_name = str(details.get('set') or details.get('setName') or '').strip()
         brand_raw = f"{mfg} {set_name}".strip()
 
+        # 3. Universal Card Number Sanitizer
+        raw_num = str(details.get('cardNumber') or details.get('number') or '').strip()
+        cleaned_num = re.sub(r'^(#|No\.|No|c)+', '', raw_num, flags=re.IGNORECASE).strip()
+
         # 4. Player
         player = str(details.get('player', '')).strip()
         
         # 5. Parallel / Attributes (Auto, Patch, etc.)
         parallel = str(details.get('parallel', '')).strip()
         if parallel.lower() == 'base': parallel = ''
+        
+        # 6. Graded State (Fix: explicitly check for grader labels)
+        grader_val = str(details.get('gradingCompany') or details.get('grader') or '').upper()
+        grade_val = str(details.get('grade') or details.get('estimatedGrade') or '').upper()
+        is_graded = any(x in grader_val or x in grade_val for x in ['PSA', 'BGS', 'SGC', 'CGC'])
 
         # Fix: Hardcode FOOLPROOF Query Construction
         # Pattern: [Year] [Brand] [Player] [CardNumber] [Parallel] -reprint -rp
@@ -481,12 +499,13 @@ async def value_card(req: ValuationRequest):
         res_json = robust_json_parse(raw_res)
         if not res_json: return error_fallback
 
-        # Price Logic
+        # Price Logic (Fix: fallback to existing market value if no price found)
+        existing_val = clean_numeric(details.get('currentMarketValue'), 0.00)
         cost_basis = clean_numeric(details.get('costBasis') or details.get('purchasePrice') or 0.00, 0.00)
         val = res_json.get('currentMarketValue') or res_json.get('final_price') or 0.00
-        final_price = clean_numeric(val, cost_basis)
+        final_price = clean_numeric(val, existing_val or cost_basis)
         
-        if final_price <= 0.01: final_price = cost_basis
+        if final_price <= 0.01: final_price = existing_val or cost_basis
 
         # Prepare listings for UI (Fix: Align with marketPrices structure)
         active_results = res_json.get("active_listings") or []
