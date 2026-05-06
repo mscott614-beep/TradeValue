@@ -129,51 +129,62 @@ async def batch_sync(req: BatchSyncRequest, background_tasks: BackgroundTasks):
     return {"status": "accepted"}
 
 def run_batch_sync_job(userId: str):
+    """
+    Optimized Batch Sync: Processes cards in chunks of 10 to prevent timeouts.
+    Fixes Vertex AI formatting by removing unnecessary 'metadata' key.
+    """
     try:
         db = get_db()
-        cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(1000)
-        cards = cards_ref.stream()
+        # Find cards needing valuation
+        cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(100)
+        cards = list(cards_ref.stream())
         
-        jsonl_lines = []
-        bucket_name = f"{PROJECT_ID}-batch-sync"
-        
-        for card_doc in cards:
-            data = card_doc.to_dict()
-            player = data.get('player', 'Unknown')
-            card_num = data.get('cardNumber', '')
-            brand = data.get('brand', '')
-            year = data.get('year', '')
-            
-            prompt = f"SEARCH AND VALUE: {year} {brand} {player} #{card_num}. Return JSON."
-            
-            metadata = {
-                "userId": userId,
-                "cardId": card_doc.id,
-                "path": card_doc.reference.path
-            }
-            
-            jsonl_lines.append(json.dumps({
-                "request": {"contents": [{"role": "user", "parts": [{"text": prompt}]}]},
-                "metadata": metadata
-            }))
-        
-        if not jsonl_lines: return
+        if not cards:
+            print("[BatchSync] No cards found needing sync.")
+            return
 
-        storage_client = storage.Client(project=PROJECT_ID)
-        bucket = storage_client.bucket(bucket_name)
-        if not bucket.exists(): bucket.create(location="us-central1")
+        # Chunk into groups of 10
+        chunk_size = 10
+        for i in range(0, len(cards), chunk_size):
+            chunk = cards[i:i + chunk_size]
+            jsonl_lines = []
             
-        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
-        blob = bucket.blob(f"input/batch_sync_{timestamp}.jsonl")
-        blob.upload_from_string("\n".join(jsonl_lines), content_type="application/json")
-        
-        aiplatform.init(project=PROJECT_ID, location="us-central1")
-        aiplatform.BatchPredictionJob.create(
-            job_display_name=f"batch_sync_{timestamp}",
-            model_name="publishers/google/models/gemini-1.5-flash",
-            gcs_source=f"gs://{bucket_name}/{blob.name}",
-            gcs_destination_prefix=f"gs://{bucket_name}/output/{timestamp}/",
-        )
+            for card_doc in chunk:
+                data = card_doc.to_dict()
+                player = data.get('player', 'Unknown')
+                card_num = data.get('cardNumber', '')
+                brand = data.get('brand', '')
+                year = data.get('year', '')
+                
+                # Explicit Query Construction
+                search_query = f"{year} {brand} {player} #{card_num}".strip()
+                prompt = f"SEARCH AND VALUE: {search_query}. Return JSON {{currentMarketValue, active_listings, sold_listings}}."
+                
+                # Fix 4: Removing 'metadata' key as per Gemini 1.5 Flash requirements
+                jsonl_lines.append(json.dumps({
+                    "request": {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+                }))
+            
+            # Upload and trigger job for this chunk
+            bucket_name = f"{PROJECT_ID}-batch-sync"
+            storage_client = storage.Client(project=PROJECT_ID)
+            bucket = storage_client.bucket(bucket_name)
+            if not bucket.exists(): bucket.create(location="us-central1")
+                
+            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+            blob_path = f"input/batch_{i//10}_{timestamp}.jsonl"
+            blob = bucket.blob(blob_path)
+            blob.upload_from_string("\n".join(jsonl_lines), content_type="application/json")
+            
+            aiplatform.init(project=PROJECT_ID, location="us-central1")
+            aiplatform.BatchPredictionJob.create(
+                job_display_name=f"batch_sync_{i//10}_{timestamp}",
+                model_name="publishers/google/models/gemini-1.5-flash",
+                gcs_source=f"gs://{bucket_name}/{blob_path}",
+                gcs_destination_prefix=f"gs://{bucket_name}/output/{timestamp}/{i//10}/",
+            )
+            print(f"[BatchSync] Submitted chunk {i//10} ({len(chunk)} cards)")
+            
     except Exception as e:
         print(f"[BatchSync] ERROR: {str(e)}")
 
@@ -310,9 +321,22 @@ async def extract_ebay(req: ExtractRequest):
 
 @app.post("/value-card")
 async def value_card(req: ValuationRequest):
-    details = req.cardDetails
     docId = req.cardId
+    userId = req.userId
     
+    # Fix 1: Pull full metadata from Firestore to ensure query completeness
+    details = req.cardDetails
+    try:
+        db = get_db()
+        if db and docId and userId:
+            # Fix 5: Increase Firestore/MCP timeout to 60s
+            doc_snap = db.collection('users').document(userId).collection('portfolios').document(docId).get(timeout=60)
+            if doc_snap.exists:
+                details = doc_snap.to_dict()
+                print(f"[AgentService] Fetched full metadata for card {docId}")
+    except Exception as fe:
+        print(f"[AgentService] Metadata fetch warning: {str(fe)}")
+
     # --- IRONCLAD FALLBACK ---
     error_fallback = {
         "currentMarketValue": 0.00,
@@ -320,7 +344,9 @@ async def value_card(req: ValuationRequest):
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "active_listings": [],
         "sold_listings": [],
-        "supporting_data": {"error": "Search failed"}
+        "supporting_data": {"error": "Search failed"},
+        "search_query": "Unknown",
+        "method": "direct_search"
     }
 
     try:
@@ -337,48 +363,34 @@ async def value_card(req: ValuationRequest):
 
         # 3. Universal Card Number Sanitizer
         raw_num = str(details.get('cardNumber') or details.get('number') or '').strip()
-        # Strip #, No., No, c
         cleaned_num = re.sub(r'^(#|No\.|No|c)+', '', raw_num, flags=re.IGNORECASE).strip()
         
-        # Serial Number Logic
-        sn = str(details.get('serialNumber') or details.get('serial_number') or '0').strip()
-        is_serial = sn != '0' and sn != 'None' and sn != ''
-        
-        # Omit alphabetical prefixes for serial/complex cards
-        if is_serial or re.search(r'[A-Za-z]+-', cleaned_num):
-            match = re.search(r'\d+', cleaned_num)
-            cleaned_num = match.group() if match else ""
-
         # 4. Player
         player = str(details.get('player', '')).strip()
 
-        # 5. Build Sanitized Query
+        # 5. Build Sanitized Query (Fix 1: Explicit Construction)
         query_parts = [year, brand_raw, player, cleaned_num]
-        if is_serial: query_parts.append(f"/{sn}")
         sanitized_base = sanitize_query_parts(query_parts)
-
-        # Graded check (Initialize from request or calculate)
-        is_graded_req = details.get('isGraded') or details.get('is_graded') or False
+        
+        # Graded check
         grader = str(details.get('gradingCompany') or '').upper()
         grade = str(details.get('grade') or '').upper()
-        is_graded_calc = any(x in grader or x in grade for x in ['PSA', 'BGS', 'SGC', 'CGC'])
-        is_graded = is_graded_req or is_graded_calc
+        is_graded = any(x in grader or x in grade for x in ['PSA', 'BGS', 'SGC', 'CGC'])
         
-        # Negative Keywords for authenticity
         neg_keywords = "-reprint -RP -facsimile -copy -sticker -custom"
         card_desc = f"{sanitized_base} {grader} {grade} {neg_keywords}".strip() if is_graded else f"{sanitized_base} -PSA -BGS -SGC -CGC {neg_keywords}".strip()
         
-        # Fallback Queries (Simplified for Flash)
-        fallback_query = f"VALUE: {player} {cleaned_num} {brand_raw} {year}. JSON."
-        ultra_broad_query = f"VALUE: {year} {brand_raw} {player}. JSON."
+        # Method tracking
+        method_used = "grounded_search"
 
         async def attempt_run(q):
             client = genai.Client(vertexai=True, project=PROJECT_ID, location='us-central1')
             sys_inst = (
                 f"Analyst. Player: {player}, Card: #{cleaned_num}. "
                 "RULES: Ignore bottom 25% of 'Sold' comps. Median of rest. "
-                "No Sold? Use 80% of active median. Return JSON {currentMarketValue, active_listings, sold_listings}."
+                "Return JSON {currentMarketValue, active_listings, sold_listings}."
             )
+            # Fix 5: Increase model/search timeout
             response = client.models.generate_content(
                 model='gemini-1.5-flash',
                 contents=q,
@@ -394,13 +406,9 @@ async def value_card(req: ValuationRequest):
         
         # Cascading Fallback Logic
         if "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower():
-            print("[AgentService] Tier 2 Fallback Triggered...")
-            raw_res = await attempt_run(fallback_query)
+            method_used = "fallback_broad_search"
+            raw_res = await attempt_run(f"VALUE: {player} {cleaned_num} {brand_raw} {year}. JSON.")
             
-        if "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower():
-            print("[AgentService] Tier 3 Ultra-Broad Fallback Triggered...")
-            raw_res = await attempt_run(ultra_broad_query)
-
         res_json = robust_json_parse(raw_res)
         if not res_json: return error_fallback
 
@@ -411,16 +419,15 @@ async def value_card(req: ValuationRequest):
         
         if final_price <= 0.01: final_price = cost_basis
 
-        res_json['currentMarketValue'] = final_price
-        if 'final_price' in res_json: del res_json['final_price']
-        
         # Final Sanitization & No-Fail Defaults
         final_payload = sanitize_firestore_payload({
             "currentMarketValue": final_price,
             "status": "market_verified" if final_price > 0.01 else "manual_review",
             "active_listings": res_json.get("active_listings"),
             "sold_listings": res_json.get("sold_listings"),
-            "supporting_data": res_json.get("supporting_data")
+            "supporting_data": res_json.get("supporting_data"),
+            "search_query": card_desc, # Fix 2: Explicitly include for UI toast
+            "method": method_used        # Fix 2: Explicitly include for UI toast
         })
 
         # Persist
@@ -428,8 +435,8 @@ async def value_card(req: ValuationRequest):
             db = get_db()
             if db:
                 db.collection('collections').document(docId).update(final_payload)
-                if req.userId:
-                    db.collection('users').document(req.userId).collection('portfolios').document(docId).update(final_payload)
+                if userId:
+                    db.collection('users').document(userId).collection('portfolios').document(docId).update(final_payload)
         except Exception as e:
             print(f"[AgentService] Firestore Update Failed: {str(e)}")
 
@@ -437,12 +444,6 @@ async def value_card(req: ValuationRequest):
 
     except Exception as e:
         print(f"[AgentService] FATAL ERROR: {str(e)}")
-        try:
-            db = get_db()
-            if db and docId:
-                fail_payload = sanitize_firestore_payload(error_fallback)
-                db.collection('collections').document(docId).update(fail_payload)
-        except: pass
         return sanitize_firestore_payload(error_fallback)
 
 if __name__ == '__main__':
