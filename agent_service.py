@@ -350,28 +350,118 @@ async def extract_ebay(req: ExtractRequest):
     import requests
     from bs4 import BeautifulSoup
     url = req.url
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+    }
     try:
-        response = requests.get(url, headers=headers, timeout=15)
-        context_data = f"URL: {url}, HTML: {response.text[:1000]}" if response.status_code == 200 else f"URL: {url}"
+        response = requests.get(url, headers=headers, timeout=20)
+        if response.status_code != 200:
+            return {"error": f"eBay returned HTTP {response.status_code}"}
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # --- STRUCTURED EXTRACTION FROM HTML ---
+        # 1. Title
+        title_el = soup.find('h1', class_='x-item-title__mainTitle') or soup.find('h1')
+        listing_title = title_el.get_text(strip=True) if title_el else ""
+        
+        # 2. Price
+        price_el = soup.find('div', class_='x-price-primary') or soup.find('span', {'itemprop': 'price'})
+        listing_price = price_el.get_text(strip=True) if price_el else ""
+        # Fallback: search for price in meta tags
+        if not listing_price:
+            meta_price = soup.find('meta', {'itemprop': 'price'})
+            if meta_price:
+                listing_price = f"${meta_price.get('content', '0')}"
+        
+        # 3. Condition
+        condition_el = soup.find('div', class_='x-item-condition-text') or soup.find('span', {'class': 'ux-textspans', 'id': lambda x: x and 'cond' in str(x).lower()})
+        listing_condition = condition_el.get_text(strip=True) if condition_el else ""
+        
+        # 4. Item Specifics (the table with Year, Brand, Sport, etc.)
+        item_specifics = {}
+        spec_sections = soup.find_all('div', class_='ux-layout-section-evo__col')
+        for section in spec_sections:
+            label_el = section.find('span', class_='ux-textspans--BOLD')
+            value_el = section.find('span', class_='ux-textspans--SECONDARY') if label_el else None
+            if not value_el:
+                # Try next sibling span
+                spans = section.find_all('span', class_='ux-textspans')
+                if len(spans) >= 2:
+                    label_el = spans[0]
+                    value_el = spans[1]
+            if label_el and value_el:
+                key = label_el.get_text(strip=True).rstrip(':')
+                val = value_el.get_text(strip=True)
+                if key and val and key != val:
+                    item_specifics[key] = val
+        
+        # 5. Seller description snippet
+        desc_el = soup.find('div', {'id': 'desc_div'}) or soup.find('iframe', {'id': 'desc_ifr'})
+        description_text = desc_el.get_text(strip=True)[:500] if desc_el else ""
+        
+        # Build structured context for Gemini
+        structured_text = f"""
+eBay Listing URL: {url}
+LISTING TITLE: {listing_title}
+PRICE: {listing_price}
+CONDITION: {listing_condition}
+ITEM SPECIFICS: {json.dumps(item_specifics, indent=2) if item_specifics else 'None found'}
+DESCRIPTION SNIPPET: {description_text[:300] if description_text else 'N/A'}
+"""
+        print(f"[ExtractEbay] Structured context: {structured_text[:500]}")
         
         client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
-        prompt = f"Extract card details from: {context_data}. Return JSON."
+        prompt = f"""You are an expert sports card appraiser. Extract the card metadata from this eBay listing.
+
+{structured_text}
+
+STRICT RULES:
+1. The "player" field is the athlete or character on the card (e.g., "Wayne Gretzky", "Charizard").
+2. The "brand" is the manufacturer (e.g., "Topps", "Upper Deck", "Panini", "Pokemon").
+3. The "cardNumber" comes from item specifics or the title. Do NOT confuse the year with the card number.
+4. If the listing mentions PSA, BGS, SGC, or CGC with a grade, set condition to that (e.g., "PSA 10"), grader to the company, and estimatedGrade to the number.
+5. If NOT graded, set condition to "Raw", grader to "None".
+6. Parse the actual asking price from PRICE field above.
+
+Return ONLY a JSON object with these exact fields:
+{{
+  "title": "full card title",
+  "player": "athlete or character name",
+  "year": 2023,
+  "brand": "manufacturer",
+  "set": "set or series name",
+  "cardNumber": "card number",
+  "condition": "Raw or PSA 10 etc",
+  "grader": "None or PSA/BGS/SGC/CGC",
+  "estimatedGrade": "grade number or empty",
+  "parallel": "parallel variant or empty",
+  "features": ["Rookie", "Autograph", etc],
+  "currentMarketValue": 123.45
+}}"""
         
         res = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                # Disable JSON mode for tool compatibility
-                # response_mime_type='application/json' 
+                response_mime_type='application/json'
             )
         )
         res_json = robust_json_parse(res.text)
         if res_json:
+            # Ensure price is a number
             res_json['currentMarketValue'] = clean_numeric(res_json.get('currentMarketValue'))
+            # Fallback: if AI missed the price, parse it from the HTML directly
+            if res_json['currentMarketValue'] <= 0.01 and listing_price:
+                price_match = re.search(r'[\d,]+\.?\d*', listing_price.replace(',', ''))
+                if price_match:
+                    res_json['currentMarketValue'] = float(price_match.group())
+            print(f"[ExtractEbay] SUCCESS: {res_json.get('player')} - ${res_json.get('currentMarketValue')}")
             return res_json
-        return {"error": "Failed to extract"}
+        return {"error": "Failed to extract card details from listing"}
     except Exception as e:
+        print(f"[ExtractEbay] ERROR: {str(e)}")
         return {"error": str(e)}
 
 @app.post("/value-card")
