@@ -122,7 +122,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             avgActivePrice,
             avgSoldPrice,
             lowVolumeData,
-            diagnostics: `[Agent] Method: ${result.valuation_method} | Query: ${result.last_search_query}`
+            diagnostics: `[Agent] Method: ${result.method || result.valuation_method} | Query: ${result.query || result.last_search_query}`
         };
 
     } catch (error: any) {

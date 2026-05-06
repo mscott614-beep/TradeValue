@@ -377,21 +377,25 @@ async def value_card(req: ValuationRequest):
     docId = req.cardId
     userId = req.userId
     
-    # Fix 1: Pull fresh metadata from Firestore (Awaiting fetch)
-    details = req.cardDetails
+    # Fix: Pull fresh metadata from Firestore and ABORT if missing (400 Error)
     try:
         db = get_db()
         if db and docId and userId:
-            print(f"[AgentService] Fetching metadata for docId: {docId}, userId: {userId}")
+            print(f"[AgentService] Handshake: Fetching metadata for docId: {docId}")
             doc_snap = db.collection('users').document(userId).collection('portfolios').document(docId).get(timeout=120)
             if doc_snap.exists:
                 details = doc_snap.to_dict()
-                print(f"[AgentService] SUCCESS: Fetched full metadata for {details.get('player')}")
+                print(f"[AgentService] Handshake SUCCESS: Found {details.get('player')}")
             else:
-                # Explicit error logging as requested
-                print(f"[Error] Could not find card {docId} in Firestore for user {userId}. Falling back to request details.")
+                print(f"[Error] Metadata not found for ID: {docId}")
+                raise HTTPException(status_code=400, detail=f"Metadata not found for ID: {docId}")
+        else:
+            raise HTTPException(status_code=400, detail="Missing required parameters (userId or cardId)")
+    except HTTPException:
+        raise
     except Exception as fe:
         print(f"[Error] Firestore metadata fetch failed: {str(fe)}")
+        raise HTTPException(status_code=500, detail=str(fe))
 
     # --- IRONCLAD FALLBACK ---
     error_fallback = {
@@ -478,8 +482,9 @@ async def value_card(req: ValuationRequest):
         active_results = res_json.get("active_listings") or []
         sold_results = res_json.get("sold_listings") or []
         
-        # Final Sanitization & No-Fail Defaults (Fix: Populate the Payload)
+        # Final Handshake Payload (Fix: Explicit keys for Frontend)
         final_payload = sanitize_firestore_payload({
+            "final_price": final_price,
             "currentMarketValue": final_price,
             "status": "market_verified" if final_price > 0.01 else "manual_review",
             "active_listings": active_results,
@@ -490,7 +495,7 @@ async def value_card(req: ValuationRequest):
                 "soldItems": sold_results,
                 "lastUpdated": datetime.now(timezone.utc).isoformat()
             },
-            "search_query": card_desc, 
+            "query": card_desc, 
             "method": method_used
         })
 
