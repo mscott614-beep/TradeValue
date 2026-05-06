@@ -422,15 +422,24 @@ async def value_card(req: ValuationRequest):
         set_name = str(details.get('set') or details.get('setName') or '').strip()
         brand_raw = f"{mfg} {set_name}".strip()
 
-        # 3. Universal Card Number Sanitizer
-        raw_num = str(details.get('cardNumber') or details.get('number') or '').strip()
-        cleaned_num = re.sub(r'^(#|No\.|No|c)+', '', raw_num, flags=re.IGNORECASE).strip()
-        
         # 4. Player
         player = str(details.get('player', '')).strip()
+        
+        # 5. Parallel / Attributes (Auto, Patch, etc.)
+        parallel = str(details.get('parallel', '')).strip()
+        if parallel.lower() == 'base': parallel = ''
 
-        # Fix: Hardcode Query Construction
-        query = f"{details.get('year', '')} {details.get('brand', '')} {details.get('player', '')} {details.get('cardNumber', '')} -reprint -rp".strip()
+        # Fix: Hardcode FOOLPROOF Query Construction
+        # Pattern: [Year] [Brand] [Player] [CardNumber] [Parallel] -reprint -rp
+        query_parts = [
+            str(details.get('year', '')),
+            str(details.get('brand', '')),
+            player,
+            str(details.get('cardNumber', '')),
+            parallel
+        ]
+        query = " ".join([p for p in query_parts if p and str(p).lower() != 'undefined']).strip()
+        query += " -reprint -rp"
         card_desc = query
         
         # Method tracking
