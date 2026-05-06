@@ -424,16 +424,7 @@ async def value_card(req: ValuationRequest):
         # 4. Player
         player = str(details.get('player', '')).strip()
 
-        # 5. Build Sanitized Query (Fix 1: Explicit Construction)
-        query_parts = [year, brand_raw, player, cleaned_num]
-        sanitized_base = sanitize_query_parts(query_parts)
-        
-        # Graded check
-        grader = str(details.get('gradingCompany') or '').upper()
-        grade = str(details.get('grade') or '').upper()
-        is_graded = any(x in grader or x in grade for x in ['PSA', 'BGS', 'SGC', 'CGC'])
-        
-        # Fix: Hardcode Query Construction to be foolproof
+        # Fix: Hardcode Query Construction
         query = f"{details.get('year', '')} {details.get('brand', '')} {details.get('player', '')} {details.get('cardNumber', '')} -reprint -rp".strip()
         card_desc = query
         
@@ -449,7 +440,7 @@ async def value_card(req: ValuationRequest):
                 "1. STRICTLY EXCLUDE any reprints, copies, or custom cards (-reprint -rp -copy). "
                 "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 25% of sold prices to remove outliers. "
                 "3. Calculate the median of the remaining sales. "
-                "4. LISTINGS: You MUST find and return the TOP 5 Active Links and TOP 5 Sold Links from your search. "
+                "4. LISTINGS: You MUST find and return the TOP 5 Active Links and TOP 5 Sold Links from your search results. "
                 "5. RETURN FORMAT: You MUST return a JSON block with this EXACT structure: "
                 "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}]}"
             )
@@ -483,13 +474,22 @@ async def value_card(req: ValuationRequest):
         
         if final_price <= 0.01: final_price = cost_basis
 
+        # Prepare listings for UI (Fix: Align with marketPrices structure)
+        active_results = res_json.get("active_listings") or []
+        sold_results = res_json.get("sold_listings") or []
+        
         # Final Sanitization & No-Fail Defaults (Fix: Populate the Payload)
         final_payload = sanitize_firestore_payload({
             "currentMarketValue": final_price,
             "status": "market_verified" if final_price > 0.01 else "manual_review",
-            "active_listings": res_json.get("active_listings") or [],
-            "sold_listings": res_json.get("sold_listings") or [],
-            "supporting_data": res_json.get("supporting_data") or {},
+            "active_listings": active_results,
+            "sold_listings": sold_results,
+            "marketPrices": {
+                "median": final_price,
+                "activeItems": active_results,
+                "soldItems": sold_results,
+                "lastUpdated": datetime.now(timezone.utc).isoformat()
+            },
             "search_query": card_desc, 
             "method": method_used
         })
