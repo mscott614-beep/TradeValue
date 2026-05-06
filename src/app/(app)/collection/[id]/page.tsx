@@ -210,26 +210,31 @@ export default function CardDetailsPage() {
     const handleSavePurchasePrice = () => {
         if (!cardDocRef) return;
 
-        const newPrice = parseFloat(purchasePriceInput);
-        if (isNaN(newPrice) || newPrice < 0) {
-            toast({
-                title: "Invalid Price",
-                description: "Please enter a valid positive number.",
-                variant: "destructive"
+        try {
+            const newPrice = parseFloat(purchasePriceInput);
+            if (isNaN(newPrice) || newPrice < 0) {
+                toast({
+                    title: "Invalid Price",
+                    description: "Please enter a valid positive number.",
+                    variant: "destructive"
+                });
+                setPurchasePriceInput(card?.purchasePrice?.toString() || '0');
+                return;
+            }
+
+            updateDocumentNonBlocking(cardDocRef, {
+                purchasePrice: newPrice
             });
-            setPurchasePriceInput(card?.purchasePrice?.toString() || '0');
-            return;
+
+            setIsEditingPrice(false);
+            toast({
+                title: "Price Updated",
+                description: "Your cost basis has been saved successfully.",
+            });
+        } finally {
+            document.body.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'auto';
         }
-
-        updateDocumentNonBlocking(cardDocRef, {
-            purchasePrice: newPrice
-        });
-
-        setIsEditingPrice(false);
-        toast({
-            title: "Price Updated",
-            description: "Your cost basis has been saved successfully.",
-        });
     };
 
         try {
@@ -636,19 +641,19 @@ export default function CardDetailsPage() {
                             )}
                         </CardHeader>
                         <CardContent className="p-0">
-                            {liveListings.length > 0 ? (
+                            {Array.isArray(liveListings) && liveListings.length > 0 ? (
                                 <div className="divide-y divide-border/30">
                                     {liveListings.map((listing, i) => (
                                         <a
                                             key={i}
-                                            href={listing.url}
+                                            href={listing?.url || "#"}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors group"
                                         >
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors" title={listing.title}>
-                                                    {listing.title}
+                                                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors" title={listing?.title || "Listing"}>
+                                                    {listing?.title || "Untitled Listing"}
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <Badge variant="secondary" className="text-[9px] px-1.5 h-3.5 bg-background/80 backdrop-blur-md border-none lowercase font-semibold shadow-sm">
@@ -658,7 +663,7 @@ export default function CardDetailsPage() {
                                             </div>
                                             <div className="text-right ml-4">
                                                 <p className="text-xs font-bold text-primary">
-                                                    ${typeof listing.price === 'number' ? listing.price.toFixed(2) : (listing.price?.value || '0.00')}
+                                                    ${typeof listing?.price === 'number' ? listing.price.toFixed(2) : (listing?.price?.value || '0.00')}
                                                 </p>
                                             </div>
                                         </a>
@@ -695,32 +700,32 @@ export default function CardDetailsPage() {
                             )}
                         </CardHeader>
                         <CardContent className="p-0">
-                            {soldListings.length > 0 ? (
+                            {Array.isArray(soldListings) && soldListings.length > 0 ? (
                                 <div className="divide-y divide-border/30">
                                     {soldListings.map((listing, i) => (
                                         <a
                                             key={i}
-                                            href={listing.url || "#"}
+                                            href={listing?.url || "#"}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors group"
                                         >
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-medium truncate group-hover:text-green-500 transition-colors" title={listing.title}>
-                                                    {cleanTitle(listing.title)}
+                                                <p className="text-xs font-medium truncate group-hover:text-green-500 transition-colors" title={listing?.title || "Listing"}>
+                                                    {cleanTitle(listing?.title || "Untitled Sold Listing")}
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <Badge className="text-[9px] px-1.5 h-3.5 bg-green-600 text-white border-none shadow-sm">
                                                         SOLD
                                                     </Badge>
                                                     <span className="text-[10px] text-muted-foreground/60">
-                                                        {listing.endDate ? new Date(listing.endDate).toLocaleDateString() : 'Recent'}
+                                                        {listing?.endDate ? new Date(listing.endDate).toLocaleDateString() : 'Recent'}
                                                     </span>
                                                 </div>
                                             </div>
                                             <div className="text-right ml-4">
                                                 <p className="text-xs font-bold text-green-600">
-                                                    ${typeof listing.price === 'number' ? listing.price.toFixed(2) : (listing.price?.value || '0.00')}
+                                                    ${typeof listing?.price === 'number' ? listing.price.toFixed(2) : (listing?.price?.value || '0.00')}
                                                 </p>
                                             </div>
                                         </a>

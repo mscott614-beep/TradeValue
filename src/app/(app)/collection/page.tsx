@@ -222,22 +222,22 @@ export default function CollectionPage() {
 
     // Fix 1 & 2: Immediate Unmount & Force Cleanup
     setIsEditDialogOpen(false);
-    document.body.style.pointerEvents = 'auto';
-    document.body.style.overflow = 'auto';
-
-    const docRef = doc(firestore, `users/${user.uid}/portfolios`, editingCard.id);
-    updateDocumentNonBlocking(docRef, {
-      title: tempTitle.trim()
-    }).then(() => {
-      setEditingCard(null);
-      toast.success('Title updated successfully');
-    }).catch(err => {
-      console.error('Failed to update title:', err);
-      toast.error('Failed to update title');
-    }).finally(() => {
-      // Secondary safety cleanup
+    
+    try {
+      const docRef = doc(firestore, `users/${user.uid}/portfolios`, editingCard.id);
+      updateDocumentNonBlocking(docRef, {
+        title: tempTitle.trim()
+      }).then(() => {
+        setEditingCard(null);
+        toast.success('Title updated successfully');
+      }).catch(err => {
+        console.error('Failed to update title:', err);
+        toast.error('Failed to update title');
+      });
+    } finally {
       document.body.style.pointerEvents = 'auto';
-    });
+      document.body.style.overflow = 'auto';
+    }
   };
 
   return (
@@ -407,7 +407,7 @@ export default function CollectionPage() {
                       </TableCell>
                       <TableCell>{card.year}</TableCell>
                       <TableCell className="text-right">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.currentMarketValue)}
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card?.currentMarketValue ?? 0)}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -483,7 +483,7 @@ export default function CollectionPage() {
                     )}
                     <div className="absolute top-2 right-2">
                       <Badge variant="secondary" className="bg-background/80 backdrop-blur-sm">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.currentMarketValue)}
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card?.currentMarketValue ?? 0)}
                       </Badge>
                     </div>
                   </div>

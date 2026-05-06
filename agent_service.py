@@ -376,6 +376,11 @@ async def extract_ebay(req: ExtractRequest):
 
 @app.post("/value-card")
 async def value_card(req: ValuationRequest):
+    # Fix: Initialize variables at the VERY top to prevent 'name not defined' errors
+    is_graded = False
+    cleaned_num = "Unknown"
+    details = {}
+    
     # Fix: Explicitly log the incoming request body
     print(f"[AgentService] Incoming valuation request: {req.json()}")
     
@@ -414,10 +419,6 @@ async def value_card(req: ValuationRequest):
         "query": "Unknown",
         "method": "direct_search"
     }
-
-    # Fix: Initialize variables to prevent 'name not defined' errors
-    is_graded = False
-    cleaned_num = "Unknown"
 
     try:
         # 1. Date Expansion
