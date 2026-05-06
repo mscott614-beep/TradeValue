@@ -474,13 +474,31 @@ async def value_card(req: ValuationRequest):
             "method": method_used        # Toast detail
         })
 
-        # Persist
+        # Persist (Fix: Log the Update and Verify Field Names)
         try:
             db = get_db()
-            if db:
-                db.collection('collections').document(docId).update(final_payload)
+            if db and docId:
+                # 1. Update the Global 'collections' cache
+                print(f"[AgentService] AUDIT: Updating Root 'collections' document_id: {docId}")
+                print(f"[AgentService] AUDIT: Payload: {json.dumps(final_payload, default=str)}")
+                
+                # Check if this doc actually exists before updating to avoid ghost writes
+                global_doc = db.collection('collections').document(docId)
+                if global_doc.get().exists:
+                    global_doc.update(final_payload)
+                else:
+                    print(f"[AgentService] WARNING: docId {docId} NOT FOUND in 'collections'")
+
+                # 2. Update the User-specific 'portfolios' collection
                 if userId:
-                    db.collection('users').document(userId).collection('portfolios').document(docId).update(final_payload)
+                    print(f"[AgentService] AUDIT: Updating User 'portfolios' collection. User: {userId}, Doc: {docId}")
+                    user_doc = db.collection('users').document(userId).collection('portfolios').document(docId)
+                    if user_doc.get().exists:
+                        user_doc.update(final_payload)
+                    else:
+                        print(f"[AgentService] WARNING: docId {docId} NOT FOUND in user {userId} portfolio")
+            else:
+                print(f"[AgentService] ERROR: docId is missing, cannot persist to Firestore.")
         except Exception as e:
             print(f"[AgentService] Firestore Update Failed: {str(e)}")
 
