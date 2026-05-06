@@ -417,7 +417,7 @@ async def value_card(req: ValuationRequest):
 
     # Fix: Initialize variables to prevent 'name not defined' errors
     is_graded = False
-    cleaned_num = ""
+    cleaned_num = "Unknown"
 
     try:
         # 1. Date Expansion
