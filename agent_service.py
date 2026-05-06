@@ -58,23 +58,32 @@ def sanitize_query_parts(parts: list) -> str:
     return " ".join(cleaned)
 
 def robust_json_parse(raw_text):
-    """Finds and parses the first JSON block in a string."""
+    """Finds and parses the first JSON block in a string. Fallback to regex for price."""
     match = re.search(r'(\{[\s\S]*\})', raw_text)
-    if not match:
-        return None
-    
-    json_str = match.group(1).replace('```json', '').replace('```', '').strip()
-    bracket_count = 0
-    for i, char in enumerate(json_str):
-        if char == '{': bracket_count += 1
-        elif char == '}': bracket_count -= 1
-        if bracket_count == 0:
-            json_str = json_str[:i+1]
-            break
-    try:
-        return json.loads(json_str)
-    except:
-        return None
+    if match:
+        json_str = match.group(1).replace('```json', '').replace('```', '').strip()
+        bracket_count = 0
+        for i, char in enumerate(json_str):
+            if char == '{': bracket_count += 1
+            elif char == '}': bracket_count -= 1
+            if bracket_count == 0:
+                json_str = json_str[:i+1]
+                break
+        try:
+            return json.loads(json_str)
+        except:
+            pass
+            
+    # Fallback: Extract the first numerical value with a dollar sign or just the first large number
+    price_match = re.search(r'\$(\d+(?:\.\d{2})?)', raw_text)
+    if price_match:
+        return {"currentMarketValue": float(price_match.group(1))}
+        
+    num_match = re.search(r'(\d+\.\d{2})', raw_text)
+    if num_match:
+        return {"currentMarketValue": float(num_match.group(1))}
+        
+    return None
 
 def sanitize_firestore_payload(payload: dict) -> dict:
     """
@@ -428,20 +437,20 @@ async def value_card(req: ValuationRequest):
                 f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
                 "VALUATION PROTOCOL: "
                 "1. STRICTLY EXCLUDE any reprints, copies, or custom cards (-reprint -rp -copy). "
-                "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 20% of sold prices to remove outliers. "
+                "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 25% of sold prices to remove outliers. "
                 "3. Calculate the median of the remaining sales. "
                 "4. CRITICAL: Return your final finding in a JSON block at the end of your response. "
-                "FORMAT: {\"currentMarketValue\": 123.45, \"active_listings\": [], \"sold_listings\": []}"
+                "If you cannot return JSON, at least state the final price clearly as: FINAL PRICE: $XXX.XX"
             )
             
-            # Fix: Disable JSON mode (controlled generation) as it conflicts with Search tool
+            # Fix: Explicitly set response_mime_type="text/plain" for tool compatibility
             response = client.models.generate_content(
                 model='gemini-1.5-flash',
                 contents=q,
                 config=types.GenerateContentConfig(
                     system_instruction=sys_inst,
                     tools=[types.Tool(google_search=types.GoogleSearch())],
-                    # response_mime_type='application/json' # Removed for tool compatibility
+                    response_mime_type='text/plain' 
                 )
             )
             return response.text
