@@ -125,14 +125,44 @@ class BatchSyncRequest(BaseModel):
 
 @app.post("/batch-sync", status_code=202)
 async def batch_sync(req: BatchSyncRequest, background_tasks: BackgroundTasks):
-    background_tasks.add_task(run_batch_sync_job, req.userId)
-    return {"status": "accepted"}
+    """
+    Triggers the batch sync process as a background task.
+    """
+    # Trigger the "tool" logic which now returns immediately
+    msg = run_batch_sync_job(req.userId)
+    return {"status": "accepted", "message": msg}
 
 def run_batch_sync_job(userId: str):
     """
-    Optimized Batch Sync: Processes cards in chunks of 20 to prevent timeouts.
-    Fixes Vertex AI formatting by removing unnecessary 'metadata' key.
+    Entry point for the batch sync 'tool'.
+    Now returns immediately while the worker handles the heavy lifting.
     """
+    # Start the actual worker in a new thread or background task
+    # Since we're in a synchronous function called by FastAPI background tasks,
+    # or potentially called directly, we'll use a threading approach if needed,
+    # but here we'll just return a message and let the worker be called.
+    
+    # In this specific architecture, we'll use a non-blocking asyncio task
+    # to trigger the worker loop.
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(execute_batch_sync_worker(userId))
+        else:
+            asyncio.run(execute_batch_sync_worker(userId))
+    except Exception as e:
+        print(f"[BatchSync] Trigger failed: {str(e)}")
+        # Fallback to direct call if event loop is tricky
+        import threading
+        threading.Thread(target=lambda: asyncio.run(execute_batch_sync_worker(userId))).start()
+
+    return "Batch Sync Job Started"
+
+async def execute_batch_sync_worker(userId: str):
+    """
+    The actual heavy-lifting worker that processes cards and submits Vertex AI jobs.
+    """
+    print(f"[BatchSync] Worker started for user: {userId}")
     try:
         db = get_db()
         # Find cards needing valuation (Limit increased to 200 total per run)
@@ -143,7 +173,7 @@ def run_batch_sync_job(userId: str):
             print("[BatchSync] No cards found needing sync.")
             return
 
-        # Chunk into groups of 20 (Fix 3: Batch Optimization)
+        # Chunk into groups of 20
         chunk_size = 20
         for i in range(0, len(cards), chunk_size):
             chunk = cards[i:i + chunk_size]
@@ -160,7 +190,6 @@ def run_batch_sync_job(userId: str):
                 search_query = f"{year} {brand} {player} #{card_num}".strip()
                 prompt = f"SEARCH AND VALUE: {search_query}. Return JSON {{currentMarketValue, active_listings, sold_listings}}."
                 
-                # Fix 4: Vertex AI Formatting - Request contents only
                 jsonl_lines.append(json.dumps({
                     "request": {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
                 }))
@@ -177,6 +206,7 @@ def run_batch_sync_job(userId: str):
             blob.upload_from_string("\n".join(jsonl_lines), content_type="application/json")
             
             aiplatform.init(project=PROJECT_ID, location="us-central1")
+            # This is the call that takes time; being in a worker prevents tool timeouts
             aiplatform.BatchPredictionJob.create(
                 job_display_name=f"batch_sync_{i//chunk_size}_{timestamp}",
                 model_name="publishers/google/models/gemini-1.5-flash",
@@ -186,7 +216,7 @@ def run_batch_sync_job(userId: str):
             print(f"[BatchSync] Submitted chunk {i//chunk_size} ({len(chunk)} cards)")
             
     except Exception as e:
-        print(f"[BatchSync] ERROR: {str(e)}")
+        print(f"[BatchSync] Worker ERROR: {str(e)}")
 
 @app.post("/trigger-newsletter", status_code=202)
 async def trigger_newsletter(background_tasks: BackgroundTasks):
