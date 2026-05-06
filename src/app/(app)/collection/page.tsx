@@ -90,6 +90,27 @@ export default function CollectionPage() {
   const [tempTitle, setTempTitle] = useState('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
+  // Fix 3 & 4: Manual Overlay Kill & Z-Index Audit
+  // Ensures that when the dialog closes, we explicitly restore interactivity
+  React.useEffect(() => {
+    if (!isEditDialogOpen) {
+      const cleanup = () => {
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
+        // Remove any stuck radix-overlay elements if they persist (safety check)
+        const overlays = document.querySelectorAll('[data-radix-portal]');
+        if (overlays.length === 0) {
+           // If no portals are active, ensure we haven't left the body locked
+           document.documentElement.style.pointerEvents = 'auto';
+        }
+      };
+      
+      // Small delay to ensure Radix has finished its own transition
+      const timer = setTimeout(cleanup, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isEditDialogOpen]);
+
   const portfoliosCollection = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return collection(firestore, `users/${user.uid}/portfolios`);
@@ -189,14 +210,20 @@ export default function CollectionPage() {
   const handleSaveTitle = () => {
     if (!user || !firestore || !editingCard || !tempTitle.trim()) return;
 
+    // Fix 1 & 2: Immediate Unmount
+    // Ensure the dialog state is cleared BEFORE any other operations
+    setIsEditDialogOpen(false);
+
     const docRef = doc(firestore, `users/${user.uid}/portfolios`, editingCard.id);
     updateDocumentNonBlocking(docRef, {
       title: tempTitle.trim()
+    }).then(() => {
+      setEditingCard(null);
+      toast.success('Title updated successfully');
+    }).catch(err => {
+      console.error('Failed to update title:', err);
+      toast.error('Failed to update title');
     });
-
-    setIsEditDialogOpen(false);
-    setEditingCard(null);
-    toast.success('Title updated successfully');
   };
 
   return (

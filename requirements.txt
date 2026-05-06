@@ -1,9 +1,12 @@
 fastapi
 uvicorn
 pydantic
-google-genai
-google-cloud-aiplatform
+google-genai>=1.0.0
 google-adk
-vertexai
 python-multipart
 requests
+google-cloud-firestore
+google-cloud-aiplatform
+google-cloud-storage
+beautifulsoup4
+resend

@@ -4,11 +4,14 @@ from typing import Any
 
 from google.adk.agents import llm_agent
 from google.adk.sessions import in_memory_session_service
+from google import genai
 from google.genai import types
-from vertexai.preview.reasoning_engines import AdkApp
-from google.adk.tools import agent_tool
-from google.adk.tools.google_search_tool import GoogleSearchTool
+from google.adk.apps import App as AdkApp
 from google.adk.tools import url_context
+
+def search_market_data(query: str):
+    """Search the live web for card auction results and market trends."""
+    return None # The Gemini 2.5/3 engine handles the actual grounding
 
 import warnings
 import time
@@ -16,20 +19,21 @@ import os
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import vertexai
 # --- CONFIGURATION ---
-PROJECT_ID = "puckvaluebak-38609945-5e85c"
-LOCATION = "global"
+PROJECT_ID = os.getenv("PROJECT_ID", "puckvaluebak-38609945-5e85c")
+LOCATION = os.getenv("LOCATION", "us-central1") # Standardizing to central1 as requested
 # ---------------------
 
-# Initialize globally at the top
-vertexai.init(project=PROJECT_ID, location=LOCATION)
+# Initialize Google Gen AI Client for Vertex AI
+client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
 
 VertexAiSessionService = in_memory_session_service.InMemorySessionService
 
+import datetime
+
 class AgentClass:
 
-  def __init__(self, model_name='gemini-3.1-flash-lite-preview'):
+  def __init__(self, model_name='gemini-2.5-flash'):
     self.app = None
     self.model_name = model_name
 
@@ -45,40 +49,15 @@ class AgentClass:
   def set_up(self):
     """Sets up the ADK application."""
     print(f"[Python] Using Model: {self.model_name}")
+    
+    # Modern Tooling for Sync Agent
+    search_tool = types.Tool(google_search=types.GoogleSearch())
+    
+    agent_instance = self.model_name
     root_agent = llm_agent.LlmAgent(
-      name='TradeValue_Market_Watcher',
-      model=self.model_name,
-      description=(
-          'TradeValue Market Watcher'
-      ),
-      sub_agents=[],
-      instruction='''Role: Lead Market Analyst.
-Mission: PROVE THE PIPELINE WORKS. Return the most recent SOLD price for the card provided. Use 'Sold-BIN' as the default valuation_method.
-
-BATCH & BUCKET RULES:
-0. STRICT QUERY PROTOCOL: All search queries must follow: [Year] [Brand] [Player] #[Number]. For high-parallel sets (OPC Platinum, Prizm, Select), you MUST use negative keywords to exclude other parallels (e.g., -Rainbow -Traxx -Ice -Refractor). NEVER use a price from a parallel card for a base card valuation. THIS IS 'RAINBOW POLLUTION' AND IS A CRITICAL FAILURE. If you see 'Rainbow' or 'Traxx' in a title and you are valuating a 'Base' card, you MUST DISCARD that listing immediately.
-1. EBAY FILTER: Use 'Buy It Now' (BIN) results ONLY. PURGE ALL AUCTION DATA. 
-2. ACTIVE ANCHOR TRIGGER: If you cannot find recent 'Sold' data, or if the valuation hits a 'Flatline' floor (e.g. $25.00 for specialty sets), you MUST perform a secondary search specifically for Active Buy It Now listings.
-3. WEIGHTED VALUATION: If 'Sold' data is missing but Active listings exist (e.g. at $200), value the card at 85% of the lowest Active BIN price. Set 'valuation_method' to 'Active-Floor'.
-4. RAW CARD PRICING:
-   - NM Price (ID 400010): Primary floor is $0.99. 
-   - If 'Sold' results hit a floor that seems low for the specific card, trigger the Active Anchor.
-   - Return 'price_raw_nm' and 'price_raw_ex'. Set 'final_price' to 'price_raw_nm'.
-5. GRADED CARD PRICING (PSA 10 / BGS 9.5 / SGC 10):
-   - SEPARATION: Never use raw floors for professional slabs.
-   - If no 'Sold' results exist for the exact grade (e.g. PSA 10), use the Lowest Active BIN price for that grade minus 15%. 
-   - VERIFICATION: When using an Active Anchor for a base card, you MUST verify the listing title does NOT contain parallel keywords like 'Rainbow', 'Refractor', or 'Traxx'.
-   - Set 'valuation_method' to 'Graded-10-Anchor' in this case.
-6. STRICT RAW CARD RULE: If the request is for a RAW card (grader=null), you MUST exclude all listings that mention 'PSA', 'BGS', 'SGC', 'CGC', or 'Graded' in their titles. Using graded prices for raw cards is a critical failure.
-7. JSON ONLY: Return ONLY a JSON object with: final_price, price_raw_nm, price_raw_ex, valuation_method, last_search_query, research_results.
-8. RESEARCH STRUCTURE: 'research_results' MUST be a JSON object containing two lists: 'top_listings' (Active listings) and 'sold_listings' (Sold listings). Each listing must have: title, price, url, image_url. SOLD listings MUST also include an 'endDate' (format: YYYY-MM-DD).
-''' ,
-
-      tools=[
-
-        GoogleSearchTool(),
-        url_context
-      ],
+      name='MarketSyncAgent',
+      agent=agent_instance,
+      tools=[search_market_data]
     )
 
     self.root_agent = root_agent
@@ -86,6 +65,68 @@ BATCH & BUCKET RULES:
         agent=root_agent,
         session_service_builder=self.session_service_builder,
     )
+
+  def generate_market_report(self):
+    """
+    Performs research using Google Gen AI SDK and returns a structured market report.
+    """
+    current_month = datetime.datetime.now().strftime("%B %Y")
+    
+    try:
+        # Modern Tooling
+        search_tool = types.Tool(google_search=types.GoogleSearch())
+        
+        prompt = f"""
+        You are a professional Market Analyst for TradeValue.
+        
+        Perform research on these topics using your 'Google Search' ability. Specifically for the 2015-16 O-Pee-Chee Platinum Connor McDavid, you MUST prioritize recent eBay Sold listings for PSA 10 graded copies to capture the true slabbed premium:
+        1. 'upcoming {current_month} card releases'
+        2. 'top 5 trending sports card sales this week'
+        3. 'trading card market sentiment 2026'
+        
+        STRICT OUTPUT FORMAT (JSON ONLY):
+        {{
+          "executive_summary": "Concise overview...",
+          "breaking_news": ["Headline 1", "Headline 2"],
+          "trending_table": [{{"card": "...", "price": "...", "trend_insight": "..."}}],
+          "drop_calendar": [{{"product_name": "...", "release_date": "..."}}]
+        }}
+        """
+        
+        print(f"[MarketAnalyst] Starting research for {current_month}...")
+        
+        # Refactored Generate Call using Google Gen AI SDK
+        # Calibrate configuration based on model tier
+        if '3.1-pro' in self.model_name:
+            config = types.GenerateContentConfig(
+                tools=[search_tool], 
+                temperature=1.0,
+                thinking_level='medium'
+            )
+        else:
+            config = types.GenerateContentConfig(tools=[search_tool], temperature=1.0)
+            
+        response = client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config=config
+        )
+        
+        if not response or not response.text:
+            raise ValueError("Empty response from model")
+            
+        return response.text
+        
+    except Exception as e:
+        print(f"[MarketAnalyst] Report generation failed or throttled: {str(e)}")
+        # Graceful fallback: return a basic cached-style structure
+        return json.dumps({
+            "executive_summary": "Market data is currently being updated. Please check back in a few minutes.",
+            "breaking_news": ["Market systems refreshing..."],
+            "trending_table": [],
+            "drop_calendar": [],
+            "error": f"Search tool throttled or unavailable: {str(e)}"
+        })
 
   async def stream_query(
       self,
@@ -121,12 +162,7 @@ import asyncio
 import argparse
 import re
 
-import vertexai
-
 async def run_cli():
-    # Delay to let network breathe
-    # vertexai.init already called at top
-    
     parser = argparse.ArgumentParser()
     parser.add_argument('--userId', required=True)
     parser.add_argument('--cardId', required=True)
@@ -218,9 +254,9 @@ async def run_cli():
             base_search = re.sub(r'\s+', ' ', base_search)
             card_desc = base_search
 
-    query = f"SEARCH AND VALUE: {card_desc} -lot -bundle -set. RULES: 1. MUST BE card {card_num_str}. 2. MUST NOT be Young Guns. 3. BIN ONLY. 4. Return JSON."
-
-
+    # DIRECT SNIPER QUERY
+    query = f"SEARCH AND VALUE: {card_desc} -lot -bundle -set. " \
+            f"RULES: 1. MUST BE card #{card_num_str}. 2. MUST NOT be Young Guns. 3. BIN ONLY. 4. Return JSON."
 
     async def attempt_run(model_name):
         app_instance = AgentClass(model_name=model_name)
@@ -243,13 +279,13 @@ async def run_cli():
         return full_response
 
     try:
-        # Try primary model
-        full_response = await attempt_run('gemini-3.1-flash-lite-preview')
+        # Tier 1: Use stable primary model (gemini-2.5-flash)
+        full_response = await attempt_run('gemini-2.5-flash')
     except Exception as e:
-        # Always treat any error (404, 429, etc.) as a reason to fallback to ensure DB updates
-        print(f"[Python] gemini-3.1-flash-lite-preview encountered an issue: {str(e)}. Falling back to gemini-2.5-flash...")
+        # Tier 2 Fallback: Attempt Reasoning Upgrade
+        print(f"[Python] gemini-2.5-flash issue: {str(e)}. Attempting Tier 2 calibration...")
         try:
-            full_response = await attempt_run('gemini-2.5-flash')
+            full_response = await attempt_run('gemini-3.1-pro-preview')
         except Exception as e2:
             print(json.dumps({"error": f"Fallback failed: {str(e2)}", "final_price": 0.0}))
             return

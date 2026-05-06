@@ -1,0 +1,10 @@
+"Fix the Firestore write crash. Before calling .update() in agent_service.py:
+
+Fallback Value: If the agent returns an empty price or a timeout occurs, set the value to 0.01 and tag it with status: 'manual_review'.
+
+Numeric Cleaning: Use a regex to ensure the price is a clean float. CRITICAL: Explicitly cast the value using float() before the Firestore .update() call to ensure no 'stringified' numbers hit the DB.
+
+The Shadow Estimate: If no 1:1 'Sold' listings are found for rare cards (like the Gretzky /75), instruct the agent to provide a calculated estimate based on the average buy now listed price minus a 15% 'Market Reality' discount to approximate actual sold value. Also, ensure the agent returns the last_updated timestamp in ISO format so the dashboard knows the data is fresh.
+
+
+re_a6qGkPXP_G4kihT1uf6B99ed5E9ZQww6d

@@ -40,9 +40,15 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         }
 
         const result = await agentResponse.json();
-        const newPrice = typeof result.final_price === 'string' 
+        let newPrice = typeof result.final_price === 'string' 
             ? parseFloat(result.final_price.replace(/[^0-9.]/g, "")) 
             : result.final_price;
+            
+        // Safety: Fallback if price is missing or invalid
+        if (newPrice === undefined || newPrice === null || isNaN(Number(newPrice))) {
+            console.warn("[Refresh] Agent returned invalid price:", result.final_price);
+            newPrice = card.currentMarketValue || 0; 
+        }
 
         const research = result.research_results || {};
         const top5 = (research.top_listings || []).slice(0, 5).map((item: any) => ({

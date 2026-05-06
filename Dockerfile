@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies if any (none usually needed for these libs)
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -10,9 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the agent code and the service wrapper
-COPY market_watcher_agent.py .
-COPY agent_service.py .
+# Copy the entire project
+COPY . .
 
 # Standard Cloud Run port
 EXPOSE 8080

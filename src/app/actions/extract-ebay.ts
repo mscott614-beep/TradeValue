@@ -25,7 +25,7 @@ export async function extractEbayListingAction(url: string, useFallback: boolean
             url: url
         }, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 30000
+            timeout: 90000
         });
 
         if (response.data && !response.data.success === false) {

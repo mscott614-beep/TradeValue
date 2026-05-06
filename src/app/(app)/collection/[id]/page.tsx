@@ -112,6 +112,28 @@ export default function CardDetailsPage() {
         grader: '',
         estimatedGrade: ''
     });
+
+    // Fix 3 & 4: Manual Overlay Kill & Z-Index Audit
+    // Ensures that when the dialog closes, we explicitly restore interactivity
+    useEffect(() => {
+        if (!isEditingInfo) {
+            const cleanup = () => {
+                document.body.style.pointerEvents = 'auto';
+                document.body.style.overflow = 'auto';
+                // Remove any stuck radix-overlay elements if they persist (safety check)
+                const overlays = document.querySelectorAll('[data-radix-portal]');
+                if (overlays.length === 0) {
+                    // If no portals are active, ensure we haven't left the body locked
+                    document.documentElement.style.pointerEvents = 'auto';
+                }
+            };
+
+            // Small delay to ensure Radix has finished its own transition
+            const timer = setTimeout(cleanup, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isEditingInfo]);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Sync local input state with fetched data if we aren't currently editing
     useEffect(() => {
@@ -233,6 +255,10 @@ export default function CardDetailsPage() {
     const handleSaveInfo = async () => {
         if (!cardDocRef) return;
 
+        // Fix 1 & 2: Immediate Unmount
+        // Ensure the dialog state is cleared BEFORE any other operations
+        setIsEditingInfo(false);
+
         try {
             updateDocumentNonBlocking(cardDocRef, {
                 player: (infoInput.player || '').toString().trim(),
@@ -246,14 +272,10 @@ export default function CardDetailsPage() {
                 estimatedGrade: (infoInput.estimatedGrade || '').toString().trim()
             });
 
-            setIsEditingInfo(false);
             toast({
                 title: "Card Details Updated",
                 description: "The card's metadata has been saved successfully.",
             });
-
-            // Auto-refresh market value if metadata changed significantly
-            // handleRefreshValue(); 
         } catch (error) {
             console.error("Failed to save info:", error);
             toast({

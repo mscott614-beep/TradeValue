@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.marketReportV2 = exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
+exports.ingestBatchResults = exports.globalBatchSync = exports.marketReportV2 = exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const tasks_1 = require("firebase-functions/v2/tasks");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -44,6 +44,7 @@ const functions_1 = require("firebase-admin/functions");
 const admin = __importStar(require("firebase-admin"));
 const axios_1 = __importDefault(require("axios"));
 const params_1 = require("firebase-functions/params");
+const storage_1 = require("firebase-functions/v2/storage");
 // Lazy load heavy dependencies to avoid 10s initialization timeout
 let genkit;
 let vertexAI;
@@ -339,29 +340,48 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
     memory: "512MiB",
     timeoutSeconds: 540,
 }, async () => {
-    const db = admin.firestore();
-    // Use collectionGroup for cross-user efficiency
-    const cardsSnap = await db.collectionGroup("portfolios").get();
-    const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-east4/functions/refreshMarketCardTask");
-    console.log(`[MarketRefresh] Starting scheduled morning refresh for ${cardsSnap.size} cards...`);
-    let totalEnqueued = 0;
     try {
-        // Parallelize enqueuing
-        const enqueuePromises = cardsSnap.docs.map(async (cardDoc) => {
-            const userId = cardDoc.ref.parent.parent?.id;
-            if (!userId)
-                return false;
+        const db = admin.firestore();
+        const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-east4/functions/refreshMarketCardTask");
+        console.log("[MarketRefresh] Starting prioritized morning refresh...");
+        // Pass A: Cards with 0, null, or missing currentMarketValue
+        const snapA0 = await db.collectionGroup("portfolios").where("currentMarketValue", "==", 0).get();
+        const snapAnull = await db.collectionGroup("portfolios").where("currentMarketValue", "==", null).get();
+        // Combine Pass A IDs to avoid duplicates
+        const passAIds = new Set();
+        const passATasks = [];
+        [snapA0, snapAnull].forEach(snap => {
+            snap.docs.forEach(doc => {
+                const userId = doc.ref.parent.parent?.id;
+                if (userId && !passAIds.has(doc.id)) {
+                    passAIds.add(doc.id);
+                    passATasks.push({ userId, cardId: doc.id, deepSearch: true });
+                }
+            });
+        });
+        // Pass B: Everything else
+        const allSnap = await db.collectionGroup("portfolios").get();
+        const passBTasks = [];
+        allSnap.docs.forEach(doc => {
+            if (!passAIds.has(doc.id)) {
+                const userId = doc.ref.parent.parent?.id;
+                if (userId) {
+                    passBTasks.push({ userId, cardId: doc.id, deepSearch: false });
+                }
+            }
+        });
+        console.log(`[MarketRefresh] Pass A (N/A Priority): ${passATasks.length} cards.`);
+        console.log(`[MarketRefresh] Pass B (Standard): ${passBTasks.length} cards.`);
+        // Prioritize Pass A
+        const finalQueue = [...passATasks, ...passBTasks];
+        let totalEnqueued = 0;
+        const enqueuePromises = finalQueue.map(async (task) => {
             try {
-                await queue.enqueue({
-                    userId: userId,
-                    cardId: cardDoc.id
-                }, {
-                    oidcToken: {}
-                });
+                await queue.enqueue(task, { oidcToken: {} });
                 return true;
             }
             catch (err) {
-                console.error(`[MarketRefresh] Failed to enqueue card ${cardDoc.id} for user ${userId}:`, err);
+                console.error(`[MarketRefresh] Failed to enqueue card ${task.cardId}:`, err);
                 return false;
             }
         });
@@ -386,10 +406,16 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
     },
     secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, AGENT_SERVICE_URL],
     region: "us-east4",
-    timeoutSeconds: 300,
+    timeoutSeconds: 540,
     memory: "512MiB",
 }, async (request) => {
-    const { userId, cardId } = request.data;
+    const { logger } = await Promise.resolve().then(() => __importStar(require("firebase-functions")));
+    const { userId, cardId, deepSearch } = request.data;
+    logger.info('SYNC_START', { cardId, userId });
+    if (admin.apps.length === 0) {
+        admin.initializeApp();
+        admin.firestore().settings({ ignoreUndefinedProperties: true });
+    }
     const db = admin.firestore();
     const cardRef = db.doc(`users/${userId}/portfolios/${cardId}`);
     const cardSnap = await cardRef.get();
@@ -398,13 +424,14 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
         return;
     }
     const cardData = cardSnap.data();
+    console.log(`[RefreshTask] Triggered for ${cardData.player} (${cardId}) [DeepSearch: ${!!deepSearch}]`);
     try {
-        console.log(`[RefreshTask] Calling Python Agent for ${cardData.player} (${cardId})...`);
         const agentUrl = `${AGENT_SERVICE_URL.value().trim()}/value-card`;
         console.log(`[RefreshTask] Sending card to Python Agent at: ${agentUrl}`);
         const agentResponse = await axios_1.default.post(agentUrl, {
             userId,
             cardId,
+            deepSearch: !!deepSearch,
             cardDetails: {
                 year: cardData.year || "",
                 brand: cardData.brand || "",
@@ -418,18 +445,21 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             }
         }, {
             headers: { "Content-Type": "application/json" },
-            timeout: 180000 // 180 seconds
+            timeout: 540000 // 540 seconds (9 minutes)
         });
         const result = agentResponse.data;
         if (!result || typeof result !== 'object') {
             throw new Error("Python Agent returned invalid or empty data");
         }
         let newPrice = result.final_price;
+        if (newPrice === undefined || newPrice === null) {
+            newPrice = cardData.currentMarketValue || 0.01;
+        }
         if (typeof newPrice === "string") {
             newPrice = parseFloat(newPrice.replace(/[^0-9.]/g, ""));
         }
         if (isNaN(newPrice) || typeof newPrice !== "number") {
-            newPrice = 0.99; // Default floor
+            newPrice = cardData.currentMarketValue || 0.99; // Default floor
         }
         // Finalize Update: Calculate 24h changes
         const timestamp = new Date().toISOString();
@@ -483,9 +513,27 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             lowVolumeData: research.low_volume || false,
             lastUpdated: timestamp
         };
+        // --- STICKY VALUATION & PRICE GUARD ---
+        let finalUpdatePrice = newPrice;
+        let finalStatus = result.status || (newPrice === 0.01 ? 'manual_review' : 'verified');
+        const existingPrice = cardData.currentMarketValue || 0;
+        const existingStatus = cardData.status || 'unverified';
+        // 1. Sticky Valuation: If no new data found (0.01) but we have a verified anchor, do NOT overwrite.
+        if (newPrice <= 0.01 && existingPrice > 0.01 && existingStatus === 'verified') {
+            finalUpdatePrice = existingPrice;
+            finalStatus = 'verified';
+            console.log(`[RefreshTask] Sticky Valuation: Keeping verified anchor $${existingPrice} for ${cardId}`);
+        }
+        // 2. Product Line Guard: If box set (CM/M) vs flagship jump is > 500%, block and flag.
+        const isBoxSet = cardData.cardNumber?.includes('CM') || cardData.cardNumber?.includes('M');
+        if (isBoxSet && existingPrice > 0 && newPrice > existingPrice * 6.0) {
+            finalUpdatePrice = existingPrice;
+            finalStatus = 'manual_review';
+            console.log(`[RefreshTask] Price Guard: Blocked suspicious jump for box set card ${cardId}`);
+        }
         // Atomic update of current value and audit fields
         await cardRef.update({
-            currentMarketValue: newPrice,
+            currentMarketValue: finalUpdatePrice,
             valueChange24h,
             valueChange24hPercent,
             lastMarketValueUpdate: timestamp,
@@ -494,7 +542,13 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             watcher_alert: result.alert_status || null,
             is_10_percent_diff: result.is_10_percent_diff || false,
             data_source: "GEMINI_WATCHER_AGENT_PRO",
-            marketPrices
+            marketPrices,
+            status: finalStatus,
+            debug_info: {
+                lastSearchQuery: result.last_search_query || "",
+                search_snippets: result.debug_snippets || []
+            },
+            supporting_data: result.supporting_evidence || result.supporting_data || {}
         });
         // Add to history for performance tracking
         await cardRef.collection("priceHistory").doc(today).set({
@@ -511,4 +565,87 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
 // Export new Shadow Engine v2
 var marketReportV2_1 = require("./marketReportV2");
 Object.defineProperty(exports, "marketReportV2", { enumerable: true, get: function () { return marketReportV2_1.marketReportV2; } });
+// Global Batch Sync Scheduler (6:00 AM)
+exports.globalBatchSync = (0, scheduler_1.onSchedule)({
+    schedule: "0 6 * * *",
+    region: "us-east4",
+    secrets: [AGENT_SERVICE_URL]
+}, async (event) => {
+    const agentUrl = `${AGENT_SERVICE_URL.value().trim()}/batch-sync`;
+    try {
+        await axios_1.default.post(agentUrl, { userId: "GLOBAL_BATCH_SYSTEM" });
+        console.log("[GlobalSync] Triggered Vertex AI Batch Prediction Job at 6:00 AM");
+    }
+    catch (error) {
+        console.error("[GlobalSync] Failed to trigger batch job:", error);
+    }
+});
+// Batch Ingestion: Triggers when Vertex AI finishes writing output to GCS
+exports.ingestBatchResults = (0, storage_1.onObjectFinalized)({
+    bucket: `${process.env.GCLOUD_PROJECT}-batch-sync`,
+    region: "us-central1"
+}, async (event) => {
+    // Vertex AI writes results in nested folders, we look for JSONL files
+    if (!event.data.name.includes("/output/") || !event.data.name.endsWith(".jsonl"))
+        return;
+    const storage = admin.storage();
+    const bucket = storage.bucket(event.data.bucket);
+    const file = bucket.file(event.data.name);
+    const [content] = await file.download();
+    const lines = content.toString().split("\n").filter(l => l.trim());
+    const db = admin.firestore();
+    for (const line of lines) {
+        try {
+            const result = JSON.parse(line);
+            const metadata = result.metadata;
+            const response = result.response?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!metadata || !response)
+                continue;
+            let resJson;
+            try {
+                const jsonMatch = response.match(/\{[\s\S]*\}/);
+                resJson = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+            }
+            catch (e) {
+                console.error(`[Ingestion] Malformed JSON in batch response for ${metadata.cardId}`);
+                continue;
+            }
+            if (!resJson)
+                continue;
+            const cardRef = db.doc(metadata.path);
+            const newPrice = parseFloat(resJson.final_price) || 0.01;
+            const existingPrice = metadata.existingPrice || 0;
+            const existingStatus = metadata.existingStatus || 'unverified';
+            // Apply Sticky Valuation & Guard Logic
+            let finalPrice = newPrice;
+            let finalStatus = resJson.status || (newPrice === 0.01 ? 'manual_review' : 'verified');
+            if (newPrice <= 0.01 && existingPrice > 0.01 && existingStatus === 'verified') {
+                finalPrice = existingPrice;
+                finalStatus = 'verified';
+            }
+            await cardRef.update({
+                currentMarketValue: finalPrice,
+                status: finalStatus,
+                lastMarketValueUpdate: new Date().toISOString(),
+                valuationMethod: "VERTEX_BATCH_FLASH_LITE",
+                supporting_data: resJson.supporting_evidence || resJson.supporting_data || {}
+            });
+            // --- BINDER SYNC (COLLECTIONS PATH) ---
+            const cardId = metadata.cardId;
+            if (cardId) {
+                await db.collection("collections").doc(cardId).update({
+                    currentMarketValue: finalPrice,
+                    status: finalStatus,
+                    lastMarketValueUpdate: new Date().toISOString(),
+                    valuationMethod: "VERTEX_BATCH_FLASH_LITE_SYNC",
+                    supporting_data: resJson.supporting_evidence || resJson.supporting_data || {}
+                });
+            }
+        }
+        catch (error) {
+            console.error("[Ingestion] Error processing line:", error);
+        }
+    }
+    console.log(`[Ingestion] Finished processing batch result file: ${event.data.name}`);
+});
 //# sourceMappingURL=index.js.map

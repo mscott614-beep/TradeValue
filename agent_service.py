@@ -1,10 +1,112 @@
-from fastapi import FastAPI, HTTPException
+# REQUIRED_ENV: RESEND_API_KEY
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 import asyncio
 import json
 import re
 import os
-from market_watcher_agent import AgentClass
+from market_watcher_agent import AgentClass, PROJECT_ID
+from google.cloud import firestore
+from google.cloud import aiplatform
+from google.cloud import storage
+from datetime import datetime, timezone
+from google import genai
+from google.genai import types
+import resend
+
+# Initialize Resend
+resend.api_key = os.getenv("RESEND_API_KEY")
+
+# Lazy Firestore Client initialization
+_db = None
+def get_db():
+    global _db
+    if _db is None:
+        try:
+            _db = firestore.Client(project=PROJECT_ID)
+        except Exception as e:
+            print(f"[AgentService] CRITICAL: Firestore client failed to initialize: {str(e)}")
+            return None
+    return _db
+
+def clean_numeric(val, default=0.01):
+    """Strictly casts a value to a float."""
+    if val is None or val == "" or str(val).strip().upper() in ["N/A", "UNDEFINED", "NULL"]:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        clean_str = re.sub(r'[^\d.]', '', val)
+        try:
+            return float(clean_str) if clean_str else default
+        except ValueError:
+            return default
+    return default
+
+def sanitize_query_parts(parts: list) -> str:
+    """Removes duplicate words and cleans formatting for eBay searches."""
+    seen = set()
+    cleaned = []
+    for part in parts:
+        if not part: continue
+        # Normalize: replace hyphens with spaces for duplicate detection
+        words = str(part).replace('-', ' ').split()
+        for word in words:
+            if word.lower() not in seen:
+                cleaned.append(word)
+                seen.add(word.lower())
+    return " ".join(cleaned)
+
+def robust_json_parse(raw_text):
+    """Finds and parses the first JSON block in a string."""
+    match = re.search(r'(\{[\s\S]*\})', raw_text)
+    if not match:
+        return None
+    
+    json_str = match.group(1).replace('```json', '').replace('```', '').strip()
+    bracket_count = 0
+    for i, char in enumerate(json_str):
+        if char == '{': bracket_count += 1
+        elif char == '}': bracket_count -= 1
+        if bracket_count == 0:
+            json_str = json_str[:i+1]
+            break
+    try:
+        return json.loads(json_str)
+    except:
+        return None
+
+def sanitize_firestore_payload(payload: dict) -> dict:
+    """
+    Strips None values and ensures UI-critical fields have safe fallbacks.
+    Prevents Firestore 'undefined' errors and red 'Refresh Failed' boxes.
+    """
+    defaults = {
+        "currentMarketValue": 0.00,
+        "image_url": "",
+        "status": "manual_review",
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+        "active_listings": [],
+        "sold_listings": [],
+        "supporting_data": {}
+    }
+    
+    # 1. Apply Defaults for missing/null keys
+    sanitized = {k: (payload.get(k) if payload.get(k) is not None else v) for k, v in defaults.items()}
+    
+    # 2. Add other non-None keys from payload
+    for k, v in payload.items():
+        if k not in sanitized and v is not None:
+            sanitized[k] = v
+            
+    # 3. Final type safety for numeric fields
+    if "currentMarketValue" in sanitized:
+        try:
+            sanitized["currentMarketValue"] = float(sanitized["currentMarketValue"])
+        except:
+            sanitized["currentMarketValue"] = 0.00
+            
+    return sanitized
 
 app = FastAPI()
 
@@ -12,10 +114,170 @@ class ValuationRequest(BaseModel):
     userId: str
     cardId: str
     cardDetails: dict
+    deepSearch: bool = False
 
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+class BatchSyncRequest(BaseModel):
+    userId: str = "GLOBAL_SYSTEM"
+
+@app.post("/batch-sync", status_code=202)
+async def batch_sync(req: BatchSyncRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_batch_sync_job, req.userId)
+    return {"status": "accepted"}
+
+def run_batch_sync_job(userId: str):
+    try:
+        db = get_db()
+        cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(1000)
+        cards = cards_ref.stream()
+        
+        jsonl_lines = []
+        bucket_name = f"{PROJECT_ID}-batch-sync"
+        
+        for card_doc in cards:
+            data = card_doc.to_dict()
+            player = data.get('player', 'Unknown')
+            card_num = data.get('cardNumber', '')
+            brand = data.get('brand', '')
+            year = data.get('year', '')
+            
+            prompt = f"SEARCH AND VALUE: {year} {brand} {player} #{card_num}. Return JSON."
+            
+            metadata = {
+                "userId": userId,
+                "cardId": card_doc.id,
+                "path": card_doc.reference.path
+            }
+            
+            jsonl_lines.append(json.dumps({
+                "request": {"contents": [{"role": "user", "parts": [{"text": prompt}]}]},
+                "metadata": metadata
+            }))
+        
+        if not jsonl_lines: return
+
+        storage_client = storage.Client(project=PROJECT_ID)
+        bucket = storage_client.bucket(bucket_name)
+        if not bucket.exists(): bucket.create(location="us-central1")
+            
+        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+        blob = bucket.blob(f"input/batch_sync_{timestamp}.jsonl")
+        blob.upload_from_string("\n".join(jsonl_lines), content_type="application/json")
+        
+        aiplatform.init(project=PROJECT_ID, location="us-central1")
+        aiplatform.BatchPredictionJob.create(
+            job_display_name=f"batch_sync_{timestamp}",
+            model_name="publishers/google/models/gemini-1.5-flash",
+            gcs_source=f"gs://{bucket_name}/{blob.name}",
+            gcs_destination_prefix=f"gs://{bucket_name}/output/{timestamp}/",
+        )
+    except Exception as e:
+        print(f"[BatchSync] ERROR: {str(e)}")
+
+@app.post("/trigger-newsletter", status_code=202)
+async def trigger_newsletter(background_tasks: BackgroundTasks):
+    """
+    Triggers the Market Analyst research loop in the background.
+    Cloud Scheduler should hit this endpoint on Mondays at 3:00 PM.
+    """
+    background_tasks.add_task(run_newsletter_job)
+    return {"status": "accepted", "message": "Newsletter generation started"}
+
+def run_newsletter_job():
+    """
+    Background worker that handles the research and persistence.
+    """
+    try:
+        print("[AgentService] Starting Background Newsletter Job...")
+        agent = AgentClass()
+        report_raw = agent.generate_market_report()
+        
+        res_json = robust_json_parse(report_raw)
+        if res_json:
+            db = get_db()
+            if db:
+                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                doc_ref = db.collection("market_reports").document(today)
+                
+                # Metadata for tracking
+                res_json["report_date"] = today
+                res_json["created_at"] = firestore.SERVER_TIMESTAMP
+                
+                doc_ref.set(res_json)
+                print(f"[AgentService] SUCCESS: Market report for {today} persisted to Firestore.")
+                
+                # --- EMAIL DISPATCH ---
+                compile_and_send_newsletter(res_json)
+        else:
+            print("[AgentService] ERROR: Background newsletter job failed to parse JSON.")
+    except Exception as e:
+        print(f"[AgentService] CRITICAL: Background newsletter job failed: {str(e)}")
+
+def compile_and_send_newsletter(data):
+    """
+    Compiles the JSON market report into HTML and sends it via Resend.
+    """
+    api_key = os.getenv("RESEND_API_KEY")
+    to_email = "mscott614@gmail.com" 
+    
+    if not api_key:
+        print("[Newsletter] ERROR: RESEND_API_KEY is missing from environment", flush=True)
+        return
+
+    # Build the HTML Payload
+    trending_rows = "".join([
+        f"<tr><td style='padding:8px; border:1px solid #ddd;'>{item.get('card')}</td>"
+        f"<td style='padding:8px; border:1px solid #ddd;'>{item.get('price')}</td>"
+        f"<td style='padding:8px; border:1px solid #ddd;'>{item.get('trend_insight')}</td></tr>"
+        for item in data.get('trending_table', [])
+    ])
+
+    news_items = "".join([f"<li>{item}</li>" for item in data.get('breaking_news', [])])
+
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #333;">
+        <h1 style="color: #2c3e50;">TradeValue Market Analyst Report</h1>
+        <p style="font-size: 1.1em;">{data.get('executive_summary', '')}</p>
+        <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 5px;">Breaking News</h2>
+        <ul>{news_items}</ul>
+        <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 5px;">Trending This Week</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <thead style="background-color: #f2f2f2;">
+                <tr>
+                    <th style="padding:10px; border:1px solid #ddd; text-align:left;">Card</th>
+                    <th style="padding:10px; border:1px solid #ddd; text-align:left;">Price</th>
+                    <th style="padding:10px; border:1px solid #ddd; text-align:left;">Insight</th>
+                </tr>
+            </thead>
+            <tbody>{trending_rows}</tbody>
+        </table>
+    </div>
+    """
+
+    try:
+        print(f"[Newsletter] Dispatching to {to_email}...", flush=True)
+        params = {
+            "from": "TradeValue Market Agent <onboarding@resend.dev>",
+            "to": to_email,
+            "subject": "Weekly TradeValue Market Report",
+            "html": html_content,
+        }
+        
+        if not resend.api_key:
+            resend.api_key = api_key
+            
+        email_res = resend.Emails.send(params)
+        
+        if email_res and "id" in email_res:
+            print(f"[Newsletter] SUCCESS: ID: {email_res['id']}", flush=True)
+        else:
+            print(f"[Newsletter] WARNING: Unexpected response: {email_res}", flush=True)
+            
+    except Exception as e:
+        print(f"[Newsletter] CRASHED: {str(e)}", flush=True)
 
 class ExtractRequest(BaseModel):
     url: str
@@ -24,247 +286,165 @@ class ExtractRequest(BaseModel):
 async def extract_ebay(req: ExtractRequest):
     import requests
     from bs4 import BeautifulSoup
-    
     url = req.url
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'max-age=0',
-        'Connection': 'keep-alive',
-    }
-    
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         response = requests.get(url, headers=headers, timeout=15)
-        if response.status_code == 403:
-            # Try one more time with a different UA
-            headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-            response = requests.get(url, headers=headers, timeout=15)
-            
-        if response.status_code != 200:
-            return {"success": False, "error": f"eBay returned status {response.status_code}"}
-            
-        soup = BeautifulSoup(response.text, 'html.parser')
+        context_data = f"URL: {url}, HTML: {response.text[:1000]}" if response.status_code == 200 else f"URL: {url}"
         
-        # Extract basic info
-        title = ""
-        title_tag = soup.find(class_="x-item-title__mainTitle") or soup.find(id="itemTitle")
-        if title_tag:
-            title = title_tag.get_text().replace("Details about", "").strip()
-            
-        price = ""
-        price_tag = soup.find(class_="x-price-primary") or soup.find(class_="x-bin-price__content")
-        if price_tag:
-            price = price_tag.get_text().strip()
-            
-        # AI Parsing
-        agent_app = AgentClass(model_name='gemini-3.1-flash-lite-preview')
-        agent_app.set_up()
+        client = genai.Client(vertexai=True, project=PROJECT_ID, location='us-central1')
+        prompt = f"Extract card details from: {context_data}. Return JSON."
         
-        prompt = f"Parse this eBay listing into a JSON card object: Title: {title}, Price: {price}. " \
-                 f"HTML Content Snippet: {response.text[:2000]}. " \
-                 f"Return JSON: {{'year': '', 'brand': '', 'player': '', 'cardNumber': '', 'set': '', 'parallel': '', 'condition': '', 'grader': '', 'estimatedGrade': '', 'currentMarketValue': 0}}"
-        
-        full_response = ""
-        async for chunk in agent_app.app.async_stream_query(message=prompt, user_id="system"):
-            if hasattr(chunk, 'text'):
-                full_response += chunk.text
-            elif isinstance(chunk, str):
-                full_response += chunk
-                
-        match = re.search(r'(\{[\s\S]*\})', full_response)
-        if match:
-            json_str = match.group(1).replace('```json', '').replace('```', '').strip()
-            return json.loads(json_str)
-            
-        return {"title": title, "currentMarketValue": 0}
-        
+        res = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type='application/json')
+        )
+        res_json = robust_json_parse(res.text)
+        if res_json:
+            res_json['currentMarketValue'] = clean_numeric(res_json.get('currentMarketValue'))
+            return res_json
+        return {"error": "Failed to extract"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"error": str(e)}
 
 @app.post("/value-card")
 async def value_card(req: ValuationRequest):
     details = req.cardDetails
-    user_id = req.userId
+    docId = req.cardId
     
-    # --- MIRROR STRICT QUERY PROTOCOL ---
-    
-    # 1. Date Expansion
-    year = str(details.get('year', '')).strip()
-    if re.match(r'^\d{4}$', year):
-        try:
-            y_int = int(year)
-            next_y = (y_int + 1) % 100
-            year = f"{y_int}-{next_y:02d}"
-        except:
-            pass
-
-    # 2. Manufacturer / Brand / Set
-    mfg = (details.get('brand') or details.get('manufacturer') or '').strip()
-    set_name = (details.get('set') or details.get('setName') or '').strip()
-    if mfg and set_name:
-        if mfg.lower() in set_name.lower():
-            brand = set_name
-        elif set_name.lower() in mfg.lower():
-            brand = mfg
-        else:
-            brand = f"{mfg} {set_name}".strip()
-    else:
-        brand = mfg or set_name or ''
-
-    # Specialty Check
-    specialty_keywords = ['Red Rooster', 'Foodland', 'National Hockey Day']
-    for kw in specialty_keywords:
-        if any(kw.lower() in str(val).lower() for val in details.values()) and kw.lower() not in brand.lower():
-            brand = f"{brand} {kw}".strip()
-
-    # 3. Card Number
-    card_num = str(details.get('cardNumber') or details.get('card_number') or details.get('number') or details.get('cardNo') or '').strip()
-    card_num_str = card_num if card_num else ""
-
-    # 4. Player Name
-    player = str(details.get('player', '')).strip()
-
-    # 5. Parallel & Specialty Set Logic
-    parallel = str(details.get('parallel', '')).strip()
-    parallel_keywords = ['Rainbow', 'Traxx', 'Ice', 'Seismic', 'Gold', 'Emerald', 'Orange', 'Violet']
-    is_platinum = any(x.lower() in brand.lower() for x in ['platinum', 'opc platinum', 'o-pee-chee platinum'])
-    is_prizm_select = any(x.lower() in brand.lower() for x in ['Prizm', 'Select'])
-    
-    negative_filters = []
-    if is_platinum or is_prizm_select:
-        if is_platinum and card_num.startswith('M') and 'Marquee Rookies' not in brand:
-             brand = f"{brand} Marquee Rookies".strip()
-        if not parallel or parallel.lower() == 'base':
-            negative_filters = [f"-{kw}" for kw in parallel_keywords]
-        else:
-            if parallel.lower() not in brand.lower():
-                brand = f"{brand} {parallel}".strip()
-            negative_filters = [f"-{kw}" for kw in parallel_keywords if kw.lower() != parallel.lower()]
-
-    # --- IRONCLAD BASE-CARD PROTECTION ---
-    if is_platinum and (not parallel or parallel.lower() == 'base'):
-        # For OPC Platinum base, we MUST be aggressive. 
-        # These parallels often "hide" in base searches.
-        filter_str = "-rainbow -traxx -ice -retro -auto -lot -bundle"
-    else:
-        filter_str = " ".join(negative_filters)
-
-    base_search = f"{year} {brand} {player} {card_num_str} {filter_str}".strip()
-    base_search = re.sub(r'\s+', ' ', base_search)
-
-    # Graded check
-    grader = str(details.get('gradingCompany') or details.get('grader') or '').strip()
-    grade = str(details.get('grade') or details.get('estimatedGrade') or '').strip()
-    is_slab_company = bool(re.search(r'PSA|BGS|SGC|CGC|GMA|KSA|BECKETT|BCCG', grader, re.I)) or \
-                      bool(re.search(r'PSA|BGS|SGC|CGC|GMA|KSA|BECKETT|BCCG', grade, re.I))
-    is_raw_label = bool(re.search(r'raw|none|uncertified|null|n/a|^$', grader, re.I)) or \
-                   bool(re.search(r'raw|none|n/a|^$', grade, re.I))
-    is_graded = is_slab_company and not is_raw_label
-    
-    if is_graded:
-        card_desc = f"{base_search} {grader} {grade}".strip()
-        query_context = f"GRADED card: {card_desc}. Find most recent Sold BIN. If none, use Lowest Active BIN - 15%."
-    else:
-        # STRICT RAW ISOLATION: Exclude all graded noise
-        card_desc = f"{base_search} -PSA -BGS -SGC -CGC -Graded".strip()
-        query_context = f"RAW card: {card_desc}. Find recent Sold BIN for NM (ID 400010) and EX (ID 400011)."
-
-    # EMERGENCY BRAKE: Force Platinum for M1 McDavid
-    if card_num == "M1" and "McDavid" in player:
-        if "platinum" not in card_desc.lower():
-            card_desc = f"{card_desc} Platinum".strip()
-
-    # YOUNG GUNS PROTECTION: Prevent confusion between Box Sets and flagship Young Guns
-    if "McDavid" in player and "2015-16" in year:
-        is_yg = card_num == "201" or "Young Guns" in brand
-        if not is_yg:
-            if "-Young" not in filter_str:
-                filter_str = f"{filter_str} -Young -Guns -Canvas -Refractor".strip()
-            # Re-build base_search with the new filters
-            base_search = f"{year} {brand} {player} #{card_num_str} {filter_str}".strip()
-            base_search = re.sub(r'\s+', ' ', base_search)
-            card_desc = base_search
-
-    # DIRECT SNIPER QUERY
-    query = f"SEARCH AND VALUE: {card_desc} -lot -bundle -set. " \
-            f"RULES: 1. MUST BE card #{card_num_str}. 2. MUST NOT be Young Guns. 3. BIN ONLY. 4. Return JSON."
-
-    # BRUTE FORCE LOGGING
-    print(f"!!!DIAGNOSTIC!!! Query: {query}", flush=True)
-    print(f"!!!DIAGNOSTIC!!! Desc: {card_desc}", flush=True)
-
-    # --- AGENT EXECUTION ---
-    async def attempt_run(model_name):
-        agent_app = AgentClass(model_name=model_name)
-        agent_app.set_up()
-        
-        # Override system prompt to be extremely strict about JSON format
-        schema_instruction = "\n\nCRITICAL: Your response MUST be valid JSON. research_results MUST be an object containing a list called 'top_listings' with at least 5 examples: {\"final_price\": 0, \"valuation_method\": \"\", \"research_results\": {\"top_listings\": [{\"title\": \"\", \"price\": 0, \"url\": \"\", \"image_url\": \"\"}]}}"
-        
-        full_response = ""
-        async for chunk in agent_app.app.async_stream_query(message=query + schema_instruction, user_id=user_id):
-            if isinstance(chunk, dict):
-                if 'content' in chunk and isinstance(chunk['content'], dict):
-                    parts = chunk['content'].get('parts', [])
-                    for part in parts:
-                        if 'text' in part:
-                            full_response += part['text']
-                elif 'text' in chunk:
-                    full_response += chunk['text']
-                elif 'actions' in chunk and chunk['actions'].get('content'):
-                    full_response += chunk['actions']['content']
-            else:
-                text = getattr(chunk, 'text', str(chunk))
-                full_response += text
-        return full_response
+    # --- IRONCLAD FALLBACK ---
+    error_fallback = {
+        "currentMarketValue": 0.00,
+        "status": "manual_review",
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+        "active_listings": [],
+        "sold_listings": [],
+        "supporting_data": {"error": "Search failed"}
+    }
 
     try:
-        # Use primary model
-        full_response = await attempt_run('gemini-3.1-flash-lite-preview')
+        # 1. Date Expansion
+        year = str(details.get('year', '')).strip()
+        if re.match(r'^\d{4}$', year):
+            y_int = int(year)
+            year = f"{y_int}-{(y_int+1)%100:02d}"
+
+        # 2. Manufacturer & Brand
+        mfg = str(details.get('brand') or details.get('manufacturer') or '').strip()
+        set_name = str(details.get('set') or details.get('setName') or '').strip()
+        brand_raw = f"{mfg} {set_name}".strip()
+
+        # 3. Universal Card Number Sanitizer
+        raw_num = str(details.get('cardNumber') or details.get('number') or '').strip()
+        # Strip #, No., No, c
+        cleaned_num = re.sub(r'^(#|No\.|No|c)+', '', raw_num, flags=re.IGNORECASE).strip()
+        
+        # Serial Number Logic
+        sn = str(details.get('serialNumber') or details.get('serial_number') or '0').strip()
+        is_serial = sn != '0' and sn != 'None' and sn != ''
+        
+        # Omit alphabetical prefixes for serial/complex cards
+        if is_serial or re.search(r'[A-Za-z]+-', cleaned_num):
+            match = re.search(r'\d+', cleaned_num)
+            cleaned_num = match.group() if match else ""
+
+        # 4. Player
+        player = str(details.get('player', '')).strip()
+
+        # 5. Build Sanitized Query
+        query_parts = [year, brand_raw, player, cleaned_num]
+        if is_serial: query_parts.append(f"/{sn}")
+        sanitized_base = sanitize_query_parts(query_parts)
+
+        # Graded check (Initialize from request or calculate)
+        is_graded_req = details.get('isGraded') or details.get('is_graded') or False
+        grader = str(details.get('gradingCompany') or '').upper()
+        grade = str(details.get('grade') or '').upper()
+        is_graded_calc = any(x in grader or x in grade for x in ['PSA', 'BGS', 'SGC', 'CGC'])
+        is_graded = is_graded_req or is_graded_calc
+        
+        # Negative Keywords for authenticity
+        neg_keywords = "-reprint -RP -facsimile -copy -sticker -custom"
+        card_desc = f"{sanitized_base} {grader} {grade} {neg_keywords}".strip() if is_graded else f"{sanitized_base} -PSA -BGS -SGC -CGC {neg_keywords}".strip()
+        
+        # Fallback Queries (Simplified for Flash)
+        fallback_query = f"VALUE: {player} {cleaned_num} {brand_raw} {year}. JSON."
+        ultra_broad_query = f"VALUE: {year} {brand_raw} {player}. JSON."
+
+        async def attempt_run(q):
+            client = genai.Client(vertexai=True, project=PROJECT_ID, location='us-central1')
+            sys_inst = (
+                f"Analyst. Player: {player}, Card: #{cleaned_num}. "
+                "RULES: Ignore bottom 25% of 'Sold' comps. Median of rest. "
+                "No Sold? Use 80% of active median. Return JSON {currentMarketValue, active_listings, sold_listings}."
+            )
+            response = client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=q,
+                config=types.GenerateContentConfig(
+                    system_instruction=sys_inst,
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    response_mime_type='application/json'
+                )
+            )
+            return response.text
+
+        raw_res = await attempt_run(f"SEARCH: {card_desc} -lot -set")
+        
+        # Cascading Fallback Logic
+        if "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower():
+            print("[AgentService] Tier 2 Fallback Triggered...")
+            raw_res = await attempt_run(fallback_query)
+            
+        if "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower():
+            print("[AgentService] Tier 3 Ultra-Broad Fallback Triggered...")
+            raw_res = await attempt_run(ultra_broad_query)
+
+        res_json = robust_json_parse(raw_res)
+        if not res_json: return error_fallback
+
+        # Price Logic
+        cost_basis = clean_numeric(details.get('costBasis') or details.get('purchasePrice') or 0.00, 0.00)
+        val = res_json.get('currentMarketValue') or res_json.get('final_price') or 0.00
+        final_price = clean_numeric(val, cost_basis)
+        
+        if final_price <= 0.01: final_price = cost_basis
+
+        res_json['currentMarketValue'] = final_price
+        if 'final_price' in res_json: del res_json['final_price']
+        
+        # Final Sanitization & No-Fail Defaults
+        final_payload = sanitize_firestore_payload({
+            "currentMarketValue": final_price,
+            "status": "market_verified" if final_price > 0.01 else "manual_review",
+            "active_listings": res_json.get("active_listings"),
+            "sold_listings": res_json.get("sold_listings"),
+            "supporting_data": res_json.get("supporting_data")
+        })
+
+        # Persist
+        try:
+            db = get_db()
+            if db:
+                db.collection('collections').document(docId).update(final_payload)
+                if req.userId:
+                    db.collection('users').document(req.userId).collection('portfolios').document(docId).update(final_payload)
+        except Exception as e:
+            print(f"[AgentService] Firestore Update Failed: {str(e)}")
+
+        return final_payload
+
     except Exception as e:
-        print(f"[AgentService] Fallback triggered due to: {str(e)}")
+        print(f"[AgentService] FATAL ERROR: {str(e)}")
         try:
-            full_response = await attempt_run('gemini-2.5-flash')
-        except Exception as e2:
-            raise HTTPException(status_code=500, detail=f"Agent fallback failed: {str(e2)}")
+            db = get_db()
+            if db and docId:
+                fail_payload = sanitize_firestore_payload(error_fallback)
+                db.collection('collections').document(docId).update(fail_payload)
+        except: pass
+        return sanitize_firestore_payload(error_fallback)
 
-    # Clean up and parse response
-    match = re.search(r'(\{[\s\S]*\})', full_response)
-    if match:
-        json_str = match.group(1).replace('```json', '').replace('```', '').strip()
-        bracket_count = 0
-        for i, char in enumerate(json_str):
-            if char == '{': bracket_count += 1
-            elif char == '}': bracket_count -= 1
-            if bracket_count == 0:
-                json_str = json_str[:i+1]
-                break
-        try:
-            res_json = json.loads(json_str)
-            res_json['last_search_query'] = card_desc
-            
-            # --- DATE SAFETY BRUTE FORCE ---
-            import datetime
-            today = datetime.date.today().strftime("%Y-%m-%d")
-            
-            if "research_results" in res_json and isinstance(res_json["research_results"], dict):
-                sold_list = res_json["research_results"].get("sold_listings", [])
-                if isinstance(sold_list, list):
-                    for item in sold_list:
-                        if "endDate" not in item or not item["endDate"]:
-                            item["endDate"] = today
-            # -------------------------------
-
-            # BRUTE FORCE RESPONSE LOGGING
-            print(f"!!!DIAGNOSTIC!!! Response: {json.dumps(res_json)}", flush=True)
-            return res_json
-        except:
-            return {"error": "Failed to parse JSON", "raw": json_str}
-    
-    return {"error": "No JSON found in response", "raw": full_response[:1000]}
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     import uvicorn
-    port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
