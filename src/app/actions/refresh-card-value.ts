@@ -50,22 +50,21 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             newPrice = card.currentMarketValue || 0; 
         }
 
-        const research = result.research_results || {};
-        const top5 = (research.top_listings || []).slice(0, 5).map((item: any) => ({
+        const top5 = (result.active_listings || []).slice(0, 5).map((item: any) => ({
             title: item.title,
             price: item.price,
             url: item.url,
             imageUrl: item.image_url
         }));
-
-        const activeItems = (research.top_listings || []).map((item: any) => ({
+        
+        const activeItems = (result.active_listings || []).map((item: any) => ({
             title: String(item.title || "No Title"),
             price: Number(item.price || 0),
             url: String(item.url || "#"),
             imageUrl: item.image_url || item.imageUrl || null
         }));
 
-        const soldItems = (research.sold_listings || []).map((item: any) => ({
+        const soldItems = (result.sold_listings || []).map((item: any) => ({
             title: String(item.title || "No Title"),
             price: Number(item.price || 0),
             url: String(item.url || "#"),
@@ -73,8 +72,8 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             endDate: String(item.endDate || item.end_date || new Date().toISOString().split('T')[0])
         }));
 
-        const avgSoldPrice = research.avg_sold_price || 0;
-        const lowVolumeData = research.low_volume || false;
+        const avgSoldPrice = result.avg_sold_price || 0;
+        const lowVolumeData = result.low_volume || false;
         const timestamp = new Date().toISOString();
 
         console.log(`[Refresh] Agent Result: $${newPrice} via ${result.valuation_method}`);

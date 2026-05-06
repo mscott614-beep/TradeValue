@@ -377,7 +377,7 @@ async def value_card(req: ValuationRequest):
     docId = req.cardId
     userId = req.userId
     
-    # Fix: Pull fresh metadata from Firestore and ABORT if missing (400 Error)
+    # Fix: Pull fresh metadata from Firestore and return 404 if missing
     try:
         db = get_db()
         if db and docId and userId:
@@ -387,8 +387,8 @@ async def value_card(req: ValuationRequest):
                 details = doc_snap.to_dict()
                 print(f"[AgentService] Handshake SUCCESS: Found {details.get('player')}")
             else:
-                print(f"[Error] Metadata not found for ID: {docId}")
-                raise HTTPException(status_code=400, detail=f"Metadata not found for ID: {docId}")
+                print(f"[Error] Card metadata not found for ID: {docId}")
+                raise HTTPException(status_code=404, detail="Card metadata not found")
         else:
             raise HTTPException(status_code=400, detail="Missing required parameters (userId or cardId)")
     except HTTPException:
@@ -482,7 +482,7 @@ async def value_card(req: ValuationRequest):
         active_results = res_json.get("active_listings") or []
         sold_results = res_json.get("sold_listings") or []
         
-        # Final Handshake Payload (Fix: Explicit keys for Frontend)
+        # Final Handshake Payload (Strictly Typed snake_case arrays)
         final_payload = sanitize_firestore_payload({
             "final_price": final_price,
             "currentMarketValue": final_price,
