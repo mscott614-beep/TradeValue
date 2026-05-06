@@ -77,11 +77,19 @@ def robust_json_parse(raw_text):
     # Fallback: Extract the first numerical value with a dollar sign or just the first large number
     price_match = re.search(r'\$(\d+(?:\.\d{2})?)', raw_text)
     if price_match:
-        return {"currentMarketValue": float(price_match.group(1))}
+        return {
+            "currentMarketValue": float(price_match.group(1)),
+            "active_listings": [],
+            "sold_listings": []
+        }
         
     num_match = re.search(r'(\d+\.\d{2})', raw_text)
     if num_match:
-        return {"currentMarketValue": float(num_match.group(1))}
+        return {
+            "currentMarketValue": float(num_match.group(1)),
+            "active_listings": [],
+            "sold_listings": []
+        }
         
     return None
 
@@ -369,18 +377,21 @@ async def value_card(req: ValuationRequest):
     docId = req.cardId
     userId = req.userId
     
-    # Fix 1: Pull full metadata from Firestore to ensure query completeness
+    # Fix 1: Pull fresh metadata from Firestore (Awaiting fetch)
     details = req.cardDetails
     try:
         db = get_db()
         if db and docId and userId:
-            # Fix 5: Increase Firestore/MCP timeout to 120s
+            print(f"[AgentService] Fetching metadata for docId: {docId}, userId: {userId}")
             doc_snap = db.collection('users').document(userId).collection('portfolios').document(docId).get(timeout=120)
             if doc_snap.exists:
                 details = doc_snap.to_dict()
-                print(f"[AgentService] Fetched full metadata for card {docId}")
+                print(f"[AgentService] SUCCESS: Fetched full metadata for {details.get('player')}")
+            else:
+                # Explicit error logging as requested
+                print(f"[Error] Could not find card {docId} in Firestore for user {userId}. Falling back to request details.")
     except Exception as fe:
-        print(f"[AgentService] Metadata fetch warning: {str(fe)}")
+        print(f"[Error] Firestore metadata fetch failed: {str(fe)}")
 
     # --- IRONCLAD FALLBACK ---
     error_fallback = {
@@ -422,25 +433,25 @@ async def value_card(req: ValuationRequest):
         grade = str(details.get('grade') or '').upper()
         is_graded = any(x in grader or x in grade for x in ['PSA', 'BGS', 'SGC', 'CGC'])
         
-        # Gretzky/High-End Reprints Protection
-        neg_keywords = "-reprint -RP -facsimile -copy -sticker -custom"
-        card_desc = f"{sanitized_base} {grader} {grade} {neg_keywords}".strip() if is_graded else f"{sanitized_base} -PSA -BGS -SGC -CGC {neg_keywords}".strip()
+        # Fix: Hardcode Query Construction to be foolproof
+        query = f"{details.get('year', '')} {details.get('brand', '')} {details.get('player', '')} {details.get('cardNumber', '')} -reprint -rp".strip()
+        card_desc = query
         
         # Method tracking
-        method_used = "grounded_search"
+        method_used = "Gemini-1.5-Flash-Trimmed-Mean"
 
         async def attempt_run(q):
             client = genai.Client(vertexai=True, project=PROJECT_ID, location='us-central1')
             
-            # Gretzky/Trimmed Mean Logic: Hardcoded in system prompt
             sys_inst = (
                 f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
                 "VALUATION PROTOCOL: "
                 "1. STRICTLY EXCLUDE any reprints, copies, or custom cards (-reprint -rp -copy). "
                 "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 25% of sold prices to remove outliers. "
                 "3. Calculate the median of the remaining sales. "
-                "4. CRITICAL: Return your final finding in a JSON block at the end of your response. "
-                "If you cannot return JSON, at least state the final price clearly as: FINAL PRICE: $XXX.XX"
+                "4. LISTINGS: You MUST find and return the TOP 5 Active Links and TOP 5 Sold Links from your search. "
+                "5. RETURN FORMAT: You MUST return a JSON block with this EXACT structure: "
+                "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}]}"
             )
             
             # Fix: Explicitly set response_mime_type="text/plain" for tool compatibility
@@ -472,15 +483,15 @@ async def value_card(req: ValuationRequest):
         
         if final_price <= 0.01: final_price = cost_basis
 
-        # Final Sanitization & No-Fail Defaults (Fix 2: Response Construction)
+        # Final Sanitization & No-Fail Defaults (Fix: Populate the Payload)
         final_payload = sanitize_firestore_payload({
             "currentMarketValue": final_price,
             "status": "market_verified" if final_price > 0.01 else "manual_review",
-            "active_listings": res_json.get("active_listings"),
-            "sold_listings": res_json.get("sold_listings"),
-            "supporting_data": res_json.get("supporting_data"),
-            "search_query": card_desc, # Toast detail
-            "method": method_used        # Toast detail
+            "active_listings": res_json.get("active_listings") or [],
+            "sold_listings": res_json.get("sold_listings") or [],
+            "supporting_data": res_json.get("supporting_data") or {},
+            "search_query": card_desc, 
+            "method": method_used
         })
 
         # Persist (Fix: Log the Update and Verify Field Names)
