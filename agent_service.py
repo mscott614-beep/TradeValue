@@ -130,21 +130,21 @@ async def batch_sync(req: BatchSyncRequest, background_tasks: BackgroundTasks):
 
 def run_batch_sync_job(userId: str):
     """
-    Optimized Batch Sync: Processes cards in chunks of 10 to prevent timeouts.
+    Optimized Batch Sync: Processes cards in chunks of 20 to prevent timeouts.
     Fixes Vertex AI formatting by removing unnecessary 'metadata' key.
     """
     try:
         db = get_db()
-        # Find cards needing valuation
-        cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(100)
+        # Find cards needing valuation (Limit increased to 200 total per run)
+        cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(200)
         cards = list(cards_ref.stream())
         
         if not cards:
             print("[BatchSync] No cards found needing sync.")
             return
 
-        # Chunk into groups of 10
-        chunk_size = 10
+        # Chunk into groups of 20 (Fix 3: Batch Optimization)
+        chunk_size = 20
         for i in range(0, len(cards), chunk_size):
             chunk = cards[i:i + chunk_size]
             jsonl_lines = []
@@ -160,7 +160,7 @@ def run_batch_sync_job(userId: str):
                 search_query = f"{year} {brand} {player} #{card_num}".strip()
                 prompt = f"SEARCH AND VALUE: {search_query}. Return JSON {{currentMarketValue, active_listings, sold_listings}}."
                 
-                # Fix 4: Removing 'metadata' key as per Gemini 1.5 Flash requirements
+                # Fix 4: Vertex AI Formatting - Request contents only
                 jsonl_lines.append(json.dumps({
                     "request": {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
                 }))
@@ -172,18 +172,18 @@ def run_batch_sync_job(userId: str):
             if not bucket.exists(): bucket.create(location="us-central1")
                 
             timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
-            blob_path = f"input/batch_{i//10}_{timestamp}.jsonl"
+            blob_path = f"input/batch_{i//chunk_size}_{timestamp}.jsonl"
             blob = bucket.blob(blob_path)
             blob.upload_from_string("\n".join(jsonl_lines), content_type="application/json")
             
             aiplatform.init(project=PROJECT_ID, location="us-central1")
             aiplatform.BatchPredictionJob.create(
-                job_display_name=f"batch_sync_{i//10}_{timestamp}",
+                job_display_name=f"batch_sync_{i//chunk_size}_{timestamp}",
                 model_name="publishers/google/models/gemini-1.5-flash",
                 gcs_source=f"gs://{bucket_name}/{blob_path}",
-                gcs_destination_prefix=f"gs://{bucket_name}/output/{timestamp}/{i//10}/",
+                gcs_destination_prefix=f"gs://{bucket_name}/output/{timestamp}/{i//chunk_size}/",
             )
-            print(f"[BatchSync] Submitted chunk {i//10} ({len(chunk)} cards)")
+            print(f"[BatchSync] Submitted chunk {i//chunk_size} ({len(chunk)} cards)")
             
     except Exception as e:
         print(f"[BatchSync] ERROR: {str(e)}")
@@ -321,6 +321,9 @@ async def extract_ebay(req: ExtractRequest):
 
 @app.post("/value-card")
 async def value_card(req: ValuationRequest):
+    # Fix: Explicitly log the incoming request body
+    print(f"[AgentService] Incoming valuation request: {req.json()}")
+    
     docId = req.cardId
     userId = req.userId
     
@@ -329,8 +332,8 @@ async def value_card(req: ValuationRequest):
     try:
         db = get_db()
         if db and docId and userId:
-            # Fix 5: Increase Firestore/MCP timeout to 60s
-            doc_snap = db.collection('users').document(userId).collection('portfolios').document(docId).get(timeout=60)
+            # Fix 5: Increase Firestore/MCP timeout to 120s
+            doc_snap = db.collection('users').document(userId).collection('portfolios').document(docId).get(timeout=120)
             if doc_snap.exists:
                 details = doc_snap.to_dict()
                 print(f"[AgentService] Fetched full metadata for card {docId}")
@@ -377,6 +380,7 @@ async def value_card(req: ValuationRequest):
         grade = str(details.get('grade') or '').upper()
         is_graded = any(x in grader or x in grade for x in ['PSA', 'BGS', 'SGC', 'CGC'])
         
+        # Gretzky/High-End Reprints Protection
         neg_keywords = "-reprint -RP -facsimile -copy -sticker -custom"
         card_desc = f"{sanitized_base} {grader} {grade} {neg_keywords}".strip() if is_graded else f"{sanitized_base} -PSA -BGS -SGC -CGC {neg_keywords}".strip()
         
@@ -385,11 +389,17 @@ async def value_card(req: ValuationRequest):
 
         async def attempt_run(q):
             client = genai.Client(vertexai=True, project=PROJECT_ID, location='us-central1')
+            
+            # Gretzky/Trimmed Mean Logic: Hardcoded in system prompt
             sys_inst = (
-                f"Analyst. Player: {player}, Card: #{cleaned_num}. "
-                "RULES: Ignore bottom 25% of 'Sold' comps. Median of rest. "
+                f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
+                "VALUATION PROTOCOL: "
+                "1. STRICTLY EXCLUDE any reprints, copies, or custom cards (-reprint -rp -copy). "
+                "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 20% of sold prices to remove outliers. "
+                "3. Calculate the median of the remaining sales. "
                 "Return JSON {currentMarketValue, active_listings, sold_listings}."
             )
+            
             # Fix 5: Increase model/search timeout
             response = client.models.generate_content(
                 model='gemini-1.5-flash',
@@ -419,15 +429,15 @@ async def value_card(req: ValuationRequest):
         
         if final_price <= 0.01: final_price = cost_basis
 
-        # Final Sanitization & No-Fail Defaults
+        # Final Sanitization & No-Fail Defaults (Fix 2: Response Construction)
         final_payload = sanitize_firestore_payload({
             "currentMarketValue": final_price,
             "status": "market_verified" if final_price > 0.01 else "manual_review",
             "active_listings": res_json.get("active_listings"),
             "sold_listings": res_json.get("sold_listings"),
             "supporting_data": res_json.get("supporting_data"),
-            "search_query": card_desc, # Fix 2: Explicitly include for UI toast
-            "method": method_used        # Fix 2: Explicitly include for UI toast
+            "search_query": card_desc, # Toast detail
+            "method": method_used        # Toast detail
         })
 
         # Persist
