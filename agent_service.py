@@ -220,18 +220,18 @@ async def execute_batch_sync_worker(userId: str):
             bucket_name = f"{PROJECT_ID}-batch-sync"
             storage_client = storage.Client(project=PROJECT_ID)
             bucket = storage_client.bucket(bucket_name)
-            if not bucket.exists(): bucket.create(location="us-central1")
+            if not bucket.exists(): bucket.create(location=LOCATION)
                 
             timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
             blob_path = f"input/batch_{i//chunk_size}_{timestamp}.jsonl"
             blob = bucket.blob(blob_path)
             blob.upload_from_string("\n".join(jsonl_lines), content_type="application/json")
             
-            aiplatform.init(project=PROJECT_ID, location="us-central1")
+            aiplatform.init(project=PROJECT_ID, location=LOCATION)
             # This is the call that takes time; being in a worker prevents tool timeouts
             aiplatform.BatchPredictionJob.create(
                 job_display_name=f"batch_sync_{i//chunk_size}_{timestamp}",
-                model_name="publishers/google/models/gemini-1.5-flash",
+                model_name="publishers/google/models/gemini-2.5-flash",
                 gcs_source=f"gs://{bucket_name}/{blob_path}",
                 gcs_destination_prefix=f"gs://{bucket_name}/output/{timestamp}/{i//chunk_size}/",
             )
@@ -355,11 +355,11 @@ async def extract_ebay(req: ExtractRequest):
         response = requests.get(url, headers=headers, timeout=15)
         context_data = f"URL: {url}, HTML: {response.text[:1000]}" if response.status_code == 200 else f"URL: {url}"
         
-        client = genai.Client(vertexai=True, project=PROJECT_ID, location='us-central1')
+        client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
         prompt = f"Extract card details from: {context_data}. Return JSON."
         
         res = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 # Disable JSON mode for tool compatibility
@@ -380,7 +380,7 @@ async def value_card(req: ValuationRequest):
     is_graded = False
     cleaned_num = "Unknown"
     query = ""
-    method = ""
+    method_used = "direct_search"
     details = {}
     
     # Fix: Explicitly log the incoming request body
@@ -464,10 +464,10 @@ async def value_card(req: ValuationRequest):
         card_desc = query
         
         # Method tracking
-        method_used = "Gemini-1.5-Flash-Trimmed-Mean"
-
+        method_used = "Gemini-2.5-Flash-Trimmed-Mean"
+        
         async def attempt_run(q):
-            client = genai.Client(vertexai=True, project=PROJECT_ID, location='us-central1')
+            client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
             
             sys_inst = (
                 f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
@@ -482,7 +482,7 @@ async def value_card(req: ValuationRequest):
             
             # Fix: Explicitly set response_mime_type="text/plain" for tool compatibility
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-2.5-flash',
                 contents=q,
                 config=types.GenerateContentConfig(
                     system_instruction=sys_inst,
