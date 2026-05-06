@@ -5,7 +5,7 @@ import asyncio
 import json
 import re
 import os
-from market_watcher_agent import AgentClass, PROJECT_ID
+from market_watcher_agent import AgentClass, PROJECT_ID, LOCATION
 from google.cloud import firestore
 from google.cloud import aiplatform
 from google.cloud import storage
