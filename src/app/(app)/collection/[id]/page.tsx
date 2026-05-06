@@ -232,33 +232,39 @@ export default function CardDetailsPage() {
         });
     };
 
-    const handleSaveTitle = () => {
-        if (!cardDocRef || !titleInput.trim()) return;
+        try {
+            updateDocumentNonBlocking(cardDocRef, {
+                title: titleInput.trim()
+            });
 
-        updateDocumentNonBlocking(cardDocRef, {
-            title: titleInput.trim()
-        });
-
-        setIsEditingTitle(false);
-        toast({
-            title: "Title Updated",
-            description: "The card title has been saved successfully.",
-        });
-    };
+            setIsEditingTitle(false);
+            toast({
+                title: "Title Updated",
+                description: "The card title has been saved successfully.",
+            });
+        } finally {
+            document.body.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'auto';
+        }
 
     const handleSaveAttributes = () => {
         if (!cardDocRef) return;
 
-        updateDocumentNonBlocking(cardDocRef, {
-            features: selectedFeatures,
-            parallel: selectedParallel
-        });
+        try {
+            updateDocumentNonBlocking(cardDocRef, {
+                features: selectedFeatures,
+                parallel: selectedParallel
+            });
 
-        setIsEditingAttributes(false);
-        toast({
-            title: "Attributes Updated",
-            description: "Card features and parallels have been saved.",
-        });
+            setIsEditingAttributes(false);
+            toast({
+                title: "Attributes Updated",
+                description: "Card features and parallels have been saved.",
+            });
+        } finally {
+            document.body.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'auto';
+        }
     };
 
     const handleSaveInfo = async () => {
@@ -429,6 +435,8 @@ export default function CardDetailsPage() {
             toast({ title: "Error", description: "Failed to fetch live eBay data", variant: "destructive" });
         } finally {
             setIsRefreshingValue(false);
+            document.body.style.pointerEvents = 'auto';
+            document.body.style.overflow = 'auto';
         }
     };
 

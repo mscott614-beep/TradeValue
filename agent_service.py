@@ -182,13 +182,13 @@ async def execute_batch_sync_worker(userId: str):
     print(f"[BatchSync] Worker started for user: {userId}")
     try:
         db = get_db()
-        # MCP Timeout: Ensure we don't hang the parent process
-        # Wrap the fetch in a 25s timeout for 30s MCP deadlines
+        # MCP Timeout: Increased to 60s as requested
+        # Wrap the fetch in a 60s timeout for longer batch runs
         cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(200)
         try:
-            cards = await asyncio.wait_for(asyncio.to_thread(lambda: list(cards_ref.stream())), timeout=25.0)
+            cards = await asyncio.wait_for(asyncio.to_thread(lambda: list(cards_ref.stream())), timeout=60.0)
         except asyncio.TimeoutError:
-            print("[BatchSync] TIMEOUT: Firestore fetch exceeded 25s limit.")
+            print("[BatchSync] TIMEOUT: Firestore fetch exceeded 60s limit.")
             return
         
         if not cards:
