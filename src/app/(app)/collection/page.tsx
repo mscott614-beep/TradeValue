@@ -95,18 +95,28 @@ export default function CollectionPage() {
   React.useEffect(() => {
     if (!isEditDialogOpen) {
       const cleanup = () => {
+        // Force cleanup of body styles
         document.body.style.pointerEvents = 'auto';
         document.body.style.overflow = 'auto';
+        
+        // Final fallback: Ensure the html element is also unlocked
+        document.documentElement.style.pointerEvents = 'auto';
+        document.documentElement.style.overflow = 'auto';
+
         // Remove any stuck radix-overlay elements if they persist (safety check)
         const overlays = document.querySelectorAll('[data-radix-portal]');
-        if (overlays.length === 0) {
-           // If no portals are active, ensure we haven't left the body locked
-           document.documentElement.style.pointerEvents = 'auto';
+        if (overlays.length > 0) {
+           overlays.forEach(el => {
+             if (el.innerHTML.includes('Dialog') || el.innerHTML === '') {
+                // (Optional) Potential manual removal if desperate, 
+                // but let's stick to pointer-events first
+             }
+           });
         }
       };
       
       // Small delay to ensure Radix has finished its own transition
-      const timer = setTimeout(cleanup, 100);
+      const timer = setTimeout(cleanup, 10);
       return () => clearTimeout(timer);
     }
   }, [isEditDialogOpen]);
@@ -210,9 +220,10 @@ export default function CollectionPage() {
   const handleSaveTitle = () => {
     if (!user || !firestore || !editingCard || !tempTitle.trim()) return;
 
-    // Fix 1 & 2: Immediate Unmount
-    // Ensure the dialog state is cleared BEFORE any other operations
+    // Fix 1 & 2: Immediate Unmount & Force Cleanup
     setIsEditDialogOpen(false);
+    document.body.style.pointerEvents = 'auto';
+    document.body.style.overflow = 'auto';
 
     const docRef = doc(firestore, `users/${user.uid}/portfolios`, editingCard.id);
     updateDocumentNonBlocking(docRef, {
@@ -223,6 +234,9 @@ export default function CollectionPage() {
     }).catch(err => {
       console.error('Failed to update title:', err);
       toast.error('Failed to update title');
+    }).finally(() => {
+      // Secondary safety cleanup
+      document.body.style.pointerEvents = 'auto';
     });
   };
 

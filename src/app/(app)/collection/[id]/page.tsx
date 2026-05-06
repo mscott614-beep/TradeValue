@@ -118,18 +118,27 @@ export default function CardDetailsPage() {
     useEffect(() => {
         if (!isEditingInfo) {
             const cleanup = () => {
+                // Force cleanup of body styles
                 document.body.style.pointerEvents = 'auto';
                 document.body.style.overflow = 'auto';
+
+                // Final fallback: Ensure the html element is also unlocked
+                document.documentElement.style.pointerEvents = 'auto';
+                document.documentElement.style.overflow = 'auto';
+
                 // Remove any stuck radix-overlay elements if they persist (safety check)
                 const overlays = document.querySelectorAll('[data-radix-portal]');
-                if (overlays.length === 0) {
-                    // If no portals are active, ensure we haven't left the body locked
-                    document.documentElement.style.pointerEvents = 'auto';
+                if (overlays.length > 0) {
+                    overlays.forEach(el => {
+                        if (el.innerHTML.includes('Dialog') || el.innerHTML === '') {
+                            // Manual portal purge logic could go here if needed
+                        }
+                    });
                 }
             };
 
             // Small delay to ensure Radix has finished its own transition
-            const timer = setTimeout(cleanup, 100);
+            const timer = setTimeout(cleanup, 10);
             return () => clearTimeout(timer);
         }
     }, [isEditingInfo]);
@@ -255,9 +264,11 @@ export default function CardDetailsPage() {
     const handleSaveInfo = async () => {
         if (!cardDocRef) return;
 
-        // Fix 1 & 2: Immediate Unmount
+        // Fix 1 & 2: Immediate Unmount & Force Cleanup
         // Ensure the dialog state is cleared BEFORE any other operations
         setIsEditingInfo(false);
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
 
         try {
             updateDocumentNonBlocking(cardDocRef, {
@@ -283,6 +294,9 @@ export default function CardDetailsPage() {
                 description: "Could not update card details.",
                 variant: "destructive"
             });
+        } finally {
+            // Secondary safety cleanup
+            document.body.style.pointerEvents = 'auto';
         }
     };
 
