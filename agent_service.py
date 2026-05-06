@@ -309,7 +309,10 @@ async def extract_ebay(req: ExtractRequest):
         res = client.models.generate_content(
             model='gemini-1.5-flash',
             contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type='application/json')
+            config=types.GenerateContentConfig(
+                # Disable JSON mode for tool compatibility
+                # response_mime_type='application/json' 
+            )
         )
         res_json = robust_json_parse(res.text)
         if res_json:
@@ -397,17 +400,18 @@ async def value_card(req: ValuationRequest):
                 "1. STRICTLY EXCLUDE any reprints, copies, or custom cards (-reprint -rp -copy). "
                 "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 20% of sold prices to remove outliers. "
                 "3. Calculate the median of the remaining sales. "
-                "Return JSON {currentMarketValue, active_listings, sold_listings}."
+                "4. CRITICAL: Return your final finding in a JSON block at the end of your response. "
+                "FORMAT: {\"currentMarketValue\": 123.45, \"active_listings\": [], \"sold_listings\": []}"
             )
             
-            # Fix 5: Increase model/search timeout
+            # Fix: Disable JSON mode (controlled generation) as it conflicts with Search tool
             response = client.models.generate_content(
                 model='gemini-1.5-flash',
                 contents=q,
                 config=types.GenerateContentConfig(
                     system_instruction=sys_inst,
                     tools=[types.Tool(google_search=types.GoogleSearch())],
-                    response_mime_type='application/json'
+                    # response_mime_type='application/json' # Removed for tool compatibility
                 )
             )
             return response.text
