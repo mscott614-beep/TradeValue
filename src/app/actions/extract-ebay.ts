@@ -28,13 +28,13 @@ export async function extractEbayListingAction(url: string, useFallback: boolean
             timeout: 90000
         });
 
-        if (response.data && !response.data.success === false) {
+        if (response.data && !response.data.error) {
             return {
                 success: true,
                 data: response.data
             };
         } else {
-            throw new Error(response.data.error || "Failed to extract listing details via agent.");
+            throw new Error(response.data?.error || "Failed to extract listing details via agent.");
         }
 
     } catch (error: any) {
