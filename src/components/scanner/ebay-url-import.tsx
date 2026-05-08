@@ -9,6 +9,7 @@ import { extractEbayListingAction } from "@/app/actions/extract-ebay";
 import { useFirestore, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { buildCardTitle } from "@/lib/card-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -100,7 +101,14 @@ export function EbayUrlImport() {
             const cardDataForDb = {
                 userId: user.uid,
                 cardId: `ebay-${Date.now()}`,
-                title: `${year} ${brand} ${setName} ${player}`.replace(/\s+/g, ' ').trim(),
+                title: buildCardTitle({
+                    year,
+                    brand,
+                    cardNumber: cleanCardNumber,
+                    player,
+                    features: result.features || [],
+                    parallel: result.parallel || "",
+                }),
                 condition: result.condition || "Raw",
                 purchasePrice: currentMarketValue, 
                 currentMarketValue: currentMarketValue,

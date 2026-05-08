@@ -27,7 +27,7 @@ const ScanCardAndAddMetadataInputSchema = z.object({
 export type ScanCardAndAddMetadataInput = z.infer<typeof ScanCardAndAddMetadataInputSchema>;
 
 const ScanCardAndAddMetadataOutputSchema = z.object({
-  year: z.string().describe('The year the trading card was produced.'),
+  year: z.string().describe('The full production year or season of the card. For multi-year seasons use the full format like "2013-14" or "2023-24". For single-year products just use "2023".'),
   brand: z.string().describe('The brand of the trading card (e.g., Topps, Upper Deck).'),
   set: z.string().describe('The specific set or subset name (e.g., Ultimate Collection, Young Guns, Prizm).').default("Base"),
   player: z.string().describe('The name of the player featured on the card.'),
@@ -52,7 +52,7 @@ const scanCardPrompt = ai.definePrompt({
 You will identify the card from the provided image(s) and return the year, brand, set, player, card number, condition, grader, and estimated value.
 
 Return a JSON object that contains the following keys:
-- year: The year the trading card was produced.
+- year: The full production year or season. For multi-year seasons (common in hockey and basketball), use the full format like '2013-14' or '2023-24'. For single-year products, use just the year like '2023'.
 - brand: The brand of the trading card (e.g., Topps, Upper Deck).
 - set: The specific set or subset name (e.g. "Ultimate Collection", "Young Guns", "Prizm Base", "Chrome"). Look for this text on the card.
 - player: The name of the player featured on the card.

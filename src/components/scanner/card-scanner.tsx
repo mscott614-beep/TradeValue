@@ -15,6 +15,7 @@ import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { compressImage } from "@/lib/image-utils";
+import { buildCardTitle } from "@/lib/card-utils";
 import { useAccountLimits } from "@/hooks/use-account-limits";
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -261,7 +262,12 @@ export function CardScanner() {
       const cardDataForDb: Record<string, any> = {
         userId: user.uid,
         cardId: `${brand}-${cleanCardNumber}-${player.replace(/\s+/g, '-')}`,
-        title: `${year} ${brand} ${setName} ${player} ${cleanCardNumber.match(/^\d+$/) ? '#' + cleanCardNumber : cleanCardNumber}`.replace(/\s+/g, ' ').trim(),
+        title: buildCardTitle({
+          year,
+          brand,
+          cardNumber: cleanCardNumber,
+          player,
+        }),
         condition: result.estimatedGrade || "Raw",
         purchasePrice: 0,
         currentMarketValue: result.estimatedMarketValue || 0,

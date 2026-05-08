@@ -4,7 +4,7 @@ import { z } from 'zod';
 const ExtractEbayOutputSchema = z.object({
     title: z.string().describe("The full name or title of the card, e.g., '2023 Panini Prizm Victor Wembanyama Rookie'"),
     player: z.string().describe("The main player or subject featured on the card."),
-    year: z.coerce.number().describe("The year the card was produced (e.g., 2023)."),
+    year: z.string().describe("The full production year or season of the card. For multi-year seasons, use the full format like '2013-14', '2023-24'. For single-year products, use just the year like '2023'."),
     brand: z.string().describe("The manufacturer name (e.g., 'Panini', 'Topps', 'Upper Deck'). Do NOT include the year."),
     set: z.string().optional().describe("The specific set or series (e.g., 'Prizm', 'Chrome', 'Series 2', 'O-Pee-Chee Platinum'). Do NOT include the year."),
     cardNumber: z.string().optional().describe("The card number usually found on the back, e.g., '201', '101', 'C-1'."),
@@ -34,7 +34,7 @@ export const extractEbayListing = ai.defineFlow({
     "${listingText}"
         Strict Extraction Rules:
         1. Ignore any part of the page labeled "Related items" or "People also viewed".
-        2. Identify the year, brand, player, and card number.
+        2. Identify the year, brand, player, and card number. For the year, use the FULL season format if applicable (e.g., '2013-14' for a hockey product spanning two years, '2023-24' for an NBA product). If it is a single-year product like '2023 Topps', just use '2023'.
         3. If the card number is alphanumeric (e.g. "DTA-TT", "BCS-1"), extract it EXACTLY without a '#' prefix.
         4. If the card number is purely numeric (e.g. "123"), you may include the '#'.
         5. Do NOT hallucinate a card number (e.g. extracting "90" from "1990"). If it isn't explicitly listed, return an empty string. 
