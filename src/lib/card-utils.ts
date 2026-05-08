@@ -127,7 +127,11 @@ export const buildCardTitle = (opts: {
     }
     
     if (opts.serialNumber) {
-        featureParts.push(opts.serialNumber);
+        let sn = opts.serialNumber.trim();
+        if (sn && !sn.startsWith('/') && !sn.toLowerCase().includes('of')) {
+            sn = `/${sn}`;
+        }
+        featureParts.push(sn);
     }
 
     // Add unique feature parts to title

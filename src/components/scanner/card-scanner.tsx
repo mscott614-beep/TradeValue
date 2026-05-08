@@ -267,7 +267,8 @@ export function CardScanner() {
           brand,
           cardNumber: cleanCardNumber,
           player,
-          parallel: (result as any).parallel || ""
+          parallel: (result as any).parallel || "",
+          serialNumber: (result as any).serialNumber || ""
         }),
         condition: result.estimatedGrade || "Raw",
         purchasePrice: 0,
@@ -284,6 +285,7 @@ export function CardScanner() {
         }),
         cardNumber: cleanCardNumber,
         parallel: (result as any).parallel || "",
+        serialNumber: (result as any).serialNumber || "",
         estimatedGrade: result.estimatedGrade || "Raw",
         grader: result.grader || "None",
         imageUrl: compressedImageUrl || "",
