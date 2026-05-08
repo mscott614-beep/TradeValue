@@ -112,7 +112,24 @@ export async function extractEbayListingAction(url: string, useFallback: boolean
 
         console.log(`[Import] eBay API data (${structuredText.length} chars): ${structuredText.slice(0, 400)}`);
 
-        // Step 4: Use Genkit flow for AI-powered card metadata extraction
+        // Step 4: Fetch and encode the image to base64 so it persists after 90 days
+        let base64Image = null;
+        if (imageUrl) {
+            try {
+                console.log(`[Import] Ingesting image from eBay: ${imageUrl}`);
+                const imageResponse = await axios.get(imageUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 10000
+                });
+                const buffer = Buffer.from(imageResponse.data, 'binary');
+                base64Image = `data:${imageResponse.headers['content-type']};base64,${buffer.toString('base64')}`;
+                console.log(`[Import] Image ingested successfully (${Math.round(base64Image.length / 1024)} KB)`);
+            } catch (imageError) {
+                console.warn("[Import] Failed to ingest image, falling back to URL:", imageError);
+            }
+        }
+
+        // Step 5: Use Genkit flow for AI-powered card metadata extraction
         const modelToUse = useFallback ? FALLBACK_MODEL : PRIMARY_MODEL;
         console.log(`[Import] Calling Genkit extractEbayListing with model: ${modelToUse}`);
 
@@ -126,10 +143,10 @@ export async function extractEbayListingAction(url: string, useFallback: boolean
             result.currentMarketValue = parseFloat(item.price.value) || 0;
         }
 
-        // Attach the eBay image URL for the card
+        // Attach the base64 image (primary) or URL (fallback)
         const enrichedResult = {
             ...result,
-            imageUrl: imageUrl,
+            imageUrl: base64Image || imageUrl,
             ebayUrl: url,
         };
 
