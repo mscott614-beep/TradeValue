@@ -9,7 +9,7 @@ import { extractEbayListingAction } from "@/app/actions/extract-ebay";
 import { useFirestore, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { buildCardTitle } from "@/lib/card-utils";
+import { buildCardTitle, buildFullSetName } from "@/lib/card-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -116,7 +116,7 @@ export function EbayUrlImport() {
                 year,
                 brand,
                 player,
-                set: setName,
+                set: buildFullSetName({ year, brand, subset: setName }),
                 cardNumber: cleanCardNumber,
                 estimatedGrade: result.estimatedGrade || "",
                 parallel: result.parallel || "",

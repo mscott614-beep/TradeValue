@@ -28,8 +28,8 @@ export type ScanCardAndAddMetadataInput = z.infer<typeof ScanCardAndAddMetadataI
 
 const ScanCardAndAddMetadataOutputSchema = z.object({
   year: z.string().describe('The full production year or season of the card. For multi-year seasons use the full format like "2013-14" or "2023-24". For single-year products just use "2023".'),
-  brand: z.string().describe('The brand of the trading card (e.g., Topps, Upper Deck).'),
-  set: z.string().describe('The specific set or subset name (e.g., Ultimate Collection, Young Guns, Prizm).').default("Base"),
+  brand: z.string().describe('The manufacturer name ONLY (e.g., Topps, Upper Deck, Panini). Do NOT include the year or subset.'),
+  set: z.string().describe('The specific subset or series name ONLY — NOT the brand. Examples: "Young Guns", "Ultimate Collection", "Prizm", "Chrome". If no specific subset, return "Base". Do NOT repeat the brand name.').default("Base"),
   player: z.string().describe('The name of the player featured on the card.'),
   cardNumber: z.string().describe('The card number (if any).'),
   estimatedGrade: z.string().describe('The estimated condition/grade of the card (e.g., Mint, Near Mint).'),

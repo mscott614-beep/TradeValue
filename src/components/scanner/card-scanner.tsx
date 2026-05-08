@@ -15,7 +15,7 @@ import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { compressImage } from "@/lib/image-utils";
-import { buildCardTitle } from "@/lib/card-utils";
+import { buildCardTitle, buildFullSetName } from "@/lib/card-utils";
 import { useAccountLimits } from "@/hooks/use-account-limits";
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -275,7 +275,7 @@ export function CardScanner() {
         year,
         brand,
         player,
-        set: setName,
+        set: buildFullSetName({ year, brand, subset: setName }),
         cardNumber: cleanCardNumber,
         estimatedGrade: result.estimatedGrade || "Raw",
         grader: result.grader || "None",

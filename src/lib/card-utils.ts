@@ -45,6 +45,39 @@ export const cleanTitle = (title: string): string => {
 
 
 /**
+ * Builds the full set name in the standard hobby format.
+ * Format: {year} {brand} {subset if applicable}
+ * Examples:
+ *   "2013-14 Upper Deck Young Guns"
+ *   "2023 Topps Chrome"
+ *   "2024-25 Panini Prizm"
+ *   "1987 Topps" (no subset)
+ */
+export const buildFullSetName = (opts: {
+    year?: string;
+    brand?: string;
+    subset?: string;
+}): string => {
+    const parts: string[] = [];
+
+    if (opts.year) parts.push(opts.year.toString().trim());
+    if (opts.brand) parts.push(opts.brand.trim());
+
+    // Only add subset if it's meaningful and not a repeat of the brand
+    if (opts.subset) {
+        const sub = opts.subset.trim();
+        const brandLower = (opts.brand || '').trim().toLowerCase();
+        if (sub && sub.toLowerCase() !== 'base' && sub.toLowerCase() !== brandLower) {
+            parts.push(sub);
+        }
+    }
+
+    return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || 'Unknown Set';
+};
+
+
+
+/**
  * Builds a standardized card title from metadata.
  * Format: {year} {brand} #{cardNumber} {player} {features}
  * Example: "2013-14 Upper Deck #202 Dougie Hamilton Rookie"
