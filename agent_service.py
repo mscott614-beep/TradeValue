@@ -565,9 +565,9 @@ async def value_card(req: ValuationRequest):
                 "1. STRICTLY EXCLUDE any reprints, copies, or custom cards (-reprint -rp -copy). "
                 "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 25% of sold prices to remove outliers. "
                 "3. Calculate the median of the remaining sales. "
-                "4. LISTINGS: You MUST find and return the TOP 5 Active Links and TOP 5 Sold Links from your search results. "
+                "4. LISTINGS: You MUST find and return the TOP 5 Active Links and TOP 5 Sold Links from your search results. Include the main image URL for each listing. "
                 "5. RETURN FORMAT: You MUST return a JSON block with this EXACT structure: "
-                "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}]}"
+                "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}"
             )
             
             # Fix: Use stable model name (1.5-flash) confirmed to exist in Vertex AI
@@ -580,7 +580,7 @@ async def value_card(req: ValuationRequest):
                     response_mime_type='text/plain' 
                 )
             )
-            print(f"[AgentService] Raw Response Snippet: {response.text[:200]}...")
+            print(f"[AgentService][v1.5.1-DEPLOYED] Raw Response Snippet: {response.text[:200]}...")
             return response.text
 
         raw_res = await attempt_run(f"SEARCH: {card_desc} -lot -set")
