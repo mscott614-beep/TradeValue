@@ -267,6 +267,7 @@ export function CardScanner() {
           brand,
           cardNumber: cleanCardNumber,
           player,
+          parallel: (result as any).parallel || ""
         }),
         condition: result.estimatedGrade || "Raw",
         purchasePrice: 0,
@@ -275,8 +276,14 @@ export function CardScanner() {
         year,
         brand,
         player,
-        set: buildFullSetName({ year, brand, subset: setName }),
+        set: buildFullSetName({ 
+          year, 
+          brand, 
+          subset: setName,
+          parallel: (result as any).parallel || ""
+        }),
         cardNumber: cleanCardNumber,
+        parallel: (result as any).parallel || "",
         estimatedGrade: result.estimatedGrade || "Raw",
         grader: result.grader || "None",
         imageUrl: compressedImageUrl || "",

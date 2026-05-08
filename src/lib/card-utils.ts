@@ -57,15 +57,21 @@ export const buildFullSetName = (opts: {
     year?: string;
     brand?: string;
     subset?: string;
+    parallel?: string;
 }): string => {
     const parts: string[] = [];
 
     if (opts.year) parts.push(opts.year.toString().trim());
     if (opts.brand) parts.push(opts.brand.trim());
 
-    // Only add subset if it's meaningful and not a repeat of the brand
-    if (opts.subset) {
-        const sub = opts.subset.trim();
+    // If subset is missing or just "Base", use parallel as the subset info
+    let finalSubset = opts.subset?.trim();
+    if (!finalSubset || finalSubset.toLowerCase() === 'base' || finalSubset.toLowerCase() === (opts.brand || '').trim().toLowerCase()) {
+        finalSubset = opts.parallel?.trim();
+    }
+
+    if (finalSubset) {
+        const sub = finalSubset.trim();
         const brandLower = (opts.brand || '').trim().toLowerCase();
         if (sub && sub.toLowerCase() !== 'base' && sub.toLowerCase() !== brandLower) {
             parts.push(sub);
@@ -76,12 +82,10 @@ export const buildFullSetName = (opts: {
 };
 
 
-
 /**
  * Builds a standardized card title from metadata.
  * Format: {year} {brand} #{cardNumber} {player} {features}
  * Example: "2013-14 Upper Deck #202 Dougie Hamilton Rookie"
- * Example: "2023 Topps Chrome #150 Shohei Ohtani Refractor /299"
  */
 export const buildCardTitle = (opts: {
     year?: string;
@@ -94,47 +98,43 @@ export const buildCardTitle = (opts: {
 }): string => {
     const parts: string[] = [];
 
-    // Year (full season format like "2013-14")
+    // 1. Year
     if (opts.year) parts.push(opts.year.toString().trim());
 
-    // Brand
+    // 2. Brand
     if (opts.brand) parts.push(opts.brand.trim());
 
-    // Card number with # prefix for pure numeric, as-is for alphanumeric
+    // 3. Card Number (ALWAYS prefix with #)
     if (opts.cardNumber) {
         const num = opts.cardNumber.toString().replace(/^#/, '').trim();
         if (num) {
-            parts.push(num.match(/^\d+$/) ? `#${num}` : num);
+            parts.push(`#${num}`);
         }
     }
 
-    // Player name
+    // 4. Player name
     if (opts.player) parts.push(opts.player.trim());
 
-    // Features (e.g., "Rookie", "Autograph")
+    // 5. Features / Parallel / Serial
+    const featureParts: string[] = [];
+    
     if (opts.features && Array.isArray(opts.features)) {
-        for (const f of opts.features) {
-            const feat = f.trim();
-            // Avoid duplicating info already in the title
-            if (feat && !parts.some(p => p.toLowerCase().includes(feat.toLowerCase()))) {
-                parts.push(feat);
-            }
-        }
+        featureParts.push(...opts.features);
     }
-
-    // Parallel (e.g., "Refractor", "Silver Prizm")
+    
     if (opts.parallel) {
-        const par = opts.parallel.trim();
-        if (par && !parts.some(p => p.toLowerCase().includes(par.toLowerCase()))) {
-            parts.push(par);
-        }
+        featureParts.push(opts.parallel);
+    }
+    
+    if (opts.serialNumber) {
+        featureParts.push(opts.serialNumber);
     }
 
-    // Serial numbering (e.g., "/299")
-    if (opts.serialNumber) {
-        const sn = opts.serialNumber.trim();
-        if (sn && !parts.some(p => p.includes(sn))) {
-            parts.push(sn);
+    // Add unique feature parts to title
+    for (const feat of featureParts) {
+        const cleanFeat = feat.trim();
+        if (cleanFeat && !parts.some(p => p.toLowerCase().includes(cleanFeat.toLowerCase()))) {
+            parts.push(cleanFeat);
         }
     }
 

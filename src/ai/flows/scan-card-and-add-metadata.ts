@@ -31,6 +31,7 @@ const ScanCardAndAddMetadataOutputSchema = z.object({
   brand: z.string().describe('The manufacturer name ONLY (e.g., Topps, Upper Deck, Panini). Do NOT include the year or subset.'),
   set: z.string().describe('The specific subset or series name ONLY — NOT the brand. Examples: "Young Guns", "Ultimate Collection", "Prizm", "Chrome". If no specific subset, return "Base". Do NOT repeat the brand name.').default("Base"),
   player: z.string().describe('The name of the player featured on the card.'),
+  parallel: z.string().optional().describe('The specific parallel or refractor name (e.g. "Silver", "Red Wave", "Refractor"). Leave blank if base.').default(""),
   cardNumber: z.string().describe('The card number (if any).'),
   estimatedGrade: z.string().describe('The estimated condition/grade of the card (e.g., Mint, Near Mint).'),
   grader: z.string().describe('The specific grading company (e.g., PSA, BGS, SGC, GMA) if the card is in a slab. Return "None" if it is raw/ungraded.').default("None"),

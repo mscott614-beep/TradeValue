@@ -116,7 +116,12 @@ export function EbayUrlImport() {
                 year,
                 brand,
                 player,
-                set: buildFullSetName({ year, brand, subset: setName }),
+                set: buildFullSetName({ 
+                    year, 
+                    brand, 
+                    subset: setName, 
+                    parallel: result.parallel || "" 
+                }),
                 cardNumber: cleanCardNumber,
                 estimatedGrade: result.estimatedGrade || "",
                 parallel: result.parallel || "",
