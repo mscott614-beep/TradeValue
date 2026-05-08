@@ -12,7 +12,7 @@ import { getAdminDb } from "@/lib/firebase-server";
  */
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
-        const agentUrl = process.env.AGENT_SERVICE_URL || "https://market-agent-i2233dwbnq-uk.a.run.app";
+        const agentUrl = process.env.AGENT_SERVICE_URL || "https://massapequa-hammer-agent.run.app";
         console.log(`[Refresh] Targeting Agent at: ${agentUrl}/value-card`);
 
         console.log(`[Refresh] Calling Python Agent for ${card.player}...`);
