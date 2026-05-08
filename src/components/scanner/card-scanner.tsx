@@ -228,14 +228,24 @@ export function CardScanner() {
         throw new Error("Missing data or user session. Please ensure you are logged in and the scan is complete.");
       }
 
-      let compressedImageUrl = null;
+      let compressedImageUrl: string | null = null;
       if (frontFile) {
         try {
-          // Compress the image to fit under Firestore's 1MB limit
-          compressedImageUrl = await compressImage(frontFile);
+          // Compress aggressively to fit under Firestore's 1MB doc limit
+          // Using 400px max width to keep the base64 string small
+          compressedImageUrl = await compressImage(frontFile, 400);
+          const sizeKb = Math.round(compressedImageUrl.length / 1024);
+          console.log(`[Scanner] Compressed image size: ${sizeKb} KB`);
+          
+          // Safety check: if still too large (>700KB), compress harder
+          if (compressedImageUrl.length > 700 * 1024) {
+            console.warn(`[Scanner] Image too large (${sizeKb}KB), re-compressing at 250px`);
+            compressedImageUrl = await compressImage(frontFile, 250);
+            console.log(`[Scanner] Re-compressed to: ${Math.round(compressedImageUrl.length / 1024)} KB`);
+          }
         } catch (error) {
-          console.error("Failed to compress image:", error);
-          // Non-fatal, just log and continue
+          console.error("[Scanner] Failed to compress image:", error);
+          // Non-fatal, continue without image
         }
       }
 
@@ -248,7 +258,7 @@ export function CardScanner() {
       const cleanCardNumber = (result.cardNumber || "").toString().replace('#', '').trim();
       const setName = (result.set || "").toString().trim();
       
-      const cardDataForDb = {
+      const cardDataForDb: Record<string, any> = {
         userId: user.uid,
         cardId: `${brand}-${cleanCardNumber}-${player.replace(/\s+/g, '-')}`,
         title: `${year} ${brand} ${setName} ${player} ${cleanCardNumber.match(/^\d+$/) ? '#' + cleanCardNumber : cleanCardNumber}`.replace(/\s+/g, ' ').trim(),
@@ -263,8 +273,9 @@ export function CardScanner() {
         cardNumber: cleanCardNumber,
         estimatedGrade: result.estimatedGrade || "Raw",
         grader: result.grader || "None",
-        ...(compressedImageUrl ? { imageUrl: compressedImageUrl } : {}),
+        imageUrl: compressedImageUrl || "",
       };
+
 
       await addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
 

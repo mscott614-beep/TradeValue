@@ -113,7 +113,9 @@ export function EbayUrlImport() {
                 estimatedGrade: result.estimatedGrade || "",
                 parallel: result.parallel || "",
                 grader: result.grader || "None",
-                features: result.features || []
+                features: result.features || [],
+                imageUrl: result.imageUrl || result.ebayUrl || "",
+                ebayUrl: url,
             };
 
             await addDocumentNonBlocking(portfoliosCollection, cardDataForDb);
