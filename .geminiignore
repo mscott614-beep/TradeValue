@@ -1,0 +1,39 @@
+# Ignore heavy dependencies
+node_modules/
+dist/
+build/
+
+# Ignore large data/logs
+*.log
+data/large_datasets/
+
+# Ignore secrets (Extra safety)\
+
+# Dependency Bloat
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build Artifacts
+dist/
+build/
+.next/
+.venv/
+__pycache__/
+
+# Large Data & Logs
+*.log
+*.csv
+*.jsonl
+data/
+
+# System & IDE Noise
+.git/
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets
+.env*
+*.pem
+.env
