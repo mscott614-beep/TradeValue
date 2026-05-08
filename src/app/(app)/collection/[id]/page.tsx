@@ -237,6 +237,9 @@ export default function CardDetailsPage() {
         }
     };
 
+    const handleSaveTitle = () => {
+        if (!cardDocRef || !titleInput.trim()) return;
+
         try {
             updateDocumentNonBlocking(cardDocRef, {
                 title: titleInput.trim()
@@ -251,6 +254,7 @@ export default function CardDetailsPage() {
             document.body.style.pointerEvents = 'auto';
             document.body.style.overflow = 'auto';
         }
+    };
 
     const handleSaveAttributes = () => {
         if (!cardDocRef) return;
