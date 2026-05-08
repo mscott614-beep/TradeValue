@@ -10,7 +10,7 @@ env:
   - variable: EBAY_ENV
     value: production
   - variable: AGENT_SERVICE_URL
-    value: https://market-agent-103832809240.us-east4.run.app
+    value: https://market-agent-i2233dwbnq-uk.a.run.app
 
 # Secrets for the App Hosting backend
 secrets:
