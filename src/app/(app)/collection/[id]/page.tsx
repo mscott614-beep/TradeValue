@@ -540,6 +540,39 @@ export default function CardDetailsPage() {
         }
     };
 
+
+    // Defensive guards: show loading spinner or redirect if data is missing
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-[60vh]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+                <AlertCircle className="h-12 w-12 text-destructive" />
+                <p className="text-muted-foreground">Please sign in to view this card.</p>
+                <Button onClick={() => router.push('/login')}>Sign In</Button>
+            </div>
+        );
+    }
+
+    if (!card) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+                <AlertCircle className="h-12 w-12 text-muted-foreground" />
+                <p className="text-muted-foreground">Card not found.</p>
+                <Button variant="outline" onClick={() => router.push('/collection')}>
+                    <ChevronLeft className="mr-2 h-4 w-4" />
+                    Back to Collection
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between mb-2">
