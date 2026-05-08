@@ -570,9 +570,9 @@ async def value_card(req: ValuationRequest):
                 "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}]}"
             )
             
-            # Fix: Use stable model name and ensure response is JSON-parsable
+            # Fix: Use stable model name (1.5-flash) confirmed to exist in Vertex AI
             response = client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='gemini-1.5-flash',
                 contents=q,
                 config=types.GenerateContentConfig(
                     system_instruction=sys_inst,
