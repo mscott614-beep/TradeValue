@@ -1,9 +1,48 @@
 "use server";
 
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 import { extractEbayListing } from '@/ai/flows/extract-ebay-listing';
 import { FALLBACK_MODEL, PRIMARY_MODEL } from '@/ai/genkit';
+
+/**
+ * Gets an eBay OAuth Application Access Token (client_credentials grant).
+ */
+async function getEbayAccessToken(): Promise<string> {
+    const clientId = process.env.EBAY_CLIENT_ID;
+    const clientSecret = process.env.EBAY_CLIENT_SECRET;
+    const isProduction = process.env.EBAY_ENV === 'production';
+
+    if (!clientId || !clientSecret) {
+        throw new Error("eBay API credentials not configured.");
+    }
+
+    const tokenUrl = isProduction
+        ? 'https://api.ebay.com/identity/v1/oauth2/token'
+        : 'https://api.sandbox.ebay.com/identity/v1/oauth2/token';
+
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    const { data } = await axios.post(tokenUrl, 'grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope', {
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${credentials}`,
+        },
+        timeout: 10000,
+    });
+
+    return data.access_token;
+}
+
+/**
+ * Extracts the legacy item ID from an eBay URL.
+ * Handles formats like:
+ *   https://www.ebay.com/itm/358443166922
+ *   https://www.ebay.com/itm/some-title/358443166922
+ */
+function extractItemId(url: string): string | null {
+    const match = url.match(/\/itm\/(?:.*\/)?(\d+)/);
+    return match ? match[1] : null;
+}
 
 export async function extractEbayListingAction(url: string, useFallback: boolean = false) {
     if (!url.includes('ebay.com/itm/')) {
@@ -13,69 +52,67 @@ export async function extractEbayListingAction(url: string, useFallback: boolean
         };
     }
 
+    const legacyItemId = extractItemId(url);
+    if (!legacyItemId) {
+        return { success: false, error: "Could not extract item ID from the eBay URL." };
+    }
+
     try {
-        // Step 1: Fetch the eBay page from the Next.js server (better IP reputation than Cloud Run)
-        console.log(`[Import] Fetching eBay listing from Next.js server: ${url}`);
-        const { data: html } = await axios.get(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Cache-Control': 'no-cache',
-            },
-            timeout: 20000,
-        });
+        // Step 1: Get eBay OAuth token
+        console.log(`[Import] Getting eBay access token...`);
+        const accessToken = await getEbayAccessToken();
 
-        // Step 2: Extract structured text from the HTML using cheerio
-        const $ = cheerio.load(html);
+        // Step 2: Fetch item details from the eBay Browse API
+        const isProduction = process.env.EBAY_ENV === 'production';
+        const apiBase = isProduction
+            ? 'https://api.ebay.com'
+            : 'https://api.sandbox.ebay.com';
 
-        // Title
-        const listingTitle = $('h1.x-item-title__mainTitle span').text().trim() ||
-                             $('h1 span.ux-textspans--BOLD').text().trim() ||
-                             $('h1').first().text().trim();
+        console.log(`[Import] Fetching item ${legacyItemId} from eBay Browse API...`);
+        const { data: item } = await axios.get(
+            `${apiBase}/buy/browse/v1/item/get_item_by_legacy_id?legacy_item_id=${legacyItemId}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                    'X-EBAY-C-ENDUSERCTX': 'affiliateCampaignId=<ePNCampaignId>,affiliateReferenceId=<referenceId>',
+                },
+                timeout: 15000,
+            }
+        );
 
-        // Price
-        const listingPrice = $('div.x-price-primary span.ux-textspans').first().text().trim() ||
-                             $('span[itemprop="price"]').text().trim() ||
-                             $('meta[itemprop="price"]').attr('content') || '';
+        // Step 3: Build structured text from API response
+        const title = item.title || '';
+        const price = item.price ? `$${item.price.value} ${item.price.currency}` : '';
+        const conditionText = item.condition || item.conditionDescription || '';
+        const categoryPath = item.categoryPath || '';
+        const shortDescription = item.shortDescription || '';
+        const description = item.description ? item.description.replace(/<[^>]*>/g, ' ').slice(0, 500) : '';
+        const imageUrl = item.image?.imageUrl || '';
 
-        // Condition
-        const condition = $('div.x-item-condition-text span.ux-textspans').text().trim() ||
-                          $('span.ux-icon-text__text').text().trim() || '';
-
-        // Item Specifics
-        const itemSpecifics: Record<string, string> = {};
-        $('div.ux-layout-section-evo__col').each((_, el) => {
-            const spans = $(el).find('span.ux-textspans');
-            if (spans.length >= 2) {
-                const key = $(spans[0]).text().trim().replace(/:$/, '');
-                const val = $(spans[1]).text().trim();
-                if (key && val && key !== val) {
-                    itemSpecifics[key] = val;
+        // Extract item specifics from localizedAspects
+        const specifics: Record<string, string> = {};
+        if (item.localizedAspects && Array.isArray(item.localizedAspects)) {
+            for (const aspect of item.localizedAspects) {
+                if (aspect.name && aspect.value) {
+                    specifics[aspect.name] = aspect.value;
                 }
             }
-        });
-
-        // Seller description (if inline)
-        const descText = $('div#desc_div').text().trim().slice(0, 500) || '';
-
-        // Build the text blob for the AI
-        const structuredText = [
-            `LISTING TITLE: ${listingTitle}`,
-            `PRICE: ${listingPrice}`,
-            `CONDITION: ${condition}`,
-            `ITEM SPECIFICS: ${Object.entries(itemSpecifics).map(([k,v]) => `${k}: ${v}`).join(', ') || 'None'}`,
-            descText ? `DESCRIPTION: ${descText}` : '',
-        ].filter(Boolean).join('\n');
-
-        console.log(`[Import] Extracted text (${structuredText.length} chars): ${structuredText.slice(0, 300)}`);
-
-        if (!listingTitle) {
-            return { success: false, error: "Could not extract listing title from the eBay page. The listing may be expired or private." };
         }
 
-        // Step 3: Use the existing Genkit flow for AI extraction (no Python agent needed)
+        const structuredText = [
+            `LISTING TITLE: ${title}`,
+            `PRICE: ${price}`,
+            `CONDITION: ${conditionText}`,
+            `CATEGORY: ${categoryPath}`,
+            `ITEM SPECIFICS: ${Object.entries(specifics).map(([k, v]) => `${k}: ${v}`).join(', ') || 'None'}`,
+            shortDescription ? `SHORT DESCRIPTION: ${shortDescription}` : '',
+            description ? `DESCRIPTION: ${description}` : '',
+        ].filter(Boolean).join('\n');
+
+        console.log(`[Import] eBay API data (${structuredText.length} chars): ${structuredText.slice(0, 400)}`);
+
+        // Step 4: Use Genkit flow for AI-powered card metadata extraction
         const modelToUse = useFallback ? FALLBACK_MODEL : PRIMARY_MODEL;
         console.log(`[Import] Calling Genkit extractEbayListing with model: ${modelToUse}`);
 
@@ -84,25 +121,39 @@ export async function extractEbayListingAction(url: string, useFallback: boolean
             model: modelToUse,
         });
 
+        // Override the AI's price with the actual eBay price if the AI missed it
+        if (result.currentMarketValue <= 0.01 && item.price?.value) {
+            result.currentMarketValue = parseFloat(item.price.value) || 0;
+        }
+
+        // Attach the eBay image URL for the card
+        const enrichedResult = {
+            ...result,
+            imageUrl: imageUrl,
+            ebayUrl: url,
+        };
+
         console.log(`[Import] SUCCESS: ${result.player} - ${result.brand} - $${result.currentMarketValue}`);
 
         return {
             success: true,
-            data: result,
+            data: enrichedResult,
         };
 
     } catch (error: any) {
-        console.error("[Import] Primary extraction failed:", error?.message || error);
+        console.error("[Import] Extraction failed:", error?.response?.data || error?.message || error);
 
-        // Automatic fallback: if the primary model failed, retry with the fallback model
-        if (!useFallback) {
+        // Automatic fallback: if the primary model failed, retry with fallback
+        if (!useFallback && error?.message && !error?.message.includes('eBay API')) {
             console.log("[Import] Retrying with fallback model...");
             return extractEbayListingAction(url, true);
         }
 
+        // Provide a helpful error message
+        const ebayError = error?.response?.data?.errors?.[0]?.message;
         return {
             success: false,
-            error: error?.message || "An unexpected error occurred while importing the eBay listing."
+            error: ebayError || error?.message || "An unexpected error occurred while importing the eBay listing."
         };
     }
 }
