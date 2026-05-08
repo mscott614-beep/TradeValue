@@ -570,9 +570,9 @@ async def value_card(req: ValuationRequest):
                 "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\"}]}"
             )
             
-            # Fix: Explicitly set response_mime_type="text/plain" for tool compatibility
+            # Fix: Use stable model name and ensure response is JSON-parsable
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-2.0-flash',
                 contents=q,
                 config=types.GenerateContentConfig(
                     system_instruction=sys_inst,
@@ -580,6 +580,7 @@ async def value_card(req: ValuationRequest):
                     response_mime_type='text/plain' 
                 )
             )
+            print(f"[AgentService] Raw Response Snippet: {response.text[:200]}...")
             return response.text
 
         raw_res = await attempt_run(f"SEARCH: {card_desc} -lot -set")
@@ -590,7 +591,9 @@ async def value_card(req: ValuationRequest):
             raw_res = await attempt_run(f"VALUE: {player} {cleaned_num} {brand_raw} {year}. JSON.")
             
         res_json = robust_json_parse(raw_res)
-        if not res_json: return error_fallback
+        if not res_json: 
+            print(f"[AgentService] WARNING: JSON parse failed. Raw: {raw_res[:500]}")
+            return error_fallback
 
         # Price Logic (Fix: fallback to existing market value if no price found)
         existing_val = clean_numeric(details.get('currentMarketValue'), 0.00)
