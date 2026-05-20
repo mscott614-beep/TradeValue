@@ -84,8 +84,8 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
       plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
     });
 
-    const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
-    const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+    const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
+    const FALLBACK_MODEL = 'googleai/gemini-1.5-flash';
 
     const models = [
       PRIMARY_MODEL,

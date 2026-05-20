@@ -25,8 +25,8 @@ async function loadGenkit() {
   return { genkit, z, googleAI: vertexAI };
 }
 
-const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
-const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
+const FALLBACK_MODEL = 'googleai/gemini-1.5-flash';
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");

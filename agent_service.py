@@ -203,39 +203,40 @@ async def execute_batch_sync_worker(userId: str):
             
             for card_doc in chunk:
                 data = card_doc.to_dict()
-                player = data.get('player', 'Unknown')
-                card_num = data.get('cardNumber', '')
+                player = data.get('player', '')
                 brand = data.get('brand', '')
                 year = data.get('year', '')
                 
-                # Explicit Query Construction
-                search_query = f"{year} {brand} {player} #{card_num}".strip()
-                prompt = f"SEARCH AND VALUE: {search_query}. Return JSON {{currentMarketValue, active_listings, sold_listings}}."
+                # --- METADATA VALIDATION (SKIP INCOMPLETE) ---
+                if not player or not brand or not year:
+                    print(f"[BatchSync] SKIP: Incomplete metadata for {card_doc.id}")
+                    continue
+
+                # Trigger valuation using the grounded value_card logic for precision
+                # Instead of BatchPredictionJob (which lacks tools), we call the local logic
+                # We use a wrapper that mimics the API request
+                try:
+                    # Construct a mock request object or just call a shared logic function
+                    # For safety in this environment, we'll use the existing value_card logic
+                    # via a background task simulation to avoid rate limits
+                    print(f"[BatchSync] Processing: {year} {brand} {player}")
+                    
+                    # Extract userId from path: users/{userId}/portfolios/{cardId}
+                    path_parts = card_doc.reference.path.split('/')
+                    if len(path_parts) >= 2 and path_parts[0] == 'users':
+                        u_id = path_parts[1]
+                        # We use the live value_card logic to ensure google_search tool is used
+                        # We run it synchronously here since we are already in a worker
+                        await value_card(ValuationRequest(userId=u_id, cardId=card_doc.id, cardDetails=data))
+                    else:
+                        print(f"[BatchSync] ERROR: Could not resolve userId from path: {card_doc.reference.path}")
+                except Exception as ve:
+                    print(f"[BatchSync] Error processing card {card_doc.id}: {str(ve)}")
                 
-                jsonl_lines.append(json.dumps({
-                    "request": {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
-                }))
+                # Small sleep to prevent rate limits on the search tool
+                await asyncio.sleep(1.0)
             
-            # Upload and trigger job for this chunk
-            bucket_name = f"{PROJECT_ID}-batch-sync"
-            storage_client = storage.Client(project=PROJECT_ID)
-            bucket = storage_client.bucket(bucket_name)
-            if not bucket.exists(): bucket.create(location=LOCATION)
-                
-            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
-            blob_path = f"input/batch_{i//chunk_size}_{timestamp}.jsonl"
-            blob = bucket.blob(blob_path)
-            blob.upload_from_string("\n".join(jsonl_lines), content_type="application/json")
-            
-            aiplatform.init(project=PROJECT_ID, location=LOCATION)
-            # This is the call that takes time; being in a worker prevents tool timeouts
-            aiplatform.BatchPredictionJob.create(
-                job_display_name=f"batch_sync_{i//chunk_size}_{timestamp}",
-                model_name="publishers/google/models/gemini-2.5-flash",
-                gcs_source=f"gs://{bucket_name}/{blob_path}",
-                gcs_destination_prefix=f"gs://{bucket_name}/output/{timestamp}/{i//chunk_size}/",
-            )
-            print(f"[BatchSync] Submitted chunk {i//chunk_size} ({len(chunk)} cards)")
+            print(f"[BatchSync] Completed chunk {i//chunk_size}")
             
     except Exception as e:
         print(f"[BatchSync] Worker ERROR: {str(e)}")
@@ -248,6 +249,22 @@ async def trigger_newsletter(background_tasks: BackgroundTasks):
     """
     background_tasks.add_task(run_newsletter_job)
     return {"status": "accepted", "message": "Newsletter generation started"}
+
+@app.post("/sync-ebay-sheets", status_code=200)
+def sync_ebay_sheets():
+    """
+    Triggers the headless eBay to Google Sheets sync pipeline synchronously.
+    """
+    try:
+        print("[AgentService] Running eBay Google Sheets Sync pipeline synchronously...", flush=True)
+        import ebay_sheets_sync
+        ebay_sheets_sync.main()
+        print("[AgentService] eBay Google Sheets Sync pipeline complete!", flush=True)
+        return {"status": "success", "message": "eBay Sheets Synchronization completed successfully."}
+    except Exception as e:
+        print(f"[AgentService] ERROR in eBay Google Sheets Sync pipeline: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")
+
 
 def run_newsletter_job():
     """
@@ -442,7 +459,7 @@ Return ONLY a JSON object with these exact fields:
 }}"""
         
         res = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type='application/json'
@@ -487,6 +504,19 @@ async def value_card(req: ValuationRequest):
             doc_snap = db.collection('users').document(userId).collection('portfolios').document(docId).get(timeout=120)
             if doc_snap.exists:
                 details = doc_snap.to_dict()
+                
+                # --- METADATA VALIDATION ---
+                # Skip cards with incomplete metadata (must have Year, Brand, and Player)
+                required_fields = ['year', 'brand', 'player']
+                missing = [f for f in required_fields if not details.get(f)]
+                if missing:
+                    print(f"[AgentService] SKIP: Card {docId} has incomplete metadata: {missing}")
+                    return sanitize_firestore_payload({
+                        "currentMarketValue": 0.00,
+                        "status": "manual_review",
+                        "supporting_data": {"error": f"Incomplete metadata: missing {missing}"}
+                    })
+
                 print(f"[AgentService] Handshake SUCCESS: Found {details.get('player')}")
             else:
                 print(f"[Error] Card metadata not found for ID: {docId}")
@@ -538,70 +568,114 @@ async def value_card(req: ValuationRequest):
         # 6. Graded State (Fix: explicitly check for grader labels)
         grader_val = str(details.get('gradingCompany') or details.get('grader') or '').upper()
         grade_val = str(details.get('grade') or details.get('estimatedGrade') or '').upper()
-        is_graded = any(x in grader_val or x in grade_val for x in ['PSA', 'BGS', 'SGC', 'CGC'])
+        title_val = str(details.get('title') or '').upper()
+        
+        is_graded = any(x in grader_val or x in grade_val or x in title_val for x in ['PSA', 'BGS', 'SGC', 'CGC'])
+        
+        # If we detect a grade number (10, 9, 8.5) in a slab-like context
+        if not is_graded and re.search(r'(PSA|BGS|SGC|CGC)\s*(10|9|8|7)', title_val):
+            is_graded = True
 
-        # Fix: Hardcode FOOLPROOF Query Construction
-        # Pattern: [Year] [Brand] [Player] [CardNumber] [Parallel] -reprint -rp
+        # Fix: Use cleaned player and parallel variables
         query_parts = [
-            str(details.get('year', '')),
-            str(details.get('brand', '')),
+            str(details.get('year') or '').strip(),
+            str(details.get('brand') or '').strip(),
+            str(details.get('set') or details.get('setName') or '').strip(),
             player,
-            str(details.get('cardNumber', '')),
+            str(details.get('cardNumber') or details.get('number') or '').strip(),
             parallel
         ]
-        query = " ".join([p for p in query_parts if p and str(p).lower() != 'undefined']).strip()
-        query += " -reprint -rp"
+        query = sanitize_query_parts(query_parts)
+        
+        if is_graded:
+            # Include the company and grade in search for precision
+            best_grader = next((x for x in ['PSA', 'BGS', 'SGC', 'CGC'] if x in grader_val or x in title_val), "PSA")
+            query += f" {best_grader} {grade_val}"
+        else:
+            # Per MARKET_ENGINE_SPEC.md: Use negative keywords for raw cards instead of just "raw"
+            query += " -psa -bgs -sgc -cgc -graded -slab"
+            
+        # Per GEMINI.md: Strict filtering for reprints
+        query += " -reprint -rp -copy -facsimile"
         card_desc = query
+        print(f"[AgentService] Optimized Search Query: {card_desc}")
         
         # Method tracking
-        method_used = "Gemini-2.5-Flash-Trimmed-Mean"
+        method_used = "Gemini-3.5-Flash-Trimmed-Mean"
         
         async def attempt_run(q):
-            client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
+            api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+            client = genai.Client(api_key=api_key)
             
             sys_inst = (
                 f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
+                "CRITICAL INSTRUCTION: You MUST use the provided search tool to find live and sold listings on eBay for this exact card. "
                 "VALUATION PROTOCOL: "
-                "1. STRICTLY EXCLUDE any reprints, copies, or custom cards (-reprint -rp -copy). "
-                "2. Apply a 'Trimmed Mean' protocol: eliminate the top 10% and bottom 25% of sold prices to remove outliers. "
-                "3. Calculate the median of the remaining sales. "
-                "4. LISTINGS: You MUST find and return the TOP 5 Active Links and TOP 5 Sold Links from your search results. Include the main image URL for each listing. "
-                "5. RETURN FORMAT: You MUST return a JSON block with this EXACT structure: "
+                "1. STRICTLY EXCLUDE reprints, copies, or custom cards. "
+                "2. Find at least 5 active listings and 5 sold listings. "
+                "3. If no exact title matches are found, allow minor variations (e.g., 'Series 1' vs 'S1') as long as the Year, Brand, Player, and Card Number match. "
+                "4. Calculate the median sold price after removing outliers. "
+                "5. RETURN FORMAT: You MUST return ONLY a JSON block with this structure: "
                 "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}"
             )
             
-            # Fix: Use stable model name (1.5-flash) confirmed to exist in Vertex AI
-            response = client.models.generate_content(
-                model='gemini-1.5-flash',
-                contents=q,
-                config=types.GenerateContentConfig(
-                    system_instruction=sys_inst,
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
-                    response_mime_type='text/plain' 
-                )
-            )
-            print(f"[AgentService][v1.5.1-DEPLOYED] Raw Response Snippet: {response.text[:200]}...")
-            return response.text
+            # Implementation of exponential backoff for 429 errors
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    print(f"[AgentService] AI Sync Attempt {attempt+1}/{max_retries} for query: {q}")
+                    response = client.models.generate_content(
+                        model='gemini-3.5-flash',
+                        contents=q,
+                        config=types.GenerateContentConfig(
+                            system_instruction=sys_inst,
+                            tools=[types.Tool(google_search=types.GoogleSearch())],
+                        )
+                    )
+                    res_text = response.text or ""
+                    # Check if response actually contains tool output or content
+                    if not res_text and response.candidates:
+                        res_text = response.candidates[0].content.parts[0].text
+                    
+                    if res_text:
+                        print(f"[AgentService] Success after {attempt+1} attempts.")
+                        return res_text
+                except Exception as re:
+                    error_msg = str(re)
+                    if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                        wait_time = (2 ** attempt) * 2 # 2s, 4s, 8s
+                        print(f"[AgentService] Rate limit hit (429). Retrying in {wait_time}s...")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        print(f"[AgentService] ERROR in attempt {attempt+1}: {error_msg}")
+                        if attempt == max_retries - 1:
+                            raise re
+                        await asyncio.sleep(1)
+            return ""
 
-        raw_res = await attempt_run(f"SEARCH: {card_desc} -lot -set")
+        raw_res = await attempt_run(f"Search eBay for active and sold listings for: {card_desc}")
+        print(f"[AgentService] Raw Response Preview: {raw_res[:200] if raw_res else 'EMPTY'}")
         
         # Cascading Fallback Logic
-        if "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower():
+        if not raw_res or "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower():
+            print(f"[AgentService] Triggering Fallback Search for {player}...")
             method_used = "fallback_broad_search"
             raw_res = await attempt_run(f"VALUE: {player} {cleaned_num} {brand_raw} {year}. JSON.")
+            print(f"[AgentService] Fallback Response Preview: {raw_res[:200] if raw_res else 'EMPTY'}")
             
         res_json = robust_json_parse(raw_res)
         if not res_json: 
             print(f"[AgentService] WARNING: JSON parse failed. Raw: {raw_res[:500]}")
             return error_fallback
 
-        # Price Logic (Fix: fallback to existing market value if no price found)
-        existing_val = clean_numeric(details.get('currentMarketValue'), 0.00)
-        cost_basis = clean_numeric(details.get('costBasis') or details.get('purchasePrice') or 0.00, 0.00)
+        # Price Logic (Fix: enforce strict 0.00 if no market data is found)
         val = res_json.get('currentMarketValue') or res_json.get('final_price') or 0.00
-        final_price = clean_numeric(val, existing_val or cost_basis)
+        final_price = clean_numeric(val, 0.00)
         
-        if final_price <= 0.01: final_price = existing_val or cost_basis
+        # If the search results were empty or low confidence, we return 0.00 to signal no data
+        if final_price <= 0.01: 
+            final_price = 0.00
+            print(f"[AgentService] WARNING: No market data found for {card_desc}. Enforcing 0.00.")
 
         # Prepare listings for UI (Fix: Align with marketPrices structure)
         active_results = res_json.get("active_listings") or []
@@ -616,10 +690,12 @@ async def value_card(req: ValuationRequest):
             "sold_listings": sold_results,
             "marketPrices": {
                 "median": final_price,
+                "avgSoldPrice": final_price, 
                 "activeItems": active_results,
                 "soldItems": sold_results,
                 "lastUpdated": datetime.now(timezone.utc).isoformat()
             },
+            "avg_sold_price": final_price, 
             "query": card_desc, 
             "method": method_used
         })
@@ -655,7 +731,9 @@ async def value_card(req: ValuationRequest):
         return final_payload
 
     except Exception as e:
+        import traceback
         print(f"[AgentService] FATAL ERROR: {str(e)}")
+        print(f"[AgentService] TRACEBACK: {traceback.format_exc()}")
         return sanitize_firestore_payload(error_fallback)
 
 if __name__ == '__main__':

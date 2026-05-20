@@ -259,31 +259,46 @@ async def run_cli():
             f"RULES: 1. MUST BE card #{card_num_str}. 2. MUST NOT be Young Guns. 3. BIN ONLY. 4. Return JSON."
 
     async def attempt_run(model_name):
-        app_instance = AgentClass(model_name=model_name)
-        app_instance.set_up()
-        full_response = ""
-        async for chunk in app_instance.app.async_stream_query(message=query, user_id=args.userId):
-            if isinstance(chunk, dict):
-                if 'content' in chunk and isinstance(chunk['content'], dict):
-                    parts = chunk['content'].get('parts', [])
-                    for part in parts:
-                        if 'text' in part:
-                            full_response += part['text']
-                elif 'text' in chunk:
-                    full_response += chunk['text']
-                elif 'actions' in chunk and chunk['actions'].get('content'):
-                    full_response += chunk['actions']['content']
-            else:
-                text = getattr(chunk, 'text', str(chunk))
-                full_response += text
-        return full_response
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                app_instance = AgentClass(model_name=model_name)
+                app_instance.set_up()
+                full_response = ""
+                async for chunk in app_instance.app.async_stream_query(message=query, user_id=args.userId):
+                    if isinstance(chunk, dict):
+                        if 'content' in chunk and isinstance(chunk['content'], dict):
+                            parts = chunk['content'].get('parts', [])
+                            for part in parts:
+                                if 'text' in part:
+                                    full_response += part['text']
+                        elif 'text' in chunk:
+                            full_response += chunk['text']
+                        elif 'actions' in chunk and chunk['actions'].get('content'):
+                            full_response += chunk['actions']['content']
+                    else:
+                        text = getattr(chunk, 'text', str(chunk))
+                        full_response += text
+                if full_response:
+                    return full_response
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    wait_time = (2 ** attempt) * 2
+                    print(f"[Python] Rate limit hit (429). Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    if attempt == max_retries - 1:
+                        raise e
+                    await asyncio.sleep(1)
+        return ""
 
     try:
-        # Tier 1: Use stable primary model (gemini-2.5-flash)
-        full_response = await attempt_run('gemini-2.5-flash')
+        # Tier 1: Use stable primary model (gemini-3.5-flash)
+        full_response = await attempt_run('gemini-3.5-flash')
     except Exception as e:
         # Tier 2 Fallback: Attempt Reasoning Upgrade
-        print(f"[Python] gemini-2.5-flash issue: {str(e)}. Attempting Tier 2 calibration...")
+        print(f"[Python] gemini-3.5-flash issue: {str(e)}. Attempting Tier 2 calibration...")
         try:
             full_response = await attempt_run('gemini-3.1-pro-preview')
         except Exception as e2:

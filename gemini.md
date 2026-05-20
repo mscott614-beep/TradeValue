@@ -2,14 +2,14 @@
 
 ## 🏗️ System Architecture
 
-- **Core AI:** **Gemini 2.5 Flash** (Standardized for high-speed tool calling and advanced reasoning).
+- **Core AI:** **Gemini 3.5 Flash** (GA release; standardized for high-speed tool calling, advanced agentic reasoning, and long-horizon tasks).
 - **Tool Protocol:** Native **Google Search Grounding** (`google_search`).
 - **Backend:** Python (Flask) on **Google Cloud Run** (`market-agent`).
 - **Frontend:** Next.js 14+ (App Router).
 - **Database:** Firestore (Production-ready).
 - **Region:** `us-east4` (Vertex AI & Cloud Run alignment).
 
-## 🤝 The "2.5 Handshake" (Validated)
+## 🤝 The "3.5 Handshake" (Validated)
 
 To maintain UI stability and prevent "Application Error" crashes, follow these contract rules:
 
@@ -37,4 +37,4 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 ## ⚙️ Operational Cleanup
 
 - **Pointer Events:** All async save/sync functions must include a `finally` block restoring `document.body.style.pointerEvents = 'auto'`.
-- **Search Protocol:** With Gemini 2.5, **do not** use `response_mime_type="application/json"` if using the search tool. Use the native `google_search` configuration to avoid "Controlled Generation" conflicts.
+- **Search Protocol:** With Gemini 2.5/3.5, **do not** use `response_mime_type="application/json"` if using the search tool. Use the native `google_search` configuration to avoid "Controlled Generation" conflicts.

@@ -9,14 +9,14 @@ async function checkModel() {
     });
 
     try {
-        console.log("Checking gemini-2.5-flash...");
+        console.log("Checking gemini-3.5-flash...");
         const response = await ai.generate({
-            model: 'googleai/gemini-2.5-flash',
-            prompt: 'Hi, are you there? Respond with "Yes" if you are Gemini 2.5.'
+            model: 'googleai/gemini-3.5-flash',
+            prompt: 'Hi, are you there? Respond with "Yes" if you are Gemini 3.5.'
         });
         console.log("Response:", response.text);
     } catch (error) {
-        console.error("Error with gemini-2.5-flash:", error.message);
+        console.error("Error with gemini-3.5-flash:", error.message);
         
         console.log("\nTrying gemini-1.5-flash (without -latest)...");
         try {
