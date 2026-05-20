@@ -2,8 +2,8 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
-export const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
-export const FALLBACK_MODEL = 'googleai/gemini-3.5-flash';
+export const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
+export const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 

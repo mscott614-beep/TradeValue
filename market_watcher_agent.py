@@ -33,7 +33,7 @@ import datetime
 
 class AgentClass:
 
-  def __init__(self, model_name='gemini-1.5-flash'):
+  def __init__(self, model_name='gemini-3.5-flash'):
     self.app = None
     self.model_name = model_name
 
