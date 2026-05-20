@@ -95,27 +95,37 @@ class AgentClass:
         
         print(f"[MarketAnalyst] Starting research for {current_month}...")
         
-        # Refactored Generate Call using Google Gen AI SDK
-        # Calibrate configuration based on model tier
-        if '3.1-pro' in self.model_name:
-            config = types.GenerateContentConfig(
-                tools=[search_tool], 
-                temperature=1.0,
-                thinking_level='medium'
-            )
+        # Use API key client — proven path with gemini-3.5-flash + google_search.
+        # The Vertex AI client has region/grounding compatibility issues with 3.5 Flash.
+        api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+        if api_key:
+            report_client = genai.Client(api_key=api_key)
         else:
-            config = types.GenerateContentConfig(tools=[search_tool], temperature=1.0)
+            report_client = client  # Fall back to module-level Vertex AI client
+
+        config = types.GenerateContentConfig(tools=[search_tool], temperature=1.0)
             
-        response = client.models.generate_content(
+        response = report_client.models.generate_content(
             model=self.model_name,
             contents=prompt,
             config=config
         )
         
-        if not response or not response.text:
+        # Gemini 3.5 Flash + google_search returns multi-part responses.
+        # The JSON answer is often in a later part, after grounding chunks.
+        # We must concatenate ALL text parts to find the actual report JSON.
+        res_text = ""
+        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'text') and part.text:
+                    res_text += part.text + "\n"
+        if not res_text:
+            res_text = response.text or ""
+            
+        if not res_text:
             raise ValueError("Empty response from model")
             
-        return response.text
+        return res_text
         
     except Exception as e:
         print(f"[MarketAnalyst] Report generation failed or throttled: {str(e)}")
