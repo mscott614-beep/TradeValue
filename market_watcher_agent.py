@@ -125,6 +125,45 @@ class AgentClass:
         if not res_text:
             raise ValueError("Empty response from model")
             
+        # Self-Healing JSON Pipeline: Verify and repair JSON output if corrupted
+        import re
+        import json
+        
+        json_match = re.search(r'(\{[\s\S]*\})', res_text)
+        is_valid = False
+        if json_match:
+            try:
+                json.loads(json_match.group(1).replace('```json', '').replace('```', '').strip())
+                is_valid = True
+            except:
+                pass
+                
+        if not is_valid:
+            print("[MarketAnalyst] JSON was invalid or corrupted. Running repair model...")
+            repair_prompt = f"""You are a JSON repair tool. Your task is to take a potentially corrupted JSON string and return a perfectly formatted, valid JSON object matching the schema below.
+If there are corrupted elements or brackets, repair them intelligently (e.g. if the trending_table starts with corrupted characters, turn it into a valid list of objects).
+
+SCHEMA:
+{{
+  "executive_summary": "string",
+  "breaking_news": ["string"],
+  "trending_table": [{{"card": "string", "price": "string", "trend_insight": "string"}}],
+  "drop_calendar": [{{"product_name": "string", "release_date": "string"}}]
+}}
+
+CORRUPTED JSON STRING TO REPAIR:
+{res_text}"""
+            
+            repair_response = report_client.models.generate_content(
+                model=self.model_name,
+                contents=repair_prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.0
+                )
+            )
+            res_text = repair_response.text
+            
         return res_text
         
     except Exception as e:

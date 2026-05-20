@@ -276,7 +276,7 @@ def run_newsletter_job():
         report_raw = agent.generate_market_report()
         
         res_json = robust_json_parse(report_raw)
-        if res_json:
+        if res_json and "executive_summary" in res_json:
             db = get_db()
             if db:
                 today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -600,6 +600,43 @@ async def value_card(req: ValuationRequest):
         card_desc = query
         print(f"[AgentService] Optimized Search Query: {card_desc}")
         
+        # --- VALUATION CACHE CHECK ( Firestore-based, 24h TTL ) ---
+        import hashlib
+        cache_id = hashlib.md5(card_desc.encode('utf-8')).hexdigest()
+        try:
+            db = get_db()
+            if db:
+                cache_ref = db.collection('valuation_cache').document(cache_id)
+                cache_snap = cache_ref.get()
+                if cache_snap.exists:
+                    cache_data = cache_snap.to_dict()
+                    cache_time_str = cache_data.get('timestamp')
+                    if cache_time_str:
+                        cache_time = datetime.fromisoformat(cache_time_str.replace('Z', '+00:00'))
+                        if (datetime.now(timezone.utc) - cache_time).total_seconds() < 86400:
+                            print(f"[AgentService] CACHE HIT: Reusing cached valuation for '{card_desc}'")
+                            cached_payload = cache_data.get('payload')
+                            fresh_now = datetime.now(timezone.utc).isoformat()
+                            cached_payload['last_updated'] = fresh_now
+                            if 'marketPrices' in cached_payload:
+                                cached_payload['marketPrices']['lastUpdated'] = fresh_now
+                            
+                            try:
+                                if docId:
+                                    global_doc = db.collection('collections').document(docId)
+                                    if global_doc.get().exists:
+                                        global_doc.update(cached_payload)
+                                    if userId:
+                                        user_doc = db.collection('users').document(userId).collection('portfolios').document(docId)
+                                        if user_doc.get().exists:
+                                            user_doc.update(cached_payload)
+                            except Exception as ce:
+                                print(f"[AgentService] Firestore cache-hit local update failed: {str(ce)}")
+                            
+                            return cached_payload
+        except Exception as e:
+            print(f"[AgentService] Cache lookup failed (proceeding to live search): {str(e)}")
+
         # Method tracking
         method_used = "Gemini-3.5-Flash-Trimmed-Mean"
         
@@ -632,10 +669,16 @@ async def value_card(req: ValuationRequest):
                             tools=[types.Tool(google_search=types.GoogleSearch())],
                         )
                     )
-                    res_text = response.text or ""
-                    # Check if response actually contains tool output or content
-                    if not res_text and response.candidates:
-                        res_text = response.candidates[0].content.parts[0].text
+                    # Gemini 3.5 Flash + google_search returns multi-part responses.
+                    # The JSON answer is often in a later part, after grounding chunks.
+                    # We must concatenate ALL text parts to find the actual valuation JSON.
+                    res_text = ""
+                    if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                        for part in response.candidates[0].content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                res_text += part.text + "\n"
+                    if not res_text:
+                        res_text = response.text or ""
                     
                     if res_text:
                         print(f"[AgentService] Success after {attempt+1} attempts.")
@@ -728,6 +771,20 @@ async def value_card(req: ValuationRequest):
         except Exception as e:
             print(f"[AgentService] Firestore Update Failed: {str(e)}")
 
+        # --- VALUATION CACHE WRITE ---
+        try:
+            db = get_db()
+            if db:
+                cache_ref = db.collection('valuation_cache').document(cache_id)
+                cache_ref.set({
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'query': card_desc,
+                    'payload': final_payload
+                })
+                print(f"[AgentService] CACHE WRITE: Cached valuation for '{card_desc}'")
+        except Exception as ce:
+            print(f"[AgentService] Cache write failed: {str(ce)}")
+ 
         return final_payload
 
     except Exception as e:
