@@ -153,6 +153,15 @@ export function CardScanner() {
     setIsLoading(true);
     setResult(null);
 
+    if (!backFile) {
+      toast({
+        title: "Back photo recommended",
+        description:
+          "Year and card number are often on the back. Without it, the scanner may confuse seasons (e.g. 1978-80 vs 1987-88).",
+        duration: 8000,
+      });
+    }
+
     try {
       // Stricter compression to ensure we are well under the 1MB Firestore limit per document
       console.log("Starting image compression...");
@@ -406,6 +415,12 @@ export function CardScanner() {
               <p className="text-primary font-bold">
                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}
               </p>
+              {(result as any).ocrTranscription?.yearSeason && (
+                <>
+                  <p className="text-[10px] text-muted-foreground">OCR year:</p>
+                  <p className="text-[10px] text-muted-foreground">{(result as any).ocrTranscription.yearSeason}</p>
+                </>
+              )}
               {(result as any).lastSearchQuery && (
                 <>
                   <p className="text-[10px] text-muted-foreground">Search:</p>

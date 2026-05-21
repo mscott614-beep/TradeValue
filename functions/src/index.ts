@@ -117,84 +117,47 @@ export const geminiProcessingQueue = onTaskDispatched(
         updatedAt: new Date().toISOString(),
       });
 
-      const { genkit, z, googleAI } = await loadGenkit();
+      const { genkit, googleAI } = await loadGenkit();
 
       const ai = genkit({
         plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
       });
 
-      const ScanOutputSchema = z.object({
-        year: z.string().describe("Year of the card, e.g. 2015"),
-        brand: z.string().describe("Brand of the card, e.g. Topps"),
-        set: z.string().nullable().describe("Set name, e.g. Young Guns"),
-        player: z.string().describe("Full name of the player. MUST NOT BE EMPTY."),
-        cardNumber: z.string().describe("Card number, e.g. 201"),
-        parallel: z.string().default("Base").describe("Parallel or variation, e.g. Silver Prizm"),
-        grade: z.string().nullable(),
-        grader: z.string().nullable(),
-        conditionAssessment: z.enum(["Near Mint", "Excellent", "Very Good", "Good", "Poor"]).default("Near Mint").describe("Assess the raw condition from the photo.")
-      });
+      const { identifyCardFromImages, ScanOutputSchema } = await import("./scan-identify");
 
-      const promptText = `You are an expert trading card authenticator.
-Analyze the provided card image(s) and extract the exact details for THIS specific card only.
-CRITICAL: You must return a valid JSON object matching the schema.
-Ensure the 'player' field is populated with the player's full name (e.g., "Wayne Gretzky").
-If a value is not found, use null for nullable fields, but NEVER omit the 'player', 'year', 'brand', or 'cardNumber' fields.
-
-IDENTIFICATION RULES (follow strictly):
-1. Read the card number from the BACK of the card when a back image is provided — never guess famous checklist numbers (e.g. do NOT default Gretzky to "#1" unless that number is printed on the card).
-2. For hockey, use full season format when visible (e.g., "1979-80", "1988-89", "1989-90").
-3. Distinguish manufacturers carefully: O-Pee-Chee (OPC), Topps, Upper Deck, Parkhurst, Pro Set, Score, etc. Read logos and copyright lines on the card.
-4. "brand" = manufacturer only (Topps, O-Pee-Chee, Upper Deck). "set" = subset/series name (e.g., "Team Leaders", "Record Breakers", "Young Guns") — not the brand repeated.
-5. Do NOT identify a card from player fame alone. Match year + brand + set + card number visible on the card.
-6. If the card shows "OILERS" team branding, still identify the actual product year/brand from the card design — not a generic modern reprint unless clearly shown.
-
-Assess the raw condition of the card from the photo (Near Mint, Excellent, Very Good, Good, Poor). If it looks like a standard high-quality card, default to 'Near Mint'.
-
-Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both grader and grade to null.
-
-Return a JSON object:
-- year: The year or season of the card (prefer YYYY-YY for hockey).
-- brand: The manufacturer (e.g., Topps, O-Pee-Chee, Upper Deck).
-- set: The subset/series name, or null if truly base product with no subset text.
-- player: The name of the player.
-- cardNumber: The card number exactly as printed (from back when available).
-- parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
-- grade: The numerical grade ONLY if a professional grading label is visible.
-- grader: The grading company ONLY if a slab label is visible; otherwise null.
-- conditionAssessment: Your best assessment of the raw condition.`;
-
-      const parts: any[] = [{ text: promptText }];
+      let result: any;
 
       if (jobData.type === "image-scan") {
-        parts.push({ media: { url: jobData.payload.frontPhotoDataUri, contentType: "image/jpeg" } });
-        if (jobData.payload.backPhotoDataUri) {
-          parts.push({ media: { url: jobData.payload.backPhotoDataUri, contentType: "image/jpeg" } });
-        }
+        console.log(`[Scanner] Two-pass OCR identification (${PRIMARY_MODEL})`);
+        result = await identifyCardFromImages(
+          ai,
+          {
+            frontPhotoDataUri: jobData.payload.frontPhotoDataUri,
+            backPhotoDataUri: jobData.payload.backPhotoDataUri,
+          },
+          PRIMARY_MODEL,
+          FALLBACK_MODEL
+        );
       } else if (jobData.type === "text-parse") {
-        parts.push({ text: `Card Title/Description to parse: ${jobData.payload.title}` });
+        const promptText = `Parse this card title into structured metadata: ${jobData.payload.title}`;
+        let response;
+        try {
+          response = await ai.generate({
+            model: PRIMARY_MODEL,
+            prompt: [{ text: promptText }],
+            output: { schema: ScanOutputSchema },
+            config: { temperature: 0, maxOutputTokens: 1024 },
+          });
+        } catch (err: any) {
+          response = await ai.generate({
+            model: FALLBACK_MODEL,
+            prompt: [{ text: promptText }],
+            output: { schema: ScanOutputSchema },
+            config: { temperature: 0, maxOutputTokens: 1024 },
+          });
+        }
+        result = response.output;
       }
-
-      let response;
-      try {
-        console.log(`[Scanner] Processing with primary model: ${PRIMARY_MODEL}`);
-        response = await ai.generate({
-          model: PRIMARY_MODEL,
-          prompt: parts,
-          output: { schema: ScanOutputSchema },
-          config: { temperature: 0.1, maxOutputTokens: 1024 }
-        });
-      } catch (err: any) {
-        console.warn(`[Scanner] Primary model failed (${err.message}). Retrying with ${FALLBACK_MODEL}...`);
-        response = await ai.generate({
-          model: FALLBACK_MODEL,
-          prompt: parts,
-          output: { schema: ScanOutputSchema },
-          config: { temperature: 0.1, maxOutputTokens: 1024 }
-        });
-      }
-
-      const result = response.output;
 
       if (!result) {
         throw new Error("AI failed to generate a valid structured output.");
