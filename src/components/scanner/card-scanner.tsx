@@ -415,6 +415,12 @@ export function CardScanner() {
               <p className="text-primary font-bold">
                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}
               </p>
+              {(result as any).yearCorrectionReason && (
+                <>
+                  <p className="text-[10px] text-muted-foreground">Year fix:</p>
+                  <p className="text-[10px] text-green-400">{(result as any).yearCorrectionReason}</p>
+                </>
+              )}
               {(result as any).ocrTranscription?.yearSeason && (
                 <>
                   <p className="text-[10px] text-muted-foreground">OCR year:</p>

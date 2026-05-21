@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  extractCopyrightSeason,
+  normalizeHockeyCardYear,
+  normalizeSeason,
+} from "./hockey-card-year";
 
 export const ScanOutputSchema = z.object({
   year: z.string().describe("Year or season on the card, e.g. 1987-88"),
@@ -49,7 +54,10 @@ export function enrichOcrFromTextLines(ocr: CardOcrResult): CardOcrResult {
   const combined = allLines.join("\n");
 
   let yearSeason = ocr.yearSeason?.trim();
-  if (!yearSeason) {
+  const copyrightSeason = extractCopyrightSeason(combined);
+  if (copyrightSeason) {
+    yearSeason = copyrightSeason;
+  } else if (!yearSeason) {
     const seasonMatch = combined.match(/\b((?:19|20)\d{2})\s*[-–/]\s*(\d{2})\b/);
     if (seasonMatch) {
       yearSeason = `${seasonMatch[1]}-${seasonMatch[2]}`;
@@ -253,17 +261,6 @@ export function reconcileScanWithOcr(
     normalized.year = normalizeSeason(ocr.yearSeason);
   }
 
-  if (ocr.yearSeason?.trim()) {
-    const ocrYear = normalizeSeason(ocr.yearSeason);
-    const resultYear = normalizeSeason(result.year || "");
-    if (ocrYear && ocrYear !== resultYear) {
-      console.warn(
-        `[Scanner] Year corrected from "${result.year}" to OCR "${ocrYear}"`
-      );
-      normalized.year = ocrYear;
-    }
-  }
-
   if (ocr.cardNumber?.trim()) {
     const ocrNum = ocr.cardNumber.replace(/^#/, "").trim();
     const resultNum = (result.cardNumber || "").replace(/^#/, "").trim();
@@ -285,25 +282,24 @@ export function reconcileScanWithOcr(
     normalized.set = ocr.setName.trim();
   }
 
+  const yearFix = normalizeHockeyCardYear({
+    year: normalized.year,
+    brand: normalized.brand,
+    player: normalized.player,
+    cardNumber: normalized.cardNumber,
+    set: normalized.set,
+    frontTextLines: ocr.frontTextLines,
+    backTextLines: ocr.backTextLines,
+  });
+
+  if (yearFix.corrected) {
+    console.warn(
+      `[Scanner] Hockey year normalized: "${normalized.year}" → "${yearFix.year}" (${yearFix.reason})`
+    );
+    normalized.year = yearFix.year;
+    (normalized as any).yearCorrectionReason = yearFix.reason;
+  }
+
   (normalized as any).ocrTranscription = ocr;
   return normalized;
-}
-
-export function normalizeSeason(raw: string): string {
-  const t = raw.trim();
-  const match = t.match(/(\d{4})\s*[-–/]\s*(\d{2,4})/);
-  if (match) {
-    const start = match[1];
-    let end = match[2];
-    if (end.length === 4) {
-      end = end.slice(-2);
-    }
-    return `${start}-${end.padStart(2, "0").slice(-2)}`;
-  }
-  const single = t.match(/^(\d{4})$/);
-  if (single) {
-    const y = parseInt(single[1], 10);
-    return `${y}-${String((y + 1) % 100).padStart(2, "0")}`;
-  }
-  return t;
 }

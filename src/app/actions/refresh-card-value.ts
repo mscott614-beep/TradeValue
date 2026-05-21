@@ -5,6 +5,7 @@ import { Portfolio } from "@/lib/types";
 import { buildEbayQuery, calculateTradeValue, GENERIC_SET_STOPWORDS } from "@/lib/ebay-pricing";
 import { getAdminDb } from "@/lib/firebase-server";
 import { resolveAgentServiceUrl } from "@/lib/resolve-agent-service-url";
+import { normalizeHockeyCardYear } from "@/lib/hockey-card-year";
 
 /**
  * Refreshes the card value using the Lead Data Architect Specification.
@@ -16,7 +17,16 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         const agentUrl = resolveAgentServiceUrl("valuation");
         console.log(`[Refresh] Targeting Agent at: ${agentUrl}/value-card`);
 
-        console.log(`[Refresh] Calling Python Agent for ${card.player}...`);
+        const yearFix = normalizeHockeyCardYear({
+            year: card.year,
+            brand: card.brand,
+            player: card.player,
+            cardNumber: card.cardNumber,
+            set: card.set,
+        });
+        const scanYear = yearFix.corrected ? yearFix.year : (card.year || "");
+
+        console.log(`[Refresh] Calling Python Agent for ${card.player} (${scanYear})...`);
         
         const agentResponse = await fetch(`${agentUrl}/value-card`, {
             method: 'POST',
@@ -25,7 +35,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
                 userId,
                 cardId: card.id,
                 cardDetails: {
-                    year: card.year || "",
+                    year: scanYear,
                     brand: card.brand || "",
                     set: card.set || "",
                     player: card.player || "",
@@ -141,20 +151,35 @@ export async function analyzeCardAction(card: Portfolio) {
         const agentUrl = resolveAgentServiceUrl("analysis");
         console.log(`[Analysis] Targeting Agent at: ${agentUrl}/analyze-card`);
 
+        const yearFix = normalizeHockeyCardYear({
+            year: card.year,
+            brand: card.brand,
+            player: card.player,
+            cardNumber: card.cardNumber,
+            set: card.set,
+        });
+
+        if (yearFix.corrected) {
+            console.warn(
+                `[Analysis] Hockey year normalized: "${card.year}" → "${yearFix.year}" (${yearFix.reason})`
+            );
+        }
+
         const cleanedCard = {
             id: card.id,
             title: card.title,
             player: card.player,
-            year: card.year,
+            year: yearFix.year,
             brand: card.brand,
             parallel: card.parallel,
             condition: card.condition,
             currentMarketValue: card.currentMarketValue,
             estimatedGrade: card.estimatedGrade,
             grader: card.grader,
+            cardNumber: card.cardNumber,
         };
 
-        console.log(`[Analysis] Calling Python Agent for ${card.player}...`);
+        console.log(`[Analysis] Calling Python Agent for ${card.player} (${cleanedCard.year})...`);
 
         const agentResponse = await fetch(`${agentUrl}/analyze-card`, {
             method: "POST",

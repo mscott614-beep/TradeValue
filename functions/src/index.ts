@@ -163,6 +163,25 @@ export const geminiProcessingQueue = onTaskDispatched(
         throw new Error("AI failed to generate a valid structured output.");
       }
 
+      const { normalizeHockeyCardYear } = await import("./hockey-card-year");
+      const ocrLines = (result as any).ocrTranscription;
+      const yearFix = normalizeHockeyCardYear({
+        year: result.year,
+        brand: result.brand,
+        player: result.player,
+        cardNumber: result.cardNumber,
+        set: result.set,
+        frontTextLines: ocrLines?.frontTextLines,
+        backTextLines: ocrLines?.backTextLines,
+      });
+      if (yearFix.corrected) {
+        console.warn(
+          `[Scanner] Year for agent query: "${result.year}" → "${yearFix.year}" (${yearFix.reason})`
+        );
+        result.year = yearFix.year;
+        (result as any).yearCorrectionReason = yearFix.reason;
+      }
+
       // --- Post-AI Enrichment: Call Python Agent for Instant Pricing ---
       try {
         console.log(`[Scanner] Calling Python Agent for real-time pricing: ${result.player}...`);
