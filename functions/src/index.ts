@@ -207,31 +207,44 @@ export const geminiProcessingQueue = onTaskDispatched(
         });
 
         const agentData = agentResponse.data;
-        
-        // Merge pricing data into result
-        (result as any).estimatedMarketValue = agentData.final_price || 0.99;
-        
-        // Fix year display if expanded by agent
-        if (agentData.last_search_query) {
-          const yearMatch = agentData.last_search_query.match(/^\d{4}-\d{2}/);
+        const { resolveValuationFromListings } = await import("./pricing-extract");
+
+        const valuation = resolveValuationFromListings({
+          finalPrice: agentData.final_price ?? agentData.currentMarketValue,
+          activeListings: agentData.active_listings,
+          soldListings: agentData.sold_listings,
+          logPrefix: "ScannerAgent",
+        });
+
+        (result as any).estimatedMarketValue = valuation.price;
+
+        const searchQuery =
+          agentData.last_search_query || agentData.query || agentData.lastSearchQuery;
+        if (searchQuery) {
+          const yearMatch = searchQuery.match(/^\d{4}-\d{2}/);
           if (yearMatch && result.year.length === 4) {
             result.year = yearMatch[0];
           }
         }
 
         (result as any).estimatedGrade = result.grade || result.conditionAssessment || "Raw";
-        (result as any).valuationMethod = agentData.valuation_method;
-        (result as any).lastSearchQuery = agentData.last_search_query;
+        (result as any).valuationMethod =
+          valuation.method || agentData.valuation_method || agentData.method;
+        (result as any).lastSearchQuery = searchQuery;
         (result as any).marketPrices = agentData.marketPrices || {
-          median: agentData.final_price || 0.99,
+          median: valuation.price,
           activeItems: agentData.active_listings || [],
-          soldItems: agentData.sold_listings || []
+          soldItems: agentData.sold_listings || [],
         };
 
       } catch (agentErr: any) {
         console.error(`[Scanner] Agent pricing failed: ${agentErr.message}`);
         try {
           const { EbayService } = await import("./ebay");
+          const {
+            resolveValuationFromListings,
+            ebayItemsToListings,
+          } = await import("./pricing-extract");
           const ebay = new EbayService(
             EBAY_CLIENT_ID.value(),
             EBAY_CLIENT_SECRET.value(),
@@ -242,28 +255,36 @@ export const geminiProcessingQueue = onTaskDispatched(
           const conditionStr = graderLabel
             ? graderLabel.trim()
             : "Raw -PSA -BGS -SGC -CGC -GMA -Graded -Slab";
-          const query = `${result.year} ${result.brand} ${result.set || ""} ${result.player} ${result.cardNumber} ${conditionStr}`
+          const setPart =
+            result.set && String(result.set).toLowerCase() !== "base"
+              ? result.set
+              : "";
+          const query = `${result.year} ${result.brand} ${setPart} ${result.player} #${result.cardNumber} ${conditionStr}`
             .replace(/\s+/g, " ")
             .trim();
           console.log(`[Scanner] eBay fallback search: "${query}"`);
-          const ebayResults = await ebay.searchActiveItems(query, 10, "price", true);
-          const prices = (ebayResults.itemSummaries || [])
-            .map((item) => parseFloat(item.price?.value || "0"))
-            .filter((p) => !isNaN(p) && p > 0)
-            .sort((a, b) => a - b);
-          if (prices.length > 0) {
-            const mid = Math.floor(prices.length / 2);
-            const median =
-              prices.length % 2 !== 0
-                ? prices[mid]
-                : (prices[mid - 1] + prices[mid]) / 2;
-            (result as any).estimatedMarketValue = parseFloat(median.toFixed(2));
-            (result as any).valuationMethod = "ebay_sold_median_fallback";
-            (result as any).lastSearchQuery = query;
-          } else {
-            (result as any).estimatedMarketValue = 0.99;
-            (result as any).valuationMethod = "fallback_unpriced";
-          }
+          const ebayResults = await ebay.searchActiveItems(query, 20, "price", true);
+          console.log(
+            `[Scanner] eBay RAW itemSummaries (${ebayResults.itemSummaries?.length ?? 0}):`,
+            JSON.stringify((ebayResults.itemSummaries || []).slice(0, 8))
+          );
+
+          const listings = ebayItemsToListings(ebayResults.itemSummaries || []);
+          const valuation = resolveValuationFromListings({
+            activeListings: listings,
+            soldListings: [],
+            logPrefix: "ScannerEbayFallback",
+          });
+
+          (result as any).estimatedMarketValue = valuation.price;
+          (result as any).valuationMethod = valuation.method;
+          (result as any).lastSearchQuery = query;
+          (result as any).marketPrices = {
+            median: valuation.price,
+            activeItems: listings,
+            soldItems: [],
+            lastUpdated: new Date().toISOString(),
+          };
         } catch (ebayErr: any) {
           console.error(`[Scanner] eBay fallback failed: ${ebayErr.message}`);
           (result as any).estimatedMarketValue = 0.99;

@@ -43,6 +43,112 @@ def clean_numeric(val, default=0.01):
             return default
     return default
 
+
+def parse_price_optional(val):
+    """Parse a price string/number; return None if unparseable (no default)."""
+    if val is None or val == "":
+        return None
+    if isinstance(val, (int, float)):
+        num = float(val)
+        return num if num > 0 else None
+    if isinstance(val, str):
+        clean_str = re.sub(r'[^\d.]', '', val)
+        if not clean_str:
+            return None
+        try:
+            num = float(clean_str)
+            return num if num > 0 else None
+        except ValueError:
+            return None
+    return None
+
+
+def extract_prices_from_listings(listings):
+    """Extract numeric prices from active/sold listing dicts."""
+    prices = []
+    for item in listings or []:
+        if not isinstance(item, dict):
+            continue
+        candidates = [
+            item.get("price"),
+            item.get("currentBid"),
+            item.get("current_bid"),
+            item.get("value"),
+        ]
+        price_obj = item.get("price")
+        if isinstance(price_obj, dict):
+            candidates.insert(0, price_obj.get("value"))
+            candidates.insert(0, price_obj.get("amount"))
+
+        for candidate in candidates:
+            parsed = parse_price_optional(candidate)
+            if parsed:
+                prices.append(parsed)
+
+        title = str(item.get("title") or "")
+        title_match = re.search(r'\$\s*([\d,]+\.?\d*)', title)
+        if title_match:
+            parsed = parse_price_optional(title_match.group(1))
+            if parsed:
+                prices.append(parsed)
+    return prices
+
+
+def median_price(prices):
+    valid = sorted([p for p in prices if p and p > 0])
+    if not valid:
+        return None
+    mid = len(valid) // 2
+    if len(valid) % 2:
+        return valid[mid]
+    return (valid[mid - 1] + valid[mid]) / 2
+
+
+def trimmed_mean_price(prices, trim_fraction=0.1):
+    valid = sorted([p for p in prices if p and p > 0])
+    if not valid:
+        return None
+    if len(valid) < 3:
+        return median_price(valid)
+    trim_count = max(1, int(len(valid) * trim_fraction))
+    sliced = valid[trim_count: len(valid) - trim_count]
+    if not sliced:
+        return median_price(valid)
+    return sum(sliced) / len(sliced)
+
+
+def resolve_valuation_from_listings(final_price, active_listings, sold_listings, log_prefix="AgentService"):
+    """Derive price from listings when header price is missing or zero."""
+    print(f"[{log_prefix}] RAW active_listings ({len(active_listings or [])}): {json.dumps((active_listings or [])[:8], default=str)}")
+    print(f"[{log_prefix}] RAW sold_listings ({len(sold_listings or [])}): {json.dumps((sold_listings or [])[:8], default=str)}")
+
+    sold_prices = extract_prices_from_listings(sold_listings)
+    active_prices = extract_prices_from_listings(active_listings)
+    all_prices = sold_prices + active_prices
+
+    print(f"[{log_prefix}] Parsed sold prices: {sold_prices}")
+    print(f"[{log_prefix}] Parsed active prices: {active_prices}")
+    print(f"[{log_prefix}] Combined price pool ({len(all_prices)}): {all_prices}")
+
+    header = parse_price_optional(final_price)
+    if header and header > 0.01:
+        print(f"[{log_prefix}] Using header price: {header}")
+        return header, "header_price"
+
+    trimmed = trimmed_mean_price(all_prices)
+    if trimmed and trimmed > 0.01:
+        method = "trimmed_mean_sold" if sold_prices else "trimmed_mean_active"
+        print(f"[{log_prefix}] Using trimmed mean: {trimmed} ({method})")
+        return round(trimmed, 2), method
+
+    med = median_price(all_prices)
+    if med and med > 0.01:
+        print(f"[{log_prefix}] Using listing median fallback: {med}")
+        return round(med, 2), "listing_median_fallback"
+
+    print(f"[{log_prefix}] No parseable listing prices — fallback_unpriced")
+    return 0.99, "fallback_unpriced"
+
 def sanitize_query_parts(parts: list) -> str:
     """Removes duplicate words and cleans formatting for eBay searches."""
     seen = set()
@@ -751,18 +857,23 @@ async def value_card(req: ValuationRequest):
             print(f"[AgentService] WARNING: JSON parse failed. Raw: {raw_res[:500]}")
             return error_fallback
 
-        # Price Logic (Fix: enforce strict 0.00 if no market data is found)
-        val = res_json.get('currentMarketValue') or res_json.get('final_price') or 0.00
-        final_price = clean_numeric(val, 0.00)
-        
-        # If the search results were empty or low confidence, we return 0.00 to signal no data
-        if final_price <= 0.01: 
-            final_price = 0.00
-            print(f"[AgentService] WARNING: No market data found for {card_desc}. Enforcing 0.00.")
-
         # Prepare listings for UI (Fix: Align with marketPrices structure)
         active_results = res_json.get("active_listings") or []
         sold_results = res_json.get("sold_listings") or []
+
+        header_val = res_json.get('currentMarketValue') or res_json.get('final_price') or 0.00
+        final_price, pricing_method = resolve_valuation_from_listings(
+            header_val,
+            active_results,
+            sold_results,
+            log_prefix="AgentService",
+        )
+        if pricing_method != "header_price":
+            method_used = pricing_method
+
+        if final_price <= 0.01:
+            final_price = 0.00
+            print(f"[AgentService] WARNING: No market data found for {card_desc}. Enforcing 0.00.")
         
         # Final Handshake Payload (Strictly Typed snake_case arrays)
         final_payload = sanitize_firestore_payload({
