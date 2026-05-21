@@ -1,80 +1,26 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
+import { buildInstitutionalReportPrompt } from "./institutional-report-prompt";
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 
+const PRIMARY_MODEL = "googleai/gemini-3.5-flash";
+const FALLBACK_MODEL = "googleai/gemini-2.5-flash";
+
 /**
- * Shadow Market Intelligence Engine v2
- * Genkit-based streaming with the model names that are confirmed working.
+ * Streaming institutional market report (aligned with weekly newsletter architecture).
  */
 export const marketReportV2 = onRequest({
   region: "us-east4",
   secrets: [GOOGLE_GENAI_API_KEY],
   memory: "1GiB",
   timeoutSeconds: 120,
-  maxInstances: 5,
+  maxInstances: 2,
   concurrency: 1,
   cors: true,
 }, async (req, res) => {
-  const { topic, trendingData } = req.body;
-
-  const focusContext = topic
-    ? `Specific interest: ${topic}.`
-    : `General High-end Sportscard and TCG Market.`;
-
-  const trendingContext = trendingData && trendingData.length > 0
-    ? `CURRENT MARKET MOVERS:\n${JSON.stringify(trendingData.slice(0, 4), null, 2)}`
-    : "";
-
-  const systemPrompt = `You are the "Shadow" Market Intelligence Engine v2 for TradeValue.
-You provide premium, confidential market analysis for high-net-worth investors.
-
-CONTEXT:
-${focusContext}
-${trendingContext}
-
-CRITICAL FORMATTING RULES — FOLLOW EXACTLY:
-1. Every Markdown table row MUST be on its own line. NEVER join rows with ||.
-2. Place a blank line (empty line) BEFORE and AFTER every table block.
-3. The pipe character | starts at column 0. Do NOT indent table rows.
-4. The alignment row (| :--- | :--- | :--- |) MUST be on its own line immediately after the header row.
-
-REPORT STRUCTURE — replace placeholder values with real data:
-
-# EXECUTIVE SUMMARY
-
-Write 3 concise sentences on current market state and sentiment for: ${focusContext}
-
-# MARKET SNAPSHOT
-
-| Card Name | Value | % Change |
-| :--- | :--- | :--- |
-| [Real Card Name] | [$Price] | [+/-%] |
-| [Real Card Name] | [$Price] | [+/-%] |
-| [Real Card Name] | [$Price] | [+/-%] |
-
-## Market Sentiment
-
-Analyze volume and liquidity trends based on your knowledge of this market.
-
-## Hot Prospects
-
-List 2-3 specific players or sets that are over-indexed for growth, with reasoning.
-
-# RISK ANALYSIS
-
-| Risk Factor | Impact | Analysis |
-| :--- | :--- | :--- |
-| Liquidity | [Low/Mod/High] | [Specific analysis for ${focusContext}] |
-| Market Saturation | [Low/Mod/High] | [Specific analysis for ${focusContext}] |
-| Player Performance | [Low/Mod/High] | [Specific analysis for ${focusContext}] |
-| External Dynamics | [Low/Mod/High] | [Specific analysis for ${focusContext}] |
-
-> **INVESTMENT CALL**: One bold, data-driven actionable sentence.
-
----
-Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
-`;
+  const { topic, trendingData } = req.body ?? {};
+  const systemPrompt = buildInstitutionalReportPrompt({ topic, trendingData });
 
   try {
     const { genkit } = await import("genkit");
@@ -84,27 +30,19 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
       plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
     });
 
-    const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
-    const FALLBACK_MODEL = 'googleai/gemini-1.5-flash';
-
-    const models = [
-      PRIMARY_MODEL,
-      FALLBACK_MODEL,
-    ];
-
+    const models = [PRIMARY_MODEL, FALLBACK_MODEL];
     let lastError = "";
 
     for (const modelName of models) {
       try {
-        console.log(`[Shadow] Trying ${modelName}...`);
+        console.log(`[InstitutionalReport] Trying ${modelName}...`);
 
         const response = await ai.generateStream({
           model: modelName,
           prompt: systemPrompt,
-          config: { temperature: 0.2 },
+          config: { temperature: 0.25 },
         });
 
-        console.log(`[Shadow] Streaming with ${modelName}...`);
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
         res.setHeader("Transfer-Encoding", "chunked");
 
@@ -114,36 +52,56 @@ Shadow Intelligence Engine v2 | ${new Date().toLocaleDateString()}
           }
         }
 
-        res.write(`\n\n---\n*Shadow Engine v2 | Model: ${(modelName as any).name}*`);
+        res.write(`\n\n---\n*TradeValue Institutional Report | Model: ${modelName}*`);
         res.end();
-        console.log(`[Shadow] Report complete with ${modelName}.`);
+        console.log(`[InstitutionalReport] Complete with ${modelName}.`);
         return;
+      } catch (modelErr: unknown) {
+        const err = modelErr as { message?: string };
+        const errorMsg = err?.message || "Unknown model error";
+        lastError = errorMsg;
 
-      } catch (modelErr: any) {
-        lastError = modelErr.message || "Unknown model error";
-        console.error(`[Shadow] ${modelName} failed: ${lastError}`);
+        const isBillingOrQuotaExhausted =
+          errorMsg.includes("prepayment credits are depleted") ||
+          errorMsg.includes("Quota exceeded") ||
+          (errorMsg.includes("429") &&
+            (errorMsg.includes("billing") || errorMsg.includes("Too Many Requests")));
+
+        if (isBillingOrQuotaExhausted) {
+          console.error(`[InstitutionalReport] Billing/quota exhausted: ${errorMsg}`);
+          if (!res.headersSent) {
+            res.status(429).json({
+              error: "quota_exhausted",
+              message: "Gemini quota or billing limit reached. Try again after credits are restored.",
+            });
+          } else {
+            res.write("\n\n[NOTICE]: Stream interrupted — quota exhausted.");
+            res.end();
+          }
+          return;
+        }
+
+        console.error(`[InstitutionalReport] ${modelName} failed: ${errorMsg}`);
         if (res.headersSent) {
-          res.write(`\n\n[NOTICE]: Stream interrupted.`);
+          res.write("\n\n[NOTICE]: Stream interrupted.");
           res.end();
           return;
         }
-        continue;
       }
     }
 
-    // All models failed
-    console.error("[Shadow] All models exhausted:", lastError);
+    console.error("[InstitutionalReport] All models exhausted:", lastError);
     res.status(503).json({
-      error: "shadow_engine_unavailable",
+      error: "report_engine_unavailable",
       message: "All AI models are currently unavailable. Please try again shortly.",
       detail: lastError,
     });
-
-  } catch (fatalError: any) {
-    const msg = fatalError.message || "Shadow Engine internal error.";
-    console.error("[Shadow] Fatal error:", msg);
+  } catch (fatalError: unknown) {
+    const err = fatalError as { message?: string };
+    const msg = err?.message || "Institutional report engine internal error.";
+    console.error("[InstitutionalReport] Fatal error:", msg);
     if (!res.headersSent) {
-      res.status(500).json({ error: "shadow_engine_fatal", message: msg });
+      res.status(500).json({ error: "report_engine_fatal", message: msg });
     } else {
       res.write(`\n\n[FATAL]: ${msg}`);
       res.end();

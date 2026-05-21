@@ -9,14 +9,15 @@ runConfig:
 env:
   - variable: EBAY_ENV
     value: production
-  - variable: AGENT_SERVICE_URL
-    value: https://market-agent-i2233dwbnq-uk.a.run.app
 
-# Secrets for the App Hosting backend
+# Secrets for the App Hosting backend (single source of truth in Secret Manager)
 secrets:
+  - variable: AGENT_SERVICE_URL
+    secret: AGENT_SERVICE_URL
   - variable: EBAY_CLIENT_ID
     secret: EBAY_CLIENT_ID
   - variable: EBAY_CLIENT_SECRET
     secret: EBAY_CLIENT_SECRET
+  # App Hosting exposes GEMINI_API_KEY; value comes from canonical GOOGLE_GENAI_API_KEY secret
   - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
+    secret: GOOGLE_GENAI_API_KEY

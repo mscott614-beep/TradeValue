@@ -1,16 +1,21 @@
+/**
+ * Dev utility: smoke-test task queue enqueue (us-east4).
+ * Usage: node functions/test-queue.js
+ */
 const admin = require("firebase-admin");
 const { getFunctions } = require("firebase-admin/functions");
 
-admin.initializeApp({ projectId: "puckvaluebak-38609945-5e85c" });
+const PROJECT_ID = "puckvaluebak-38609945-5e85c";
+const REGION = "us-east4";
 
-  const queue = getFunctions().taskQueue("geminiprocessingqueue", "us-central1");
-  console.log("Enqueueing...");
-  queue.enqueue({ test: true })
-    .then(() => console.log("Success with geminiprocessingqueue!"))
-    .catch(e => console.error(e.message));
+admin.initializeApp({ projectId: PROJECT_ID });
 
-  const queue2 = getFunctions().taskQueue("gemini-processing-queue", "us-central1");
-  queue2.enqueue({ test: true })
-    .then(() => console.log("Success with gemini-processing-queue!"))
-    .catch(e => console.error(e.message));
+const queue = getFunctions().taskQueue(
+  "locations/us-east4/functions/geminiProcessingQueue"
+);
 
+console.log("Enqueueing test task to geminiProcessingQueue (us-east4)...");
+queue
+  .enqueue({ jobId: "TEST_JOB_DO_NOT_RUN" }, { scheduleDelaySeconds: 3600 })
+  .then(() => console.log("Enqueue OK (delayed 1h — cancel in console if needed)."))
+  .catch((e) => console.error("Enqueue failed:", e.message));

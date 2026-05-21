@@ -1,10 +1,4 @@
 /**
- * AUTO-GENERATED — do not edit.
- * Canonical source: src/lib/pricing-extract.ts
- * Regenerate: node scripts/sync-shared-libs.mjs (runs via functions prebuild)
- */
-
-/**
  * Canonical TS pricing extraction (eBay-only fallback path in Firebase Functions).
  * Live /value-card valuations are computed in agent_service.py — do not re-run this
  * math on successful agent responses.

@@ -4,10 +4,20 @@
 
 - **Core AI:** **Gemini 3.5 Flash** (Model ID: `gemini-3.5-flash`; standardized for high-speed tool calling, advanced parallel agentic reasoning, 1M input context, and up to 64K output token generation).
 - **Tool Protocol:** Native **Google Search Grounding** (`Google Search`).
-- **Backend:** Python (Flask) on **Google Cloud Run** (`market-agent`).
-- **Frontend:** Next.js 14+ (App Router).
+- **Backend:** Python (Flask) on **Google Cloud Run** (`market-agent`, region `us-east4`).
+- **Frontend:** Next.js 14+ (App Router) on Firebase App Hosting (`tradevalue-app`, region `us-east4`).
 - **Database:** Firestore (Production-ready).
-- **Region:** `us-east4` (Vertex AI & Cloud Run alignment).
+- **Region:** `us-east4` for agent, Functions, and App Hosting. Cloud Run URLs may use the `-uk.a.run.app` hostname suffix even when the service region is `us-east4` — that is normal for this project; do not treat `-uk` as a UK deployment.
+- **Agent URL:** Set only via Secret Manager `AGENT_SERVICE_URL` (referenced in `apphosting.yaml` and Firebase Functions). Never hardcode `run.app` URLs in application code.
+- **Gemini API key:** Canonical secret is `GOOGLE_GENAI_API_KEY`. App Hosting maps it to runtime `GEMINI_API_KEY`; Functions and Cloud Run use `GOOGLE_GENAI_API_KEY` directly.
+- **Resend:** `RESEND_API_KEY` in Secret Manager (Cloud Run `market-agent`); never commit or log keys.
+- **Ignore hygiene:** `.gitignore`, `.geminiignore`, and `.dockerignore` exclude `.ebay_browser_context/`, build artifacts, and debug HTML.
+
+## 📦 Shared modules (P3)
+
+- **Canonical TS:** `src/lib/hockey-card-year.ts`, `src/lib/pricing-extract.ts`, `src/lib/ebay-pricing.ts`.
+- **Functions mirror:** `functions/src/hockey-card-year.ts` and `pricing-extract.ts` are auto-copied on `functions` prebuild (`scripts/sync-shared-libs.mjs`). Do not edit the copies.
+- **Valuation authority:** Python `agent_service.py` `/value-card` computes price; Firebase Functions use `valuationFromAgent()` on success and `resolveValuationFromListings()` only for eBay-only fallback.
 
 ## 🤝 The "3.5 Handshake" (Validated)
 
@@ -27,6 +37,26 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 
 - **Secrets:** Zero hardcoded API keys. All secrets must use `process.env.NEXT_PUBLIC_FIREBASE_*` or `os.environ`.
 - **Git Hygiene:** Respect `.geminiignore` and `.gitignore` to prevent indexing of `node_modules`, `.next`, and `.env` files.
+
+## 🔧 Operations (P5)
+
+- **Secrets:** Run `node scripts/secrets-hygiene.mjs` to sync `GEMINI_API_KEY` ← `GOOGLE_GENAI_API_KEY`. Use `--prune` to remove unused `OPENROUTER_API_KEY`.
+- **Morning refresh:** `scheduledMarketRefresh` skips cards updated within 24h (Pass B) and caps enqueues (`MAX_DAILY_REFRESH_ENQUEUES`, default 150).
+- **Reports:** On-demand UI, `marketReportV2`, and weekly newsletter share `src/lib/institutional-report-prompt.ts` (synced to Functions).
+- **Regions:** Agent + Functions + Vertex default `us-east4`; `ingestBatchResults` stays `us-central1` (GCS bucket locality).
+
+## 🧑‍💻 Local development (P4)
+
+- Copy [`.env.example`](.env.example) → `.env.local`; see [DEVELOPING.md](DEVELOPING.md) for the full matrix.
+- Verify API access: `npm run check:models` (3.5 Flash → 2.5 Flash fallback; no 1.5 probe).
+- Sync shared TS before Functions work: `npm run sync:libs` (also runs on `functions` prebuild).
+
+## 💰 Cost Controls (P1)
+
+- **`refreshMarketCardTask`**: `maxConcurrentDispatches: 2` (was 10) to cap parallel agent valuations.
+- **`marketReportV2`**: Primary `gemini-3.5-flash`, fallback `gemini-2.5-flash` (not 1.5); `maxInstances: 2`.
+- **Valuation cache**: Firestore `valuation_cache` with TTL `VALUATION_CACHE_TTL_HOURS` (default 24). Bypass with `forceRefresh` or `deepSearch` on `/value-card`.
+- **Pro fallback**: `gemini-3.1-pro-preview` only when `ENABLE_PRO_VALUATION_FALLBACK=true` on Cloud Run (default off).
 
 ## 🧠 Context Caching & Compute Optimization
 

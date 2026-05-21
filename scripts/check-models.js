@@ -1,34 +1,62 @@
-const { genkit } = require('genkit');
-const { googleAI } = require('@genkit-ai/google-genai');
-const dotenv = require('dotenv');
-dotenv.config();
+/**
+ * Local Gemini connectivity check (matches src/ai/genkit.ts model stack).
+ * Usage: npm run check:models
+ * Loads .env.local then .env from repo root.
+ */
+const path = require("path");
+const { genkit } = require("genkit");
+const { googleAI } = require("@genkit-ai/googleai");
+const dotenv = require("dotenv");
+
+const root = path.join(__dirname, "..");
+dotenv.config({ path: path.join(root, ".env.local") });
+dotenv.config({ path: path.join(root, ".env") });
+
+const PRIMARY_MODEL = "googleai/gemini-3.5-flash";
+const FALLBACK_MODEL = "googleai/gemini-2.5-flash";
+
+async function tryModel(ai, modelName) {
+  console.log(`\nChecking ${modelName}...`);
+  const response = await ai.generate({
+    model: modelName,
+    prompt: 'Reply with exactly: "ok"',
+    config: { temperature: 0 },
+  });
+  console.log(`  Success (${modelName}):`, (response.text || "").trim().slice(0, 80));
+  return true;
+}
 
 async function checkModel() {
-    const ai = genkit({
-        plugins: [googleAI({ apiKey: process.env.GEMINI_API_KEY })],
-    });
+  const apiKey =
+    process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 
-    try {
-        console.log("Checking gemini-3.5-flash...");
-        const response = await ai.generate({
-            model: 'googleai/gemini-3.5-flash',
-            prompt: 'Hi, are you there? Respond with "Yes" if you are Gemini 3.5.'
-        });
-        console.log("Response:", response.text);
-    } catch (error) {
-        console.error("Error with gemini-3.5-flash:", error.message);
-        
-        console.log("\nTrying gemini-1.5-flash (without -latest)...");
-        try {
-            const response = await ai.generate({
-                model: 'googleai/gemini-1.5-flash',
-                prompt: 'Hi'
-            });
-            console.log("Success with gemini-1.5-flash!");
-        } catch (e2) {
-            console.error("Error with gemini-1.5-flash:", e2.message);
-        }
-    }
+  if (!apiKey) {
+    console.error(
+      "Missing API key. Set GOOGLE_GENAI_API_KEY or GEMINI_API_KEY in .env.local (see .env.example)."
+    );
+    process.exit(1);
+  }
+
+  const ai = genkit({
+    plugins: [googleAI({ apiKey })],
+  });
+
+  try {
+    await tryModel(ai, PRIMARY_MODEL);
+    console.log("\nPrimary model OK.");
+    process.exit(0);
+  } catch (primaryErr) {
+    console.error(`Primary failed: ${primaryErr.message}`);
+  }
+
+  try {
+    await tryModel(ai, FALLBACK_MODEL);
+    console.log("\nFallback model OK (primary unavailable).");
+    process.exit(0);
+  } catch (fallbackErr) {
+    console.error(`Fallback failed: ${fallbackErr.message}`);
+    process.exit(1);
+  }
 }
 
 checkModel();

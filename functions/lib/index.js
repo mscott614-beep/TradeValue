@@ -60,7 +60,7 @@ async function loadGenkit() {
     return { genkit, z, googleAI: vertexAI };
 }
 const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
-const FALLBACK_MODEL = 'googleai/gemini-1.5-flash';
+const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 const GOOGLE_GENAI_API_KEY = (0, params_1.defineSecret)("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
@@ -134,74 +134,58 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
             status: "processing",
             updatedAt: new Date().toISOString(),
         });
-        const { genkit, z, googleAI } = await loadGenkit();
+        const { genkit, googleAI } = await loadGenkit();
         const ai = genkit({
             plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
         });
-        const ScanOutputSchema = z.object({
-            year: z.string().describe("Year of the card, e.g. 2015"),
-            brand: z.string().describe("Brand of the card, e.g. Topps"),
-            set: z.string().nullable().describe("Set name, e.g. Young Guns"),
-            player: z.string().describe("Full name of the player. MUST NOT BE EMPTY."),
-            cardNumber: z.string().describe("Card number, e.g. 201"),
-            parallel: z.string().default("Base").describe("Parallel or variation, e.g. Silver Prizm"),
-            grade: z.string().nullable(),
-            grader: z.string().nullable(),
-            conditionAssessment: z.enum(["Near Mint", "Excellent", "Very Good", "Good", "Poor"]).default("Near Mint").describe("Assess the raw condition from the photo.")
-        });
-        const promptText = `You are an expert trading card authenticator. 
-Analyze the provided card image(s) and extract the exact details.
-CRITICAL: You must return a valid JSON object matching the schema. 
-Ensure the 'player' field is populated with the player's full name (e.g., "Connor McDavid").
-If a value is not found, use null for nullable fields, but NEVER omit the 'player', 'year', 'brand', or 'cardNumber' fields.
-
-Identify the card as accurately as possible. For hockey cards, prefer the full season format (e.g., "1980-81" instead of "1980").
-
-Assess the raw condition of the card from the photo (Near Mint, Excellent, Very Good, Good, Poor). If it looks like a standard high-quality card, default to 'Near Mint'.
-
-Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both to null.
-
-Return a JSON object:
-- year: The year or season of the card (prefer YYYY-YY for hockey).
-- brand: The brand (e.g., Topps, Upper Deck).
-- player: The name of the player.
-- cardNumber: The card number (exactly as it appears).
-- parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
-- grade: The numerical grade (e.g., "10", "9.5", "Authentic") or descriptive grade (e.g. "GEM MT"). ONLY if a professional grading label is visible.
-- grader: The grading company (e.g., "PSA", "BGS", "SGC", "CGC") or null.
-- conditionAssessment: Your best assessment of the raw condition.`;
-        const parts = [{ text: promptText }];
+        const { identifyCardFromImages, ScanOutputSchema } = await Promise.resolve().then(() => __importStar(require("./scan-identify")));
+        let result;
         if (jobData.type === "image-scan") {
-            parts.push({ media: { url: jobData.payload.frontPhotoDataUri, contentType: "image/jpeg" } });
-            if (jobData.payload.backPhotoDataUri) {
-                parts.push({ media: { url: jobData.payload.backPhotoDataUri, contentType: "image/jpeg" } });
-            }
+            console.log(`[Scanner] Two-pass OCR identification (${PRIMARY_MODEL})`);
+            result = await identifyCardFromImages(ai, {
+                frontPhotoDataUri: jobData.payload.frontPhotoDataUri,
+                backPhotoDataUri: jobData.payload.backPhotoDataUri,
+            }, PRIMARY_MODEL, FALLBACK_MODEL);
         }
         else if (jobData.type === "text-parse") {
-            parts.push({ text: `Card Title/Description to parse: ${jobData.payload.title}` });
+            const promptText = `Parse this card title into structured metadata: ${jobData.payload.title}`;
+            let response;
+            try {
+                response = await ai.generate({
+                    model: PRIMARY_MODEL,
+                    prompt: [{ text: promptText }],
+                    output: { schema: ScanOutputSchema },
+                    config: { temperature: 0, maxOutputTokens: 1024 },
+                });
+            }
+            catch (err) {
+                response = await ai.generate({
+                    model: FALLBACK_MODEL,
+                    prompt: [{ text: promptText }],
+                    output: { schema: ScanOutputSchema },
+                    config: { temperature: 0, maxOutputTokens: 1024 },
+                });
+            }
+            result = response.output;
         }
-        let response;
-        try {
-            console.log(`[Scanner] Processing with primary model: ${PRIMARY_MODEL}`);
-            response = await ai.generate({
-                model: PRIMARY_MODEL,
-                prompt: parts,
-                output: { schema: ScanOutputSchema },
-                config: { temperature: 0.1, maxOutputTokens: 1024 }
-            });
-        }
-        catch (err) {
-            console.warn(`[Scanner] Primary model failed (${err.message}). Retrying with ${FALLBACK_MODEL}...`);
-            response = await ai.generate({
-                model: FALLBACK_MODEL,
-                prompt: parts,
-                output: { schema: ScanOutputSchema },
-                config: { temperature: 0.1, maxOutputTokens: 1024 }
-            });
-        }
-        const result = response.output;
         if (!result) {
             throw new Error("AI failed to generate a valid structured output.");
+        }
+        const { normalizeHockeyCardYear } = await Promise.resolve().then(() => __importStar(require("./hockey-card-year")));
+        const ocrLines = result.ocrTranscription;
+        const yearFix = normalizeHockeyCardYear({
+            year: result.year,
+            brand: result.brand,
+            player: result.player,
+            cardNumber: result.cardNumber,
+            set: result.set,
+            frontTextLines: ocrLines?.frontTextLines,
+            backTextLines: ocrLines?.backTextLines,
+        });
+        if (yearFix.corrected) {
+            console.warn(`[Scanner] Year for agent query: "${result.year}" → "${yearFix.year}" (${yearFix.reason})`);
+            result.year = yearFix.year;
+            result.yearCorrectionReason = yearFix.reason;
         }
         // --- Post-AI Enrichment: Call Python Agent for Instant Pricing ---
         try {
@@ -226,28 +210,73 @@ Return a JSON object:
                 timeout: 120000 // 120 seconds
             });
             const agentData = agentResponse.data;
-            // Merge pricing data into result
-            result.estimatedMarketValue = agentData.final_price || 0.99;
-            // Fix year display if expanded by agent
-            if (agentData.last_search_query) {
-                const yearMatch = agentData.last_search_query.match(/^\d{4}-\d{2}/);
+            const { valuationFromAgent } = await Promise.resolve().then(() => __importStar(require("./agent-valuation")));
+            const valuation = valuationFromAgent(agentData, "ScannerAgent");
+            result.estimatedMarketValue = valuation.price;
+            const searchQuery = agentData.last_search_query || agentData.query || agentData.lastSearchQuery;
+            if (searchQuery) {
+                const yearMatch = searchQuery.match(/^\d{4}-\d{2}/);
                 if (yearMatch && result.year.length === 4) {
                     result.year = yearMatch[0];
                 }
             }
             result.estimatedGrade = result.grade || result.conditionAssessment || "Raw";
-            result.valuationMethod = agentData.valuation_method;
-            result.lastSearchQuery = agentData.last_search_query;
+            result.valuationMethod =
+                valuation.method || agentData.valuation_method || agentData.method;
+            result.lastSearchQuery = searchQuery;
             result.marketPrices = agentData.marketPrices || {
-                median: agentData.final_price || 0.99,
+                median: valuation.price,
                 activeItems: agentData.active_listings || [],
-                soldItems: agentData.sold_listings || []
+                soldItems: agentData.sold_listings || [],
             };
         }
         catch (agentErr) {
             console.error(`[Scanner] Agent pricing failed: ${agentErr.message}`);
-            result.estimatedMarketValue = 0.99;
+            try {
+                const { EbayService } = await Promise.resolve().then(() => __importStar(require("./ebay")));
+                const { resolveValuationFromListings, ebayItemsToListings, } = await Promise.resolve().then(() => __importStar(require("./pricing-extract")));
+                const ebay = new EbayService(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value());
+                const graderLabel = result.grader && result.grader !== "None" ? `${result.grader} ${result.grade || ""}` : "";
+                const conditionStr = graderLabel
+                    ? graderLabel.trim()
+                    : "Raw -PSA -BGS -SGC -CGC -GMA -Graded -Slab";
+                const setPart = result.set && String(result.set).toLowerCase() !== "base"
+                    ? result.set
+                    : "";
+                const query = `${result.year} ${result.brand} ${setPart} ${result.player} #${result.cardNumber} ${conditionStr}`
+                    .replace(/\s+/g, " ")
+                    .trim();
+                console.log(`[Scanner] eBay fallback search: "${query}"`);
+                const ebayResults = await ebay.searchActiveItems(query, 20, "price", true);
+                console.log(`[Scanner] eBay RAW itemSummaries (${ebayResults.itemSummaries?.length ?? 0}):`, JSON.stringify((ebayResults.itemSummaries || []).slice(0, 8)));
+                const listings = ebayItemsToListings(ebayResults.itemSummaries || []);
+                const valuation = resolveValuationFromListings({
+                    activeListings: listings,
+                    soldListings: [],
+                    logPrefix: "ScannerEbayFallback",
+                });
+                result.estimatedMarketValue = valuation.price;
+                result.valuationMethod = valuation.method;
+                result.lastSearchQuery = query;
+                result.marketPrices = {
+                    median: valuation.price,
+                    activeItems: listings,
+                    soldItems: [],
+                    lastUpdated: new Date().toISOString(),
+                };
+            }
+            catch (ebayErr) {
+                console.error(`[Scanner] eBay fallback failed: ${ebayErr.message}`);
+                result.estimatedMarketValue = 0.99;
+                result.valuationMethod = "fallback_unpriced";
+            }
             result.estimatedGrade = result.grade || result.conditionAssessment || "Raw";
+        }
+        if (result.grader == null) {
+            result.grader = "None";
+        }
+        if (!result.estimatedMarketValue) {
+            result.estimatedMarketValue = 0.99;
         }
         await jobRef.update({
             status: "completed",
@@ -270,9 +299,27 @@ Return a JSON object:
             await new Promise((resolve) => setTimeout(resolve, 40000));
             throw new Error("Rate limit hit, retrying...");
         }
+        const rawMessage = error.message || "Unknown error during AI processing";
+        let userMessage = rawMessage;
+        if (rawMessage.includes("prepayment credits are depleted")) {
+            userMessage =
+                "Gemini API billing credits are depleted. Restore billing in Google AI Studio, then scan again.";
+        }
+        else if (rawMessage.includes("429") || rawMessage.includes("Quota")) {
+            userMessage = "AI quota limit reached. Please wait a minute and try again.";
+        }
+        else if (rawMessage.includes("404") && rawMessage.includes("models/")) {
+            userMessage =
+                "Scanner model configuration error. A deploy fix is in progress — please retry in a few minutes.";
+        }
+        else if (rawMessage.includes("Schema validation failed") ||
+            rawMessage.includes("must have required property")) {
+            userMessage =
+                "Scanner could not read all card fields. Please retry with a clearer back photo showing the card number and year.";
+        }
         await jobRef.update({
             status: "error",
-            error: error.message || "Unknown error during AI processing",
+            error: userMessage,
             updatedAt: new Date().toISOString(),
         });
     }
@@ -363,21 +410,39 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
                 }
             });
         });
-        // Pass B: Everything else
+        // Pass B: Cards not in Pass A — skip if refreshed within cooldown (budget guard)
+        const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+        const MAX_DAILY_REFRESH = Math.max(10, parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "150", 10));
+        const isStaleRefresh = (data) => {
+            const last = data.lastMarketValueUpdate;
+            if (!last || typeof last !== "string")
+                return true;
+            const lastMs = new Date(last).getTime();
+            if (isNaN(lastMs))
+                return true;
+            return Date.now() - lastMs >= REFRESH_COOLDOWN_MS;
+        };
         const allSnap = await db.collectionGroup("portfolios").get();
         const passBTasks = [];
+        let passBSkipped = 0;
         allSnap.docs.forEach(doc => {
             if (!passAIds.has(doc.id)) {
                 const userId = doc.ref.parent.parent?.id;
-                if (userId) {
-                    passBTasks.push({ userId, cardId: doc.id, deepSearch: false });
+                if (!userId)
+                    return;
+                const data = doc.data();
+                if (!isStaleRefresh(data)) {
+                    passBSkipped++;
+                    return;
                 }
+                passBTasks.push({ userId, cardId: doc.id, deepSearch: false });
             }
         });
+        const passBCapped = passBTasks.slice(0, Math.max(0, MAX_DAILY_REFRESH - passATasks.length));
         console.log(`[MarketRefresh] Pass A (N/A Priority): ${passATasks.length} cards.`);
-        console.log(`[MarketRefresh] Pass B (Standard): ${passBTasks.length} cards.`);
-        // Prioritize Pass A
-        const finalQueue = [...passATasks, ...passBTasks];
+        console.log(`[MarketRefresh] Pass B eligible: ${passBTasks.length}, skipped (fresh <24h): ${passBSkipped}, ` +
+            `capped to: ${passBCapped.length} (max ${MAX_DAILY_REFRESH}/day).`);
+        const finalQueue = [...passATasks, ...passBCapped];
         let totalEnqueued = 0;
         const enqueuePromises = finalQueue.map(async (task) => {
             try {
@@ -406,7 +471,7 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
         minBackoffSeconds: 60,
     },
     rateLimits: {
-        maxConcurrentDispatches: 10,
+        maxConcurrentDispatches: 2,
     },
     secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, AGENT_SERVICE_URL],
     region: "us-east4",
@@ -545,7 +610,7 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             valueChange24hPercent,
             lastMarketValueUpdate: timestamp,
             lastSearchQuery: result.last_search_query || null,
-            valuationMethod: result.valuation_method || "Unknown",
+            valuationMethod: result.method || result.valuation_method || "Unknown",
             watcher_alert: result.alert_status || null,
             is_10_percent_diff: result.is_10_percent_diff || false,
             data_source: "GEMINI_WATCHER_AGENT_PRO",
@@ -562,7 +627,7 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             value: newPrice,
             timestamp: timestamp,
         }, { merge: true });
-        console.log(`[RefreshTask] Updated ${cardData.player} (${cardId}) to $${newPrice} using logic: ${result.valuation_method}`);
+        console.log(`[RefreshTask] Updated ${cardData.player} (${cardId}) to $${newPrice} using logic: ${result.method || result.valuation_method}`);
     }
     catch (error) {
         console.error(`[RefreshTask] Failed to refresh card ${cardId}:`, error);
@@ -587,10 +652,10 @@ exports.globalBatchSync = (0, scheduler_1.onSchedule)({
         console.error("[GlobalSync] Failed to trigger batch job:", error);
     }
 });
-// Batch Ingestion: Triggers when Vertex AI finishes writing output to GCS
+// Batch Ingestion: region must match GCS bucket location (batch-sync bucket is us-central1).
 exports.ingestBatchResults = (0, storage_1.onObjectFinalized)({
     bucket: `${process.env.GCLOUD_PROJECT}-batch-sync`,
-    region: "us-central1"
+    region: "us-central1",
 }, async (event) => {
     // Vertex AI writes results in nested folders, we look for JSONL files
     if (!event.data.name.includes("/output/") || !event.data.name.endsWith(".jsonl"))

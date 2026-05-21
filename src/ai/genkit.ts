@@ -8,7 +8,9 @@ export const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 
 if (!apiKey) {
-  throw new Error("Missing API Key: Ensure GOOGLE_GENAI_API_KEY is set in environment variables.");
+  throw new Error(
+    "Missing API Key: set GOOGLE_GENAI_API_KEY (Functions/Cloud Run) or GEMINI_API_KEY (App Hosting) in environment variables."
+  );
 }
 
 export const ai = genkit({

@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "sync:libs": "node scripts/sync-shared-libs.mjs",
+    "check:models": "node scripts/check-models.js",
+    "secrets:hygiene": "node scripts/secrets-hygiene.mjs",
     "watch-market": "node functions/triggerValuation.js"
   },
   "engines": {

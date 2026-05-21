@@ -1,6 +1,12 @@
 /**
+ * AUTO-GENERATED — do not edit.
+ * Canonical source: src/lib/hockey-card-year.ts
+ * Regenerate: node scripts/sync-shared-libs.mjs (runs via functions prebuild)
+ */
+
+/**
  * Defensive year normalization for hockey cards (especially vintage OPC/Topps).
- * Keep in sync with src/lib/hockey-card-year.ts
+ * Prevents impossible OCR years from polluting agent / eBay search queries.
  */
 
 export type HockeyCardIdentity = {
@@ -19,6 +25,7 @@ export type HockeyYearNormalization = {
   reason?: string;
 };
 
+/** Known checklist overrides: card # + team + player + brand → canonical season */
 const CHECKLIST_YEAR_OVERRIDES: Array<{
   test: (card: HockeyCardIdentity, text: string) => boolean;
   year: string;
@@ -76,6 +83,7 @@ function seasonStartYear(year: string): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+/** OPC backs often print © YYYY — map to YYYY-(YY+1) product season */
 export function extractCopyrightSeason(text: string): string | undefined {
   const m =
     text.match(/©\s*(\d{4})/i) ||
@@ -90,6 +98,7 @@ export function extractCopyrightSeason(text: string): string | undefined {
 function isImpossibleGretzkyOpcYear(year: string): boolean {
   if (!year.trim()) return false;
   const start = seasonStartYear(year);
+  // Wayne Gretzky NHL rookie season is 1979-80; no licensed OPC NHL card before that
   return start > 0 && start < 1979;
 }
 
@@ -100,6 +109,9 @@ function combinedText(card: HockeyCardIdentity): string {
     .toLowerCase();
 }
 
+/**
+ * Validates and corrects hockey card year strings before search/valuation.
+ */
 export function normalizeHockeyCardYear(
   card: HockeyCardIdentity
 ): HockeyYearNormalization {

@@ -37,3 +37,14 @@ data/
 .env*
 *.pem
 .env
+
+# Firebase cache & browser automation
+.firebase/
+.ebay_browser_context/
+
+# Debug snapshots
+ebay_debug_page.html
+ebay_headed_debug.html
+ebay_*debug*.html
+scratch/
+.tmp/

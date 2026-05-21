@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # --- CONFIGURATION ---
 PROJECT_ID = os.getenv("PROJECT_ID", "puckvaluebak-38609945-5e85c")
-LOCATION = os.getenv("LOCATION", "us-central1") # Standardizing to central1 as requested
+LOCATION = os.getenv("LOCATION", "us-east4")  # Align with Cloud Run + Firebase Functions
 # ---------------------
 
 # Initialize Google Gen AI Client for Vertex AI
@@ -426,12 +426,20 @@ async def run_cli():
                     await asyncio.sleep(1)
         return ""
 
+    enable_pro_fallback = os.environ.get("ENABLE_PRO_VALUATION_FALLBACK", "").lower() in (
+        "1", "true", "yes",
+    )
+
     try:
         # Tier 1: Use stable primary model (gemini-3.5-flash)
         full_response = await attempt_run('gemini-3.5-flash')
     except Exception as e:
-        # Tier 2 Fallback: Attempt Reasoning Upgrade
-        print(f"[Python] gemini-3.5-flash issue: {str(e)}. Attempting Tier 2 calibration...")
+        if not enable_pro_fallback:
+            print(f"[Python] gemini-3.5-flash failed and pro fallback disabled: {str(e)}")
+            print(json.dumps({"error": f"Valuation failed: {str(e)}", "final_price": 0.0}))
+            return
+        # Tier 2 (opt-in only): expensive reasoning model — set ENABLE_PRO_VALUATION_FALLBACK=true
+        print(f"[Python] gemini-3.5-flash issue: {str(e)}. Attempting Tier 2 calibration (opt-in)...")
         try:
             full_response = await attempt_run('gemini-3.1-pro-preview')
         except Exception as e2:

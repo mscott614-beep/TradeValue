@@ -207,14 +207,8 @@ export const geminiProcessingQueue = onTaskDispatched(
         });
 
         const agentData = agentResponse.data;
-        const { resolveValuationFromListings } = await import("./pricing-extract");
-
-        const valuation = resolveValuationFromListings({
-          finalPrice: agentData.final_price ?? agentData.currentMarketValue,
-          activeListings: agentData.active_listings,
-          soldListings: agentData.sold_listings,
-          logPrefix: "ScannerAgent",
-        });
+        const { valuationFromAgent } = await import("./agent-valuation");
+        const valuation = valuationFromAgent(agentData, "ScannerAgent");
 
         (result as any).estimatedMarketValue = valuation.price;
 
@@ -470,23 +464,50 @@ export const scheduledMarketRefresh = onSchedule(
         });
       });
 
-      // Pass B: Everything else
+      // Pass B: Cards not in Pass A — skip if refreshed within cooldown (budget guard)
+      const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+      const MAX_DAILY_REFRESH = Math.max(
+        10,
+        parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "150", 10)
+      );
+
+      const isStaleRefresh = (data: admin.firestore.DocumentData): boolean => {
+        const last = data.lastMarketValueUpdate;
+        if (!last || typeof last !== "string") return true;
+        const lastMs = new Date(last).getTime();
+        if (isNaN(lastMs)) return true;
+        return Date.now() - lastMs >= REFRESH_COOLDOWN_MS;
+      };
+
       const allSnap = await db.collectionGroup("portfolios").get();
-      const passBTasks: any[] = [];
+      const passBTasks: Array<{ userId: string; cardId: string; deepSearch: boolean }> = [];
+      let passBSkipped = 0;
+
       allSnap.docs.forEach(doc => {
         if (!passAIds.has(doc.id)) {
           const userId = doc.ref.parent.parent?.id;
-          if (userId) {
-            passBTasks.push({ userId, cardId: doc.id, deepSearch: false });
+          if (!userId) return;
+          const data = doc.data();
+          if (!isStaleRefresh(data)) {
+            passBSkipped++;
+            return;
           }
+          passBTasks.push({ userId, cardId: doc.id, deepSearch: false });
         }
       });
 
-      console.log(`[MarketRefresh] Pass A (N/A Priority): ${passATasks.length} cards.`);
-      console.log(`[MarketRefresh] Pass B (Standard): ${passBTasks.length} cards.`);
+      const passBCapped = passBTasks.slice(
+        0,
+        Math.max(0, MAX_DAILY_REFRESH - passATasks.length)
+      );
 
-      // Prioritize Pass A
-      const finalQueue = [...passATasks, ...passBTasks];
+      console.log(`[MarketRefresh] Pass A (N/A Priority): ${passATasks.length} cards.`);
+      console.log(
+        `[MarketRefresh] Pass B eligible: ${passBTasks.length}, skipped (fresh <24h): ${passBSkipped}, ` +
+          `capped to: ${passBCapped.length} (max ${MAX_DAILY_REFRESH}/day).`
+      );
+
+      const finalQueue = [...passATasks, ...passBCapped];
       let totalEnqueued = 0;
 
       const enqueuePromises = finalQueue.map(async (task) => {
@@ -518,7 +539,7 @@ export const refreshMarketCardTask = onTaskDispatched(
       minBackoffSeconds: 60,
     },
     rateLimits: {
-      maxConcurrentDispatches: 10,
+      maxConcurrentDispatches: 2,
     },
     secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, AGENT_SERVICE_URL],
     region: "us-east4",
@@ -674,7 +695,7 @@ export const refreshMarketCardTask = onTaskDispatched(
         valueChange24hPercent,
         lastMarketValueUpdate: timestamp,
         lastSearchQuery: result.last_search_query || null,
-        valuationMethod: result.valuation_method || "Unknown",
+        valuationMethod: result.method || result.valuation_method || "Unknown",
         watcher_alert: result.alert_status || null,
         is_10_percent_diff: result.is_10_percent_diff || false,
         data_source: "GEMINI_WATCHER_AGENT_PRO",
@@ -693,7 +714,7 @@ export const refreshMarketCardTask = onTaskDispatched(
         timestamp: timestamp,
       }, { merge: true });
 
-      console.log(`[RefreshTask] Updated ${cardData.player} (${cardId}) to $${newPrice} using logic: ${result.valuation_method}`);
+      console.log(`[RefreshTask] Updated ${cardData.player} (${cardId}) to $${newPrice} using logic: ${result.method || result.valuation_method}`);
     } catch (error: any) {
       console.error(`[RefreshTask] Failed to refresh card ${cardId}:`, error);
       throw error; // Task queue will retry
@@ -717,10 +738,10 @@ export const globalBatchSync = onSchedule({
   }
 });
 
-// Batch Ingestion: Triggers when Vertex AI finishes writing output to GCS
+// Batch Ingestion: region must match GCS bucket location (batch-sync bucket is us-central1).
 export const ingestBatchResults = onObjectFinalized({
   bucket: `${process.env.GCLOUD_PROJECT}-batch-sync`,
-  region: "us-central1"
+  region: "us-central1",
 }, async (event) => {
   // Vertex AI writes results in nested folders, we look for JSONL files
   if (!event.data.name.includes("/output/") || !event.data.name.endsWith(".jsonl")) return;

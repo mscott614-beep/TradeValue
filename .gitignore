@@ -39,6 +39,7 @@ next-env.d.ts
 
 .genkit/*
 .env*
+!.env.example
 
 # firebase
 firebase-debug.log
@@ -47,9 +48,17 @@ firestore-debug.log
 
 # local temp/logs
 /tmp/
+.tmp/
 logs.txt
 service-account.json
 scratch/
 
+# python / playwright
+__pycache__/
+.venv/
+.ebay_browser_context/
+
+# debug HTML (keep public/ if needed)
 ebay_debug_page.html
 ebay_headed_debug.html
+*_debug.html

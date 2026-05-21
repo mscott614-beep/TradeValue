@@ -1,4 +1,4 @@
-# REQUIRED_ENV: RESEND_API_KEY
+# REQUIRED_ENV (Secret Manager on Cloud Run): GOOGLE_GENAI_API_KEY, RESEND_API_KEY, EBAY_*
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 import asyncio
@@ -44,6 +44,7 @@ def clean_numeric(val, default=0.01):
     return default
 
 
+# Valuation math (canonical for /value-card) — keep in sync with src/lib/pricing-extract.ts
 def parse_price_optional(val):
     """Parse a price string/number; return None if unparseable (no default)."""
     if val is None or val == "":
@@ -52,6 +53,9 @@ def parse_price_optional(val):
         num = float(val)
         return num if num > 0 else None
     if isinstance(val, str):
+        raw = val.strip().lower()
+        if not raw or raw in ("n/a", "null", "undefined", "none"):
+            return None
         clean_str = re.sub(r'[^\d.]', '', val)
         if not clean_str:
             return None
@@ -74,6 +78,7 @@ def extract_prices_from_listings(listings):
             item.get("currentBid"),
             item.get("current_bid"),
             item.get("value"),
+            item.get("amount"),
         ]
         price_obj = item.get("price")
         if isinstance(price_obj, dict):
@@ -233,11 +238,16 @@ def sanitize_firestore_payload(payload: dict) -> dict:
 
 app = FastAPI()
 
+# Valuation cache: skip Gemini + Google Search when a fresh entry exists (default 24h).
+VALUATION_CACHE_TTL_SECONDS = int(os.environ.get("VALUATION_CACHE_TTL_HOURS", "24")) * 3600
+
+
 class ValuationRequest(BaseModel):
     userId: str
     cardId: str
     cardDetails: dict
     deepSearch: bool = False
+    forceRefresh: bool = False
 
 # Scanner / CSV flows send synthetic IDs — metadata lives in cardDetails, not Firestore.
 PREVIEW_CARD_IDS = frozenset({"SCAN_PREVIEW", "CSV_IMPORT"})
@@ -827,12 +837,17 @@ async def value_card(req: ValuationRequest):
         card_desc = query
         print(f"[AgentService] Optimized Search Query: {card_desc}")
         
-        # --- VALUATION CACHE CHECK ( Firestore-based, 24h TTL ) ---
+        # --- VALUATION CACHE (Firestore, TTL via VALUATION_CACHE_TTL_HOURS, default 24h) ---
+        # Skips google_search + Gemini when hit. Bypass with forceRefresh or deepSearch.
         import hashlib
-        cache_id = hashlib.md5(card_desc.encode('utf-8')).hexdigest()
+        cache_key_material = f"{card_desc}|graded={is_graded}|grader={grader_val}|grade={grade_val}"
+        cache_id = hashlib.md5(cache_key_material.encode('utf-8')).hexdigest()
+        skip_cache = req.forceRefresh or req.deepSearch
+        if skip_cache:
+            print(f"[AgentService] CACHE BYPASS: forceRefresh={req.forceRefresh} deepSearch={req.deepSearch}")
         try:
             db = get_db()
-            if db:
+            if db and not skip_cache:
                 cache_ref = db.collection('valuation_cache').document(cache_id)
                 cache_snap = cache_ref.get()
                 if cache_snap.exists:
@@ -840,8 +855,12 @@ async def value_card(req: ValuationRequest):
                     cache_time_str = cache_data.get('timestamp')
                     if cache_time_str:
                         cache_time = datetime.fromisoformat(cache_time_str.replace('Z', '+00:00'))
-                        if (datetime.now(timezone.utc) - cache_time).total_seconds() < 86400:
-                            print(f"[AgentService] CACHE HIT: Reusing cached valuation for '{card_desc}'")
+                        age_seconds = (datetime.now(timezone.utc) - cache_time).total_seconds()
+                        if age_seconds < VALUATION_CACHE_TTL_SECONDS:
+                            print(
+                                f"[AgentService] CACHE HIT ({int(age_seconds)}s old, "
+                                f"ttl={VALUATION_CACHE_TTL_SECONDS}s): '{card_desc}'"
+                            )
                             cached_payload = cache_data.get('payload')
                             fresh_now = datetime.now(timezone.utc).isoformat()
                             cached_payload['last_updated'] = fresh_now
@@ -926,8 +945,10 @@ async def value_card(req: ValuationRequest):
         raw_res = await attempt_run(f"Search eBay for active and sold listings for: {card_desc}")
         print(f"[AgentService] Raw Response Preview: {raw_res[:200] if raw_res else 'EMPTY'}")
         
-        # Cascading Fallback Logic
-        if not raw_res or "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower():
+        # Cascading fallback: second google_search only when primary parse fails (cost guard)
+        if not req.deepSearch and (
+            not raw_res or "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower()
+        ):
             print(f"[AgentService] Triggering Fallback Search for {player}...")
             method_used = "fallback_broad_search"
             raw_res = await attempt_run(f"VALUE: {player} {cleaned_num} {brand_raw} {year}. JSON.")
