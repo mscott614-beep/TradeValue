@@ -156,12 +156,12 @@ export function CardScanner() {
     try {
       // Stricter compression to ensure we are well under the 1MB Firestore limit per document
       console.log("Starting image compression...");
-      const frontPhotoDataUri = await compressImage(frontFile, 800);
+      const frontPhotoDataUri = await compressImage(frontFile, 1200);
       console.log(`Front Image compressed size: ${Math.round(frontPhotoDataUri.length / 1024)} KB`);
       
       let backPhotoDataUri: string | undefined = undefined;
       if (backFile) {
-        backPhotoDataUri = await compressImage(backFile, 800);
+        backPhotoDataUri = await compressImage(backFile, 1200);
         console.log(`Back Image compressed size: ${Math.round(backPhotoDataUri.length / 1024)} KB`);
       }
 
@@ -203,7 +203,7 @@ export function CardScanner() {
             setIsLoading(false);
             toast({
               title: "Scan Failed",
-              description: data.error || "AI failed to identify the card.",
+              description: data.error || "AI failed to identify the card. Try adding a back photo.",
               variant: "destructive",
             });
             unsubscribe();
@@ -336,8 +336,8 @@ export function CardScanner() {
           onFileChange={(e) => handleFileChange(e, setBackFile, setBackPreview)}
           onRemoveImage={handleRemoveBackImage}
           inputRef={backFileInputRef as any}
-          title="Card Back (Optional)"
-          description="For better accuracy"
+          title="Card Back (Recommended)"
+          description="Card number & year — greatly improves ID accuracy"
         />
       </div>
 
@@ -399,11 +399,19 @@ export function CardScanner() {
               </p>
               <p className="text-muted-foreground">Condition:</p><p className="font-medium text-green-400">{(result as any).conditionAssessment || result.estimatedGrade}</p>
               <p className="text-muted-foreground">Grader:</p>
-              <p className="font-medium text-purple-400">{result.grader || 'None'}</p>
+              <p className="font-medium text-purple-400">
+                {result.grader && result.grader !== "null" ? result.grader : "None"}
+              </p>
               <p className="text-primary font-bold">Est. Value:</p>
               <p className="text-primary font-bold">
                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}
               </p>
+              {(result as any).lastSearchQuery && (
+                <>
+                  <p className="text-[10px] text-muted-foreground">Search:</p>
+                  <p className="text-[10px] text-muted-foreground col-span-1 break-words">{(result as any).lastSearchQuery}</p>
+                </>
+              )}
               {(result as any).valuationMethod && (
                 <>
                   <p className="text-[10px] text-muted-foreground">Method:</p>

@@ -133,6 +133,40 @@ class ValuationRequest(BaseModel):
     cardDetails: dict
     deepSearch: bool = False
 
+# Scanner / CSV flows send synthetic IDs — metadata lives in cardDetails, not Firestore.
+PREVIEW_CARD_IDS = frozenset({"SCAN_PREVIEW", "CSV_IMPORT"})
+
+
+def normalize_card_details(card_details: dict | None) -> dict:
+    """Map scanner/API payloads into the fields value_card expects."""
+    if not card_details:
+        return {}
+    return {
+        "year": str(card_details.get("year") or "").strip(),
+        "brand": str(card_details.get("brand") or card_details.get("manufacturer") or "").strip(),
+        "set": str(card_details.get("set") or card_details.get("setName") or "").strip(),
+        "player": str(card_details.get("player") or "").strip(),
+        "cardNumber": str(
+            card_details.get("cardNumber")
+            or card_details.get("number")
+            or card_details.get("card_number")
+            or ""
+        ).strip(),
+        "parallel": str(card_details.get("parallel") or "").strip(),
+        "grade": str(
+            card_details.get("grade")
+            or card_details.get("estimatedGrade")
+            or card_details.get("conditionHint")
+            or ""
+        ).strip(),
+        "gradingCompany": str(
+            card_details.get("gradingCompany")
+            or card_details.get("grader")
+            or ""
+        ).strip(),
+        "currentMarketValue": card_details.get("currentMarketValue", 0),
+    }
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}
@@ -496,38 +530,44 @@ async def value_card(req: ValuationRequest):
     docId = req.cardId
     userId = req.userId
     
-    # Fix: Pull fresh metadata from Firestore and return 404 if missing
+    # Scanner preview / CSV import: use request body. Collection cards: load from Firestore.
     try:
         db = get_db()
-        if db and docId and userId:
+        if not docId or not userId:
+            raise HTTPException(status_code=400, detail="Missing required parameters (userId or cardId)")
+
+        if docId in PREVIEW_CARD_IDS:
+            details = normalize_card_details(req.cardDetails)
+            print(f"[AgentService] Preview handshake for {docId}: {details.get('player')}")
+        elif db:
             print(f"[AgentService] Handshake: Fetching metadata for docId: {docId}")
             doc_snap = db.collection('users').document(userId).collection('portfolios').document(docId).get(timeout=120)
             if doc_snap.exists:
                 details = doc_snap.to_dict()
-                
-                # --- METADATA VALIDATION ---
-                # Skip cards with incomplete metadata (must have Year, Brand, and Player)
-                required_fields = ['year', 'brand', 'player']
-                missing = [f for f in required_fields if not details.get(f)]
-                if missing:
-                    print(f"[AgentService] SKIP: Card {docId} has incomplete metadata: {missing}")
-                    return sanitize_firestore_payload({
-                        "currentMarketValue": 0.00,
-                        "status": "manual_review",
-                        "supporting_data": {"error": f"Incomplete metadata: missing {missing}"}
-                    })
-
                 print(f"[AgentService] Handshake SUCCESS: Found {details.get('player')}")
+            elif req.cardDetails:
+                details = normalize_card_details(req.cardDetails)
+                print(f"[AgentService] Using inline cardDetails for {docId}")
             else:
                 print(f"[Error] Card metadata not found for ID: {docId}")
                 raise HTTPException(status_code=404, detail="Card metadata not found")
         else:
-            raise HTTPException(status_code=400, detail="Missing required parameters (userId or cardId)")
+            details = normalize_card_details(req.cardDetails)
     except HTTPException:
         raise
     except Exception as fe:
         print(f"[Error] Firestore metadata fetch failed: {str(fe)}")
         raise HTTPException(status_code=500, detail=str(fe))
+
+    required_fields = ['year', 'brand', 'player']
+    missing = [f for f in required_fields if not details.get(f)]
+    if missing:
+        print(f"[AgentService] SKIP: Card {docId} has incomplete metadata: {missing}")
+        return sanitize_firestore_payload({
+            "currentMarketValue": 0.00,
+            "status": "manual_review",
+            "supporting_data": {"error": f"Incomplete metadata: missing {missing}"}
+        })
 
     # --- IRONCLAD FALLBACK ---
     error_fallback = {

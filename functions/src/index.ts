@@ -135,26 +135,33 @@ export const geminiProcessingQueue = onTaskDispatched(
         conditionAssessment: z.enum(["Near Mint", "Excellent", "Very Good", "Good", "Poor"]).default("Near Mint").describe("Assess the raw condition from the photo.")
       });
 
-      const promptText = `You are an expert trading card authenticator. 
-Analyze the provided card image(s) and extract the exact details.
-CRITICAL: You must return a valid JSON object matching the schema. 
-Ensure the 'player' field is populated with the player's full name (e.g., "Connor McDavid").
+      const promptText = `You are an expert trading card authenticator.
+Analyze the provided card image(s) and extract the exact details for THIS specific card only.
+CRITICAL: You must return a valid JSON object matching the schema.
+Ensure the 'player' field is populated with the player's full name (e.g., "Wayne Gretzky").
 If a value is not found, use null for nullable fields, but NEVER omit the 'player', 'year', 'brand', or 'cardNumber' fields.
 
-Identify the card as accurately as possible. For hockey cards, prefer the full season format (e.g., "1980-81" instead of "1980").
+IDENTIFICATION RULES (follow strictly):
+1. Read the card number from the BACK of the card when a back image is provided — never guess famous checklist numbers (e.g. do NOT default Gretzky to "#1" unless that number is printed on the card).
+2. For hockey, use full season format when visible (e.g., "1979-80", "1988-89", "1989-90").
+3. Distinguish manufacturers carefully: O-Pee-Chee (OPC), Topps, Upper Deck, Parkhurst, Pro Set, Score, etc. Read logos and copyright lines on the card.
+4. "brand" = manufacturer only (Topps, O-Pee-Chee, Upper Deck). "set" = subset/series name (e.g., "Team Leaders", "Record Breakers", "Young Guns") — not the brand repeated.
+5. Do NOT identify a card from player fame alone. Match year + brand + set + card number visible on the card.
+6. If the card shows "OILERS" team branding, still identify the actual product year/brand from the card design — not a generic modern reprint unless clearly shown.
 
 Assess the raw condition of the card from the photo (Near Mint, Excellent, Very Good, Good, Poor). If it looks like a standard high-quality card, default to 'Near Mint'.
 
-Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both to null.
+Look at the top of the card holder. If there is a professional grading label (PSA, BGS, SGC, CGC), identify the company (grader) and the numerical grade. If no label is present, set both grader and grade to null.
 
 Return a JSON object:
 - year: The year or season of the card (prefer YYYY-YY for hockey).
-- brand: The brand (e.g., Topps, Upper Deck).
+- brand: The manufacturer (e.g., Topps, O-Pee-Chee, Upper Deck).
+- set: The subset/series name, or null if truly base product with no subset text.
 - player: The name of the player.
-- cardNumber: The card number (exactly as it appears).
+- cardNumber: The card number exactly as printed (from back when available).
 - parallel: The variation or parallel (e.g., "Silver Prizm", "Base", "/99").
-- grade: The numerical grade (e.g., "10", "9.5", "Authentic") or descriptive grade (e.g. "GEM MT"). ONLY if a professional grading label is visible.
-- grader: The grading company (e.g., "PSA", "BGS", "SGC", "CGC") or null.
+- grade: The numerical grade ONLY if a professional grading label is visible.
+- grader: The grading company ONLY if a slab label is visible; otherwise null.
 - conditionAssessment: Your best assessment of the raw condition.`;
 
       const parts: any[] = [{ text: promptText }];
@@ -241,10 +248,54 @@ Return a JSON object:
 
       } catch (agentErr: any) {
         console.error(`[Scanner] Agent pricing failed: ${agentErr.message}`);
-        (result as any).estimatedMarketValue = 0.99;
+        try {
+          const { EbayService } = await import("./ebay");
+          const ebay = new EbayService(
+            EBAY_CLIENT_ID.value(),
+            EBAY_CLIENT_SECRET.value(),
+            EBAY_ENV.value()
+          );
+          const graderLabel =
+            result.grader && result.grader !== "None" ? `${result.grader} ${result.grade || ""}` : "";
+          const conditionStr = graderLabel
+            ? graderLabel.trim()
+            : "Raw -PSA -BGS -SGC -CGC -GMA -Graded -Slab";
+          const query = `${result.year} ${result.brand} ${result.set || ""} ${result.player} ${result.cardNumber} ${conditionStr}`
+            .replace(/\s+/g, " ")
+            .trim();
+          console.log(`[Scanner] eBay fallback search: "${query}"`);
+          const ebayResults = await ebay.searchActiveItems(query, 10, "price", true);
+          const prices = (ebayResults.itemSummaries || [])
+            .map((item) => parseFloat(item.price?.value || "0"))
+            .filter((p) => !isNaN(p) && p > 0)
+            .sort((a, b) => a - b);
+          if (prices.length > 0) {
+            const mid = Math.floor(prices.length / 2);
+            const median =
+              prices.length % 2 !== 0
+                ? prices[mid]
+                : (prices[mid - 1] + prices[mid]) / 2;
+            (result as any).estimatedMarketValue = parseFloat(median.toFixed(2));
+            (result as any).valuationMethod = "ebay_sold_median_fallback";
+            (result as any).lastSearchQuery = query;
+          } else {
+            (result as any).estimatedMarketValue = 0.99;
+            (result as any).valuationMethod = "fallback_unpriced";
+          }
+        } catch (ebayErr: any) {
+          console.error(`[Scanner] eBay fallback failed: ${ebayErr.message}`);
+          (result as any).estimatedMarketValue = 0.99;
+          (result as any).valuationMethod = "fallback_unpriced";
+        }
         (result as any).estimatedGrade = result.grade || result.conditionAssessment || "Raw";
       }
 
+      if (result.grader == null) {
+        (result as any).grader = "None";
+      }
+      if (!(result as any).estimatedMarketValue) {
+        (result as any).estimatedMarketValue = 0.99;
+      }
 
       await jobRef.update({
         status: "completed",
