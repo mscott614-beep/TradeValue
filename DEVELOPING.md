@@ -69,6 +69,16 @@ gcloud run deploy market-agent --source . --region us-east4 --project puckvalueb
 
 Valuation authority: Python `agent_service.py` `/value-card`. Functions use `valuationFromAgent()` on success; TS `resolveValuationFromListings()` is **eBay fallback only**.
 
+### Gemini series context caching
+
+For heavy scan categories (Pokémon 1999 Base, OPC hockey 1986–89, modern Prizm NBA), the agent pre-caches large reference corpora:
+
+```bash
+curl -X POST "$AGENT_SERVICE_URL/warm-series-context-caches"
+```
+
+Env: `ENABLE_CONTEXT_CACHING`, `CONTEXT_CACHE_TTL` (default `21600s`). Firestore collection: `gemini_series_context_caches`.
+
 ## Secret Manager hygiene
 
 ```bash

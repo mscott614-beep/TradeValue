@@ -13,6 +13,14 @@ from datetime import datetime, timezone
 from google import genai
 from google.genai import types
 import resend
+from series_context_cache import (
+    build_card_valuation_instruction,
+    get_or_create_series_cache,
+    is_context_caching_enabled,
+    log_cache_usage,
+    resolve_series_profile_id,
+    warm_all_series_caches,
+)
 
 # Initialize Resend
 resend.api_key = os.getenv("RESEND_API_KEY")
@@ -390,6 +398,26 @@ async def execute_batch_sync_worker(userId: str):
             
     except Exception as e:
         print(f"[BatchSync] Worker ERROR: {str(e)}")
+
+@app.post("/warm-series-context-caches", status_code=202)
+async def warm_series_context_caches():
+    """
+    Pre-create Gemini explicit context caches for high-volume series corpora.
+    Call from Cloud Scheduler (e.g. daily 5 AM) or after deploy to avoid cold-cache latency.
+    """
+    if not is_context_caching_enabled():
+        return {"status": "disabled", "message": "ENABLE_CONTEXT_CACHING is off"}
+    api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GOOGLE_GENAI_API_KEY not configured")
+    client = genai.Client(api_key=api_key)
+    results = warm_all_series_caches(client, db=get_db())
+    return {
+        "status": "ok",
+        "series": results,
+        "count": len(results),
+    }
+
 
 @app.post("/trigger-newsletter", status_code=202)
 async def trigger_newsletter(background_tasks: BackgroundTasks):
@@ -885,23 +913,54 @@ async def value_card(req: ValuationRequest):
 
         # Method tracking
         method_used = "Gemini-3.5-Flash-Trimmed-Mean"
-        
+
+        # --- Gemini explicit context cache (series-level baselines) ---
+        series_id = None
+        cached_content_name = None
+        if is_context_caching_enabled() and not skip_cache:
+            series_id = resolve_series_profile_id(details)
+            if series_id:
+                try:
+                    cache_client = genai.Client(api_key=os.environ.get("GOOGLE_GENAI_API_KEY"))
+                    cached_content_name = get_or_create_series_cache(
+                        cache_client, series_id, db=get_db()
+                    )
+                    if cached_content_name:
+                        method_used = "Gemini-3.5-Flash-Context-Cache"
+                        print(f"[AgentService] Using series context cache: {series_id}")
+                except Exception as cache_err:
+                    print(f"[AgentService] Context cache unavailable: {cache_err}")
+
         async def attempt_run(q):
             api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
             client = genai.Client(api_key=api_key)
-            
-            sys_inst = (
-                f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
-                "CRITICAL INSTRUCTION: You MUST use the provided search tool to find live and sold listings on eBay for this exact card. "
-                "VALUATION PROTOCOL: "
-                "1. STRICTLY EXCLUDE reprints, copies, or custom cards. "
-                "2. Find at least 5 active listings and 5 sold listings. "
-                "3. If no exact title matches are found, allow minor variations (e.g., 'Series 1' vs 'S1') as long as the Year, Brand, Player, and Card Number match. "
-                "4. Calculate the median sold price after removing outliers. "
-                "5. RETURN FORMAT: You MUST return ONLY a JSON block with this structure: "
-                "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}"
-            )
-            
+
+            if cached_content_name:
+                sys_inst = build_card_valuation_instruction(
+                    player, cleaned_num, card_desc, series_id=series_id
+                )
+                gen_config = types.GenerateContentConfig(
+                    system_instruction=sys_inst,
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    cached_content=cached_content_name,
+                )
+            else:
+                sys_inst = (
+                    f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
+                    "CRITICAL INSTRUCTION: You MUST use the provided search tool to find live and sold listings on eBay for this exact card. "
+                    "VALUATION PROTOCOL: "
+                    "1. STRICTLY EXCLUDE reprints, copies, or custom cards. "
+                    "2. Find at least 5 active listings and 5 sold listings. "
+                    "3. If no exact title matches are found, allow minor variations (e.g., 'Series 1' vs 'S1') as long as the Year, Brand, Player, and Card Number match. "
+                    "4. Calculate the median sold price after removing outliers. "
+                    "5. RETURN FORMAT: You MUST return ONLY a JSON block with this structure: "
+                    "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}"
+                )
+                gen_config = types.GenerateContentConfig(
+                    system_instruction=sys_inst,
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                )
+
             # Implementation of exponential backoff for 429 errors
             max_retries = 3
             for attempt in range(max_retries):
@@ -910,11 +969,9 @@ async def value_card(req: ValuationRequest):
                     response = client.models.generate_content(
                         model='gemini-3.5-flash',
                         contents=q,
-                        config=types.GenerateContentConfig(
-                            system_instruction=sys_inst,
-                            tools=[types.Tool(google_search=types.GoogleSearch())],
-                        )
+                        config=gen_config,
                     )
+                    log_cache_usage(response, series_id)
                     # Gemini 3.5 Flash + google_search returns multi-part responses.
                     # The JSON answer is often in a later part, after grounding chunks.
                     # We must concatenate ALL text parts to find the actual valuation JSON.
@@ -992,8 +1049,9 @@ async def value_card(req: ValuationRequest):
                 "lastUpdated": datetime.now(timezone.utc).isoformat()
             },
             "avg_sold_price": final_price, 
-            "query": card_desc, 
-            "method": method_used
+            "query": card_desc,
+            "method": method_used,
+            "context_cache_series": series_id,
         })
 
         # Persist (Fix: Log the Update and Verify Field Names)

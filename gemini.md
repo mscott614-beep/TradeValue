@@ -60,6 +60,16 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 
 ## 🧠 Context Caching & Compute Optimization
 
+### Explicit series context caches (Native)
+
+High-volume series (1999 Pokémon Base, late-80s OPC Hockey, modern Prizm basketball) use **Gemini explicit context caching** via `series_context_cache.py`:
+
+- Static corpora (baselines, pop tiers, comp rules) are stored in `client.caches.create()` with TTL (`CONTEXT_CACHE_TTL`, default 6h).
+- Registry persisted in Firestore `gemini_series_context_caches/{series_id}`.
+- `/value-card` attaches `cached_content` when `resolve_series_profile_id()` matches; live **Google Search** still runs per card.
+- Warm caches: `POST /warm-series-context-caches` (scheduler-friendly).
+- Disable: `ENABLE_CONTEXT_CACHING=false`.
+
 - **Prompt Order:** Always structure long system instructions and static repository context at the beginning of the request sequence to leverage 3.5 Flash's native context caching mechanisms.
 - **Thinking Effort Strategy:** Use "Medium" or "Low" thinking effort thresholds for basic file modifications and template changes. Only escalate to "High" thinking depth when debugging complex data structures or race conditions.
 - **Deduplication:** Never duplicate large arrays or structured payloads (e.g., repeating active/sold arrays inside nested `marketPrices` objects) within a single API context window to avoid unnecessary token multiplication.

@@ -643,13 +643,20 @@ exports.globalBatchSync = (0, scheduler_1.onSchedule)({
     region: "us-east4",
     secrets: [AGENT_SERVICE_URL]
 }, async (event) => {
-    const agentUrl = `${AGENT_SERVICE_URL.value().trim()}/batch-sync`;
+    const agentBase = AGENT_SERVICE_URL.value().trim();
     try {
-        await axios_1.default.post(agentUrl, { userId: "GLOBAL_BATCH_SYSTEM" });
+        await axios_1.default.post(`${agentBase}/batch-sync`, { userId: "GLOBAL_BATCH_SYSTEM" });
         console.log("[GlobalSync] Triggered Vertex AI Batch Prediction Job at 6:00 AM");
     }
     catch (error) {
         console.error("[GlobalSync] Failed to trigger batch job:", error);
+    }
+    try {
+        const warmRes = await axios_1.default.post(`${agentBase}/warm-series-context-caches`, {}, { timeout: 120000 });
+        console.log("[GlobalSync] Warmed Gemini series context caches:", warmRes.data);
+    }
+    catch (warmErr) {
+        console.error("[GlobalSync] Context cache warm failed (non-fatal):", warmErr);
     }
 });
 // Batch Ingestion: region must match GCS bucket location (batch-sync bucket is us-central1).
