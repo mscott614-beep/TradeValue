@@ -201,7 +201,7 @@ async function bulkRefresh(targetUserId) {
                 console.error(`[Refresh] [${batchLabel}] Error processing ${cardId}:`, err.message);
                 errorCount++;
             }
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 3000)); // Increased to 3s for Free Tier compliance (20 RPM)
         }
     };
 

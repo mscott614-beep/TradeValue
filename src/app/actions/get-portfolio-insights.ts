@@ -15,7 +15,23 @@ export async function getPortfolioInsightsAction(userId: string) {
             return { success: true as const, result: { summary: "No cards found in portfolio.", items: [] } };
         }
 
-        const result = await getPortfolioInsights({ cards });
+        // Strip out massive duplicated listing data that is not used by the model
+        const cleanedCards = cards.map(c => ({
+            id: c.id,
+            title: c.title,
+            player: c.player,
+            year: c.year,
+            brand: c.brand,
+            set: c.set,
+            cardNumber: c.cardNumber,
+            parallel: c.parallel,
+            condition: c.condition,
+            currentMarketValue: c.currentMarketValue,
+            estimatedGrade: c.estimatedGrade,
+            grader: c.grader,
+        }));
+
+        const result = await getPortfolioInsights({ cards: cleanedCards });
         return { success: true as const, result };
     } catch (error: any) {
         console.error("Failed to get portfolio insights:", error);

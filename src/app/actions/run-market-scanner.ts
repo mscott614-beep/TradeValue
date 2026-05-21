@@ -24,8 +24,24 @@ export async function runMarketScannerAction(
             return { success: true as const, result: { alerts: [] } };
         }
 
+        // Strip out massive duplicated listing data that is not used by the model
+        const cleanedCards = cards.map(c => ({
+            id: c.id,
+            title: c.title,
+            player: c.player,
+            year: c.year,
+            brand: c.brand,
+            set: c.set,
+            cardNumber: c.cardNumber,
+            parallel: c.parallel,
+            condition: c.condition,
+            currentMarketValue: c.currentMarketValue,
+            estimatedGrade: c.estimatedGrade,
+            grader: c.grader,
+        }));
+
         const result = await runMarketScanner({ 
-            cards, 
+            cards: cleanedCards, 
             alertsConfig: alertsConfig.filter(c => c.isActive), 
             scanType, 
             userEmail 

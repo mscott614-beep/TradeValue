@@ -51,7 +51,7 @@ export function EbayUrlImport() {
                     description: `Card details extracted${useFallback ? ' using Gemini 1.5' : ''}.`,
                     action: <CheckCircle className="text-green-500" />,
                 });
-            } else if (response.isModelOverloaded && !useFallback) {
+            } else if ((response as any).isModelOverloaded && !useFallback) {
                 setShowFallbackDialog(true);
                 toast({
                     title: "Gemini is busy",

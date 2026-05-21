@@ -396,8 +396,8 @@ export default function CardDetailsPage() {
         );
     }
 
-    const calculatedGain = (card.currentMarketValue || 0) - (card.purchasePrice || 0);
-    const calculatedGainPercentage = card.purchasePrice && card.purchasePrice > 0
+    const calculatedGain = (card?.currentMarketValue || 0) - (card?.purchasePrice || 0);
+    const calculatedGainPercentage = card?.purchasePrice && card?.purchasePrice > 0
         ? (typeof calculatedGain === 'number' ? ((calculatedGain / card.purchasePrice) * 100).toFixed(2) : '0.00')
         : null;
 
@@ -857,17 +857,17 @@ export default function CardDetailsPage() {
                         <Card className="lg:col-span-1 overflow-hidden flex flex-col">
                             <CardContent className="p-0 flex-1 relative group">
                                 <div className="relative aspect-[3/4] w-full flex items-center justify-center bg-muted/50 rounded-sm">
-                                    {card.imageUrl ? (
-                                        card.imageUrl.startsWith('data:') ? (
-                                            <img src={card.imageUrl} alt={card.title} className="object-contain p-4 absolute inset-0 w-full h-full" />
+                                    {card?.imageUrl ? (
+                                        card?.imageUrl.startsWith('data:') ? (
+                                            <img src={card?.imageUrl} alt={card?.title} className="object-contain p-4 absolute inset-0 w-full h-full" />
                                         ) : (
                                             <Image
-                                                src={card.imageUrl}
-                                                alt={card.title}
+                                                src={card?.imageUrl}
+                                                alt={card?.title}
                                                 fill
                                                 className="object-contain p-4"
                                                 priority
-                                                unoptimized={card.imageUrl.includes('psacard.com') || card.imageUrl.includes('ebayimg.com')}
+                                                unoptimized={card?.imageUrl.includes('psacard.com') || card?.imageUrl.includes('ebayimg.com')}
                                             />
                                         )
                                     ) : (
@@ -885,7 +885,7 @@ export default function CardDetailsPage() {
                                             disabled={isUploadingImage}
                                         >
                                             {isUploadingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                                            {card.imageUrl ? "Change Image" : "Upload Image"}
+                                            {card?.imageUrl ? "Change Image" : "Upload Image"}
                                         </Button>
                                     </div>
                                     <input
@@ -915,29 +915,29 @@ export default function CardDetailsPage() {
                                         <User className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Player</p>
-                                            <p className="text-lg font-semibold">{card.player}</p>
+                                            <p className="text-lg font-semibold">{card?.player}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-3">
                                         <Calendar className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Year</p>
-                                            <p className="text-lg font-semibold">{card.year}</p>
+                                            <p className="text-lg font-semibold">{card?.year}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-3">
                                         <Tag className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Brand</p>
-                                            <p className="text-lg font-semibold">{card.brand}</p>
+                                            <p className="text-lg font-semibold">{card?.brand}</p>
                                         </div>
                                     </div>
-                                    {card.set && (
+                                    {card?.set && (
                                         <div className="flex items-start gap-3">
                                             <ShoppingCart className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
                                             <div>
                                                 <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Set</p>
-                                                <p className="text-lg font-semibold">{card.set}</p>
+                                                <p className="text-lg font-semibold">{card?.set}</p>
                                             </div>
                                         </div>
                                     )}
@@ -946,7 +946,7 @@ export default function CardDetailsPage() {
                                         <div>
                                             <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Card Number</p>
                                             <p className="text-lg font-semibold">
-                                                {card.cardNumber?.toString().match(/^\d+$/) ? `#${card.cardNumber}` : card.cardNumber}
+                                                {card?.cardNumber?.toString().match(/^\d+$/) ? `#${card?.cardNumber}` : card?.cardNumber}
                                             </p>
                                         </div>
                                     </div>
@@ -958,7 +958,7 @@ export default function CardDetailsPage() {
                                         <div className="space-y-4">
                                             <div className="flex items-start gap-3">
                                                 <Badge variant="secondary" className="h-8 px-3 text-sm flex items-center gap-1 font-bold">
-                                                    GRADE: {card.condition}
+                                                    GRADE: {card?.condition}
                                                 </Badge>
                                             </div>
                                             <div className="flex items-start gap-3">
@@ -982,7 +982,7 @@ export default function CardDetailsPage() {
                                                     ) : (
                                                         <div className="flex items-center gap-2">
                                                             <p className="text-lg font-semibold">
-                                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card.purchasePrice || 0)}
+                                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(card?.purchasePrice || 0)}
                                                             </p>
                                                             <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground underline" onClick={() => setIsEditingPrice(true)}>Edit</Button>
                                                         </div>

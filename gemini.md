@@ -1,9 +1,9 @@
-# TradeValue: Project Context & AI Governance (Updated May 8, 2026)
+# TradeValue: Project Context & AI Governance (Updated May 20, 2026)
 
 ## 🏗️ System Architecture
 
-- **Core AI:** **Gemini 3.5 Flash** (GA release; standardized for high-speed tool calling, advanced agentic reasoning, and long-horizon tasks).
-- **Tool Protocol:** Native **Google Search Grounding** (`google_search`).
+- **Core AI:** **Gemini 3.5 Flash** (Model ID: `gemini-3.5-flash`; standardized for high-speed tool calling, advanced parallel agentic reasoning, 1M input context, and up to 64K output token generation).
+- **Tool Protocol:** Native **Google Search Grounding** (`Google Search`).
 - **Backend:** Python (Flask) on **Google Cloud Run** (`market-agent`).
 - **Frontend:** Next.js 14+ (App Router).
 - **Database:** Firestore (Production-ready).
@@ -28,6 +28,12 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 - **Secrets:** Zero hardcoded API keys. All secrets must use `process.env.NEXT_PUBLIC_FIREBASE_*` or `os.environ`.
 - **Git Hygiene:** Respect `.geminiignore` and `.gitignore` to prevent indexing of `node_modules`, `.next`, and `.env` files.
 
+## 🧠 Context Caching & Compute Optimization
+
+- **Prompt Order:** Always structure long system instructions and static repository context at the beginning of the request sequence to leverage 3.5 Flash's native context caching mechanisms.
+- **Thinking Effort Strategy:** Use "Medium" or "Low" thinking effort thresholds for basic file modifications and template changes. Only escalate to "High" thinking depth when debugging complex data structures or race conditions.
+- **Deduplication:** Never duplicate large arrays or structured payloads (e.g., repeating active/sold arrays inside nested `marketPrices` objects) within a single API context window to avoid unnecessary token multiplication.
+
 ## 🃏 Card Industry & Valuation Logic
 
 - **Search Hygiene:** Always append `-reprint -rp -copy -facsimile` to all queries to filter fakes.
@@ -37,4 +43,13 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 ## ⚙️ Operational Cleanup
 
 - **Pointer Events:** All async save/sync functions must include a `finally` block restoring `document.body.style.pointerEvents = 'auto'`.
-- **Search Protocol:** With Gemini 2.5/3.5, **do not** use `response_mime_type="application/json"` if using the search tool. Use the native `google_search` configuration to avoid "Controlled Generation" conflicts.
+- **Search Protocol:** With Gemini 3.5, **do not** use `response_mime_type="application/json"` if using the search tool. Use the native `Google Search` configuration to avoid "Controlled Generation" conflicts.
+
+## 🛑 Compute Guardrails & Execution Limits
+
+To prevent automated "thrashing loops" and unintended compute/quota consumption under the new token model, you MUST stop and ask the user for explicit text confirmation before executing any of the following:
+
+1. **Terminal Test Suites:** Do NOT automatically execute backend or automated test runners (`npm test`, `pytest`, etc.) unless the current prompt explicitly commands it.
+2. **Deep Directory Scans:** Do NOT perform deep, recursive repository indexing or bulk file-content searches across the entire directory structure without explicit permission.
+3. **Multi-File Refactors:** If a task requires modifying more than two files, present your planned step-by-step changes in text first and await user approval before making file edits.
+4. **Context Preservation:** Strictly respect the `.geminiignore` file. Do not read, parse, or index large debug snapshots or raw HTML files (such as `ebay_headed_debug.html` or the `.ebay_browser_context/` folder) to prevent instant context window saturation.

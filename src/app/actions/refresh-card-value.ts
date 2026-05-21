@@ -4,6 +4,7 @@ import { ebayService } from "@/lib/ebay";
 import { Portfolio } from "@/lib/types";
 import { buildEbayQuery, calculateTradeValue, GENERIC_SET_STOPWORDS } from "@/lib/ebay-pricing";
 import { getAdminDb } from "@/lib/firebase-server";
+import { resolveAgentServiceUrl } from "@/lib/resolve-agent-service-url";
 
 /**
  * Refreshes the card value using the Lead Data Architect Specification.
@@ -12,7 +13,7 @@ import { getAdminDb } from "@/lib/firebase-server";
  */
 export async function refreshCardValueAction(userId: string, card: Portfolio) {
     try {
-        const agentUrl = process.env.AGENT_SERVICE_URL || "https://massapequa-hammer-agent.run.app";
+        const agentUrl = resolveAgentServiceUrl("valuation");
         console.log(`[Refresh] Targeting Agent at: ${agentUrl}/value-card`);
 
         console.log(`[Refresh] Calling Python Agent for ${card.player}...`);
@@ -137,16 +138,48 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
 
 export async function analyzeCardAction(card: Portfolio) {
     try {
-        const agentUrl = "https://market-agent-i2233dwbnq-uk.a.run.app";
-        const response = await fetch(`${agentUrl}/analyze-card`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card })
+        const agentUrl = resolveAgentServiceUrl("analysis");
+        console.log(`[Analysis] Targeting Agent at: ${agentUrl}/analyze-card`);
+
+        const cleanedCard = {
+            id: card.id,
+            title: card.title,
+            player: card.player,
+            year: card.year,
+            brand: card.brand,
+            parallel: card.parallel,
+            condition: card.condition,
+            currentMarketValue: card.currentMarketValue,
+            estimatedGrade: card.estimatedGrade,
+            grader: card.grader,
+        };
+
+        console.log(`[Analysis] Calling Python Agent for ${card.player}...`);
+
+        const agentResponse = await fetch(`${agentUrl}/analyze-card`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ card: cleanedCard }),
         });
 
-        if (!response.ok) throw new Error("Failed to call analysis agent");
-        const result = await response.json();
-        return { success: true, result: result.analysis };
+        if (!agentResponse.ok) {
+            throw new Error(
+                `Agent returned ${agentResponse.status}: ${await agentResponse.text()}`
+            );
+        }
+
+        const result = await agentResponse.json();
+        const analysis = result?.analysis;
+
+        if (analysis === undefined || analysis === null) {
+            throw new Error(
+                "Analysis agent returned a response without an analysis payload."
+            );
+        }
+
+        console.log(`[Analysis] Agent completed analysis for ${card.player}`);
+
+        return { success: true, result: analysis };
     } catch (error: any) {
         console.error("[Analysis Error]", error);
         return { success: false, error: error.message };

@@ -50,3 +50,6 @@ firestore-debug.log
 logs.txt
 service-account.json
 scratch/
+
+ebay_debug_page.html
+ebay_headed_debug.html

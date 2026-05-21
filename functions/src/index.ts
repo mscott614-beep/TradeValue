@@ -233,7 +233,11 @@ Return a JSON object:
         (result as any).estimatedGrade = result.grade || result.conditionAssessment || "Raw";
         (result as any).valuationMethod = agentData.valuation_method;
         (result as any).lastSearchQuery = agentData.last_search_query;
-        (result as any).marketPrices = agentData.research_results;
+        (result as any).marketPrices = agentData.marketPrices || {
+          median: agentData.final_price || 0.99,
+          activeItems: agentData.active_listings || [],
+          soldItems: agentData.sold_listings || []
+        };
 
       } catch (agentErr: any) {
         console.error(`[Scanner] Agent pricing failed: ${agentErr.message}`);
@@ -536,32 +540,36 @@ export const refreshMarketCardTask = onTaskDispatched(
       }
 
       // Also prepare market data for the UI
-      const research = result.research_results || {};
+      const activeListings = result.marketPrices?.activeItems || result.active_listings || [];
+      const soldListings = result.marketPrices?.soldItems || result.sold_listings || [];
+      const avgSoldPrice = result.marketPrices?.avgSoldPrice || result.avg_sold_price || 0;
+      const lowVolumeData = result.marketPrices?.lowVolumeData || result.lowVolumeData || false;
+
       const marketPrices = {
         median: newPrice,
-        activeItems: (research.top_listings || []).map((item: any) => {
+        activeItems: activeListings.map((item: any) => {
           let p = item.price;
           if (typeof p === 'string') p = parseFloat(p.replace(/[^0-9.]/g, ''));
           return {
             title: String(item.title || "No Title"),
             price: Number(p || 0),
-            url: String(item.url || "#"),
+            url: String(item.url || item.itemWebUrl || "#"),
             imageUrl: item.image_url || item.imageUrl || null
           };
         }),
-        soldItems: (research.sold_listings || []).map((item: any) => {
+        soldItems: soldListings.map((item: any) => {
           let p = item.price;
           if (typeof p === 'string') p = parseFloat(p.replace(/[^0-9.]/g, ''));
           return {
             title: String(item.title || "No Title"),
             price: Number(p || 0),
-            url: String(item.url || "#"),
+            url: String(item.url || item.itemWebUrl || "#"),
             imageUrl: item.image_url || item.imageUrl || null,
             endDate: String(item.endDate || item.end_date || new Date().toISOString().split('T')[0])
           };
         }),
-        avgSoldPrice: research.avg_sold_price || 0,
-        lowVolumeData: research.low_volume || false,
+        avgSoldPrice: avgSoldPrice || 0,
+        lowVolumeData: lowVolumeData || false,
         lastUpdated: timestamp
       };
 

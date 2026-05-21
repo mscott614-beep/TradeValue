@@ -7,7 +7,7 @@ import { Portfolio, AlertConfig } from '@/lib/types';
 export const getAdminApp = () => {
     if (getApps().length <= 0) {
         return initializeApp({
-            projectId: 'puckvaluebak-38609945-5e85c'
+            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'puckvaluebak-38609945-5e85c'
         });
     }
     return getApp();

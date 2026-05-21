@@ -59,8 +59,8 @@ async function loadGenkit() {
     }
     return { genkit, z, googleAI: vertexAI };
 }
-const PRIMARY_MODEL = 'googleai/gemini-3.1-flash-lite-preview';
-const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
+const FALLBACK_MODEL = 'googleai/gemini-1.5-flash';
 const GOOGLE_GENAI_API_KEY = (0, params_1.defineSecret)("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
@@ -238,7 +238,11 @@ Return a JSON object:
             result.estimatedGrade = result.grade || result.conditionAssessment || "Raw";
             result.valuationMethod = agentData.valuation_method;
             result.lastSearchQuery = agentData.last_search_query;
-            result.marketPrices = agentData.research_results;
+            result.marketPrices = agentData.marketPrices || {
+                median: agentData.final_price || 0.99,
+                activeItems: agentData.active_listings || [],
+                soldItems: agentData.sold_listings || []
+            };
         }
         catch (agentErr) {
             console.error(`[Scanner] Agent pricing failed: ${agentErr.message}`);
@@ -483,34 +487,37 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
             valueChange24hPercent = Math.round((valueChange24h / cardData.currentMarketValue) * 100 * 100) / 100;
         }
         // Also prepare market data for the UI
-        const research = result.research_results || {};
+        const activeListings = result.marketPrices?.activeItems || result.active_listings || [];
+        const soldListings = result.marketPrices?.soldItems || result.sold_listings || [];
+        const avgSoldPrice = result.marketPrices?.avgSoldPrice || result.avg_sold_price || 0;
+        const lowVolumeData = result.marketPrices?.lowVolumeData || result.lowVolumeData || false;
         const marketPrices = {
             median: newPrice,
-            activeItems: (research.top_listings || []).map((item) => {
+            activeItems: activeListings.map((item) => {
                 let p = item.price;
                 if (typeof p === 'string')
                     p = parseFloat(p.replace(/[^0-9.]/g, ''));
                 return {
                     title: String(item.title || "No Title"),
                     price: Number(p || 0),
-                    url: String(item.url || "#"),
+                    url: String(item.url || item.itemWebUrl || "#"),
                     imageUrl: item.image_url || item.imageUrl || null
                 };
             }),
-            soldItems: (research.sold_listings || []).map((item) => {
+            soldItems: soldListings.map((item) => {
                 let p = item.price;
                 if (typeof p === 'string')
                     p = parseFloat(p.replace(/[^0-9.]/g, ''));
                 return {
                     title: String(item.title || "No Title"),
                     price: Number(p || 0),
-                    url: String(item.url || "#"),
+                    url: String(item.url || item.itemWebUrl || "#"),
                     imageUrl: item.image_url || item.imageUrl || null,
                     endDate: String(item.endDate || item.end_date || new Date().toISOString().split('T')[0])
                 };
             }),
-            avgSoldPrice: research.avg_sold_price || 0,
-            lowVolumeData: research.low_volume || false,
+            avgSoldPrice: avgSoldPrice || 0,
+            lowVolumeData: lowVolumeData || false,
             lastUpdated: timestamp
         };
         // --- STICKY VALUATION & PRICE GUARD ---

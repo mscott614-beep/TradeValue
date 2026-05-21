@@ -1,0 +1,13 @@
+[0518/221000.603:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[0518/221000.604:ERROR:net\disk_cache\disk_cache.cc:284] Unable to create cache
+[0518/221000.604:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[0518/221000.609:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[0518/221000.610:ERROR:net\disk_cache\disk_cache.cc:284] Unable to create cache
+[0518/221000.610:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[0518/221000.695:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: Access is denied. (0x5)
+[0518/221000.697:ERROR:net\disk_cache\disk_cache.cc:284] Unable to create cache
+[0518/221000.697:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[0518/221000.847:WARNING:content\browser\btm\btm_database.cc:128] Failed to initialize the DIPS SQLite database.
+[0518/221002.525:WARNING:components\leveldb_proto\internal\leveldb_database.cc:124] Unable to open C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\shared_proto_db\metadata: IO error: C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\shared_proto_db\metadata/LOCK: Access denied. (ChromeMethodBFE: 15::LockFile::5)
+[0518/221004.556:WARNING:components\leveldb_proto\internal\leveldb_database.cc:124] Unable to open C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\shared_proto_db\metadata: IO error: C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\shared_proto_db\metadata/LOCK: Access denied. (ChromeMethodBFE: 15::LockFile::5)
+[0518/221006.591:WARNING:components\leveldb_proto\internal\leveldb_database.cc:124] Unable to open C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\shared_proto_db\metadata: IO error: C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\shared_proto_db\metadata/LOCK: Access denied. (ChromeMethodBFE: 15::LockFile::5)

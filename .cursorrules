@@ -1,0 +1,4 @@
+# Windows Workspace - TradeValue Setup
+- Target the latest modular Firebase Web SDK (v10+ syntax).
+- Prioritize optimized, real-time Cloud Firestore synchronization rules using onSnapshot.
+- When writing Firestore batch operations (writeBatch), always ensure appropriate error handling is included to prevent broken local states on Windows dev environments.
