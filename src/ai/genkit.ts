@@ -33,10 +33,18 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
     });
   } catch (error: any) {
     const errorMsg = error?.message || String(error);
+    const isBillingOrQuotaExhausted =
+      errorMsg.includes("prepayment credits are depleted") ||
+      errorMsg.includes("Quota exceeded") ||
+      (errorMsg.includes("429") &&
+        (errorMsg.includes("billing") || errorMsg.includes("Too Many Requests")));
+
+    if (isBillingOrQuotaExhausted) {
+      throw error;
+    }
+
     const isRetryable = errorMsg.includes('503') || 
                         errorMsg.includes('Service Unavailable') || 
-                        errorMsg.includes('429') || 
-                        errorMsg.includes('Quota exceeded') ||
                         errorMsg.includes('validation') ||
                         errorMsg.includes('schema') ||
                         errorMsg.includes('blocked') ||

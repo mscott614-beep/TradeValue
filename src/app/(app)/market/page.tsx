@@ -98,16 +98,32 @@ export default function MarketHubPage() {
     });
   };
 
+  const formatMarketError = (message?: string) => {
+    if (!message) return "Request failed. Please try again.";
+    if (message.includes("prepayment credits are depleted")) {
+      return "Gemini API credits are depleted. Trending and reports need billing restored at Google AI Studio; auctions may still load from eBay.";
+    }
+    if (message.includes("429") || message.includes("Quota exceeded")) {
+      return "AI quota limit reached. Data may load from eBay-only fallbacks when available.";
+    }
+    return message;
+  };
+
   const loadAuctions = async (searchTopic?: string) => {
     setIsLoadingAuctions(true);
     try {
       const response = await generateAuctionsAction(searchTopic);
       if (response.success && response.result) {
         setAuctions(response.result.map(toAuction));
+        if (response.result.length === 0) {
+          toast.warning("No live auctions found for this search.");
+        }
+      } else {
+        toast.error(formatMarketError(response.error));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to load auctions:", error);
-      toast.error("Failed to load live auctions.");
+      toast.error(formatMarketError(error?.message));
     } finally {
       setIsLoadingAuctions(false);
     }
@@ -119,9 +135,15 @@ export default function MarketHubPage() {
       const response = await generateTrendingCardsAction();
       if (response.success && response.result) {
         setTrending(response.result);
+        if (response.result.length === 0) {
+          toast.warning("No trending cards available right now.");
+        }
+      } else {
+        toast.error(formatMarketError(response.error));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to load trending cards:", error);
+      toast.error(formatMarketError(error?.message));
     } finally {
       setIsLoadingTrending(false);
     }

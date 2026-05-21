@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 import { ebayService } from '@/lib/ebay';
+import { buildTrendingFromMarketIntelligence } from '@/lib/market-fallbacks';
 
 export const TrendingCardSchema = z.object({
     id: z.string().describe('Unique ID, e.g. "t-1"'),
@@ -73,14 +74,26 @@ export const generateTrendingCards = ai.defineFlow(
           4. Return ONLY a valid JSON array of 4 objects. No conversational text.
         `;
 
-        const response = await generateWithFallback({
-            model: PRIMARY_MODEL,
-            prompt,
-            output: {
-                schema: z.array(TrendingCardSchema),
-            },
-        });
+        try {
+            const response = await generateWithFallback({
+                model: PRIMARY_MODEL,
+                prompt,
+                output: {
+                    schema: z.array(TrendingCardSchema),
+                },
+            });
 
-        return response.output ?? [];
+            return response.output ?? [];
+        } catch (aiError) {
+            console.warn(
+                "[Trending] Gemini unavailable, using eBay liquidity fallback:",
+                aiError
+            );
+            const fallback = buildTrendingFromMarketIntelligence(marketIntelligence);
+            if (fallback.length > 0) {
+                return fallback;
+            }
+            throw aiError;
+        }
     }
 );

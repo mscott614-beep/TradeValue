@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ai, generateWithFallback, PRIMARY_MODEL } from '../genkit';
 import { ebayService } from '@/lib/ebay';
+import { mapEbayItemsToAuctions } from '@/lib/market-fallbacks';
 
 export const AuctionListingSchema = z.object({
     id: z.string().describe('Unique identifier'),
@@ -34,16 +35,15 @@ export const generateLiveAuctions = ai.defineFlow(
         const query = input.topic || "sports trading cards PSA 10";
         
         try {
-            // 1. Fetch real data from eBay - Search ALL listings to get best images and prices
-            const ebayResults = await ebayService.searchActiveItems(query, 4, 'price', true);
+            // 1. Fetch real auction data from eBay
+            const ebayResults = await ebayService.searchActiveAuctions(query, 4);
             const rawItems = ebayResults.itemSummaries || [];
 
             if (rawItems.length === 0) {
-                // Fallback to simulation if no results found
-                console.warn(`No eBay results found for "${query}". Falling back to simulation.`);
+                console.warn(`No eBay auction results found for "${query}". Falling back to simulation.`);
             } else {
-                // 2. Use AI to standardize and enhance the real eBay data
-                const prompt = `
+                try {
+                    const prompt = `
                   You are a sports card data expert. Standardize the following eBay sports card data into a valid JSON array matching the required schema.
                   
                   Required Fields for each item:
@@ -65,23 +65,33 @@ export const generateLiveAuctions = ai.defineFlow(
                   CRITICAL: Return EXACTLY a JSON array of objects. Do not omit any fields.
                 `;
 
-                const response = await generateWithFallback({
-                    prompt,
-                    output: {
-                        schema: z.array(AuctionListingSchema),
-                    },
-                });
+                    const response = await generateWithFallback({
+                        prompt,
+                        output: {
+                            schema: z.array(AuctionListingSchema),
+                        },
+                    });
 
-                // Map back the URLs and IDs from the real API to the AI's standardized objects
-                return (response.output || []).map((item: AuctionListing, idx: number) => {
-                    const raw = rawItems[idx] || {};
-                    return {
-                        ...item,
-                        id: raw.itemId || item.id,
-                        url: raw.itemWebUrl || item.url,
-                        imageUrl: raw.image?.imageUrl || item.imageUrl,
-                    };
-                });
+                    return (response.output || []).map((item: AuctionListing, idx: number) => {
+                        const raw = rawItems[idx] || {};
+                        return {
+                            ...item,
+                            id: raw.itemId || item.id,
+                            url: raw.itemWebUrl || item.url,
+                            imageUrl: raw.image?.imageUrl || item.imageUrl,
+                        };
+                    });
+                } catch (aiError) {
+                    console.warn(
+                        "[Auctions] Gemini unavailable, using direct eBay mapping:",
+                        aiError
+                    );
+                    const mapped = mapEbayItemsToAuctions(ebayResults, query);
+                    if (mapped.length > 0) {
+                        return mapped;
+                    }
+                    throw aiError;
+                }
             }
         } catch (error) {
             console.error("eBay Integration Error:", error);
