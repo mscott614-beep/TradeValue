@@ -416,7 +416,12 @@ def run_newsletter_job():
         report_raw = agent.generate_market_report()
         
         res_json = robust_json_parse(report_raw)
-        if res_json and "executive_summary" in res_json:
+        is_institutional_report = res_json and (
+            "full_report_markdown" in res_json
+            or "macro_market_sentiment" in res_json
+            or "executive_summary" in res_json  # legacy fallback
+        )
+        if is_institutional_report:
             db = get_db()
             if db:
                 today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -436,9 +441,47 @@ def run_newsletter_job():
     except Exception as e:
         print(f"[AgentService] CRITICAL: Background newsletter job failed: {str(e)}")
 
+def _render_table_html(rows, columns):
+    """Render a list of dict rows as an HTML table."""
+    if not rows:
+        return "<p><em>No rows available for this section.</em></p>"
+    headers = columns or list(rows[0].keys())
+    header_html = "".join(
+        f"<th style='padding:10px; border:1px solid #ddd; text-align:left;'>{h.replace('_', ' ').title()}</th>"
+        for h in headers
+    )
+    body_html = ""
+    for row in rows:
+        cells = "".join(
+            f"<td style='padding:8px; border:1px solid #ddd;'>{row.get(col, '')}</td>"
+            for col in headers
+        )
+        body_html += f"<tr>{cells}</tr>"
+    return f"""
+    <table style="width: 100%; border-collapse: collapse; margin: 12px 0;">
+        <thead style="background-color: #f2f2f2;"><tr>{header_html}</tr></thead>
+        <tbody>{body_html}</tbody>
+    </table>
+    """
+
+
+def _markdown_to_email_html(markdown_text: str) -> str:
+    """Lightweight Markdown → HTML for newsletter sections."""
+    if not markdown_text:
+        return ""
+    html = markdown_text
+    html = re.sub(r'^### (.+)$', r'<h4>\1</h4>', html, flags=re.M)
+    html = re.sub(r'^## (.+)$', r'<h3>\1</h3>', html, flags=re.M)
+    html = re.sub(r'^# (.+)$', r'<h2>\1</h2>', html, flags=re.M)
+    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+    html = html.replace('\n---\n', '<hr style="border:none;border-top:1px solid #ccc;margin:24px 0;" />')
+    html = html.replace('\n', '<br/>')
+    return html
+
+
 def compile_and_send_newsletter(data):
     """
-    Compiles the JSON market report into HTML and sends it via Resend.
+    Compiles the institutional market report JSON into HTML and sends it via Resend.
     """
     api_key = os.getenv("RESEND_API_KEY")
     to_email = "mscott614@gmail.com" 
@@ -447,42 +490,80 @@ def compile_and_send_newsletter(data):
         print("[Newsletter] ERROR: RESEND_API_KEY is missing from environment", flush=True)
         return
 
-    # Build the HTML Payload
-    trending_rows = "".join([
-        f"<tr><td style='padding:8px; border:1px solid #ddd;'>{item.get('card')}</td>"
-        f"<td style='padding:8px; border:1px solid #ddd;'>{item.get('price')}</td>"
-        f"<td style='padding:8px; border:1px solid #ddd;'>{item.get('trend_insight')}</td></tr>"
-        for item in data.get('trending_table', [])
-    ])
+    report_title = data.get(
+        "report_title",
+        "TradeValue Institutional Alternative-Asset Market Report",
+    )
+    report_date = data.get("report_date", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
 
-    news_items = "".join([f"<li>{item}</li>" for item in data.get('breaking_news', [])])
+    macro = data.get("macro_market_sentiment", {}) or {}
+    velocity = data.get("high_velocity_tracker", {}) or {}
+    blue_chip = data.get("blue_chip_registry", {}) or {}
+    slab_raw = data.get("slab_raw_multiplier_matrix", {}) or {}
 
-    html_content = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #333;">
-        <h1 style="color: #2c3e50;">TradeValue Market Analyst Report</h1>
-        <p style="font-size: 1.1em;">{data.get('executive_summary', '')}</p>
-        <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 5px;">Breaking News</h2>
-        <ul>{news_items}</ul>
-        <h2 style="border-bottom: 2px solid #3498db; padding-bottom: 5px;">Trending This Week</h2>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-            <thead style="background-color: #f2f2f2;">
-                <tr>
-                    <th style="padding:10px; border:1px solid #ddd; text-align:left;">Card</th>
-                    <th style="padding:10px; border:1px solid #ddd; text-align:left;">Price</th>
-                    <th style="padding:10px; border:1px solid #ddd; text-align:left;">Insight</th>
-                </tr>
-            </thead>
-            <tbody>{trending_rows}</tbody>
-        </table>
-    </div>
-    """
+    # Institutional four-section layout (preferred)
+    if data.get("full_report_markdown") or macro or velocity or blue_chip or slab_raw:
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 720px; margin: auto; color: #1f2937; line-height: 1.5;">
+            <h1 style="color: #0f172a; margin-bottom: 4px;">{report_title}</h1>
+            <p style="color:#64748b; margin-top:0;">Report Date: {report_date}</p>
+            <hr style="border:none;border-top:2px solid #2563eb;margin:20px 0;" />
+
+            <h2 style="color:#1e3a8a;">1. Macro Market Sentiment &amp; Liquidity</h2>
+            <div style="background:#eff6ff;border-left:4px solid #2563eb;padding:12px 14px;margin:12px 0;">
+                <strong>Market Velocity Alert:</strong>
+                {macro.get('market_velocity_alert', 'N/A')}
+            </div>
+            {_markdown_to_email_html(macro.get('section_markdown', ''))}
+            {_render_table_html(macro.get('liquidity_metrics_table', []), ['metric', 'current_reading', 'wow_change', 'interpretation'])}
+
+            <hr style="border:none;border-top:1px solid #cbd5e1;margin:28px 0;" />
+
+            <h2 style="color:#1e3a8a;">2. High-Velocity Modern &amp; Prospect Tracker</h2>
+            {_markdown_to_email_html(velocity.get('section_markdown', ''))}
+            {_render_table_html(velocity.get('velocity_table', []), ['asset', '7d_change_pct', 'liquidity_score', 'game_to_game_note', 'catalyst'])}
+
+            <hr style="border:none;border-top:1px solid #cbd5e1;margin:28px 0;" />
+
+            <h2 style="color:#1e3a8a;">3. Blue-Chip &amp; Registry Asset Analysis</h2>
+            {_markdown_to_email_html(blue_chip.get('section_markdown', ''))}
+            {_render_table_html(blue_chip.get('registry_table', []), ['asset', 'psa10_population', 'auction_house_baseline', 'volatility_profile', 'stability_note'])}
+
+            <hr style="border:none;border-top:1px solid #cbd5e1;margin:28px 0;" />
+
+            <h2 style="color:#1e3a8a;">4. Slab-to-Raw Premium Multipliers Matrix</h2>
+            {_markdown_to_email_html(slab_raw.get('section_markdown', ''))}
+            {_render_table_html(slab_raw.get('multiplier_table', []), ['card', 'raw_median_usd', 'psa10_median_usd', 'multiplier_x', 'data_source_note'])}
+        </div>
+        """
+    else:
+        # Legacy newsletter fallback
+        trending_rows = "".join([
+            f"<tr><td style='padding:8px; border:1px solid #ddd;'>{item.get('card')}</td>"
+            f"<td style='padding:8px; border:1px solid #ddd;'>{item.get('price')}</td>"
+            f"<td style='padding:8px; border:1px solid #ddd;'>{item.get('trend_insight')}</td></tr>"
+            for item in data.get('trending_table', [])
+        ])
+        news_items = "".join([f"<li>{item}</li>" for item in data.get('breaking_news', [])])
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #333;">
+            <h1 style="color: #2c3e50;">TradeValue Market Analyst Report</h1>
+            <p style="font-size: 1.1em;">{data.get('executive_summary', '')}</p>
+            <h2>Breaking News</h2><ul>{news_items}</ul>
+            <h2>Trending This Week</h2>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr><th>Card</th><th>Price</th><th>Insight</th></tr></thead>
+                <tbody>{trending_rows}</tbody>
+            </table>
+        </div>
+        """
 
     try:
         print(f"[Newsletter] Dispatching to {to_email}...", flush=True)
         params = {
             "from": "TradeValue Market Agent <onboarding@resend.dev>",
             "to": to_email,
-            "subject": "Weekly TradeValue Market Report",
+            "subject": f"Weekly TradeValue Institutional Market Report — {report_date}",
             "html": html_content,
         }
         

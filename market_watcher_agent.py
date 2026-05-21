@@ -68,32 +68,98 @@ class AgentClass:
 
   def generate_market_report(self):
     """
-    Performs research using Google Gen AI SDK and returns a structured market report.
+    Performs research using Google Gen AI SDK and returns an institutional-grade
+    alternative-asset market report (JSON + embedded Markdown sections).
     """
     current_month = datetime.datetime.now().strftime("%B %Y")
-    
+    report_date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+
+    INSTITUTIONAL_REPORT_SCHEMA = """
+{
+  "report_title": "TradeValue Institutional Alternative-Asset Market Report",
+  "report_date": "YYYY-MM-DD",
+  "full_report_markdown": "Complete Markdown report with --- between major sections",
+  "macro_market_sentiment": {
+    "market_velocity_alert": "High-frequency transactional velocity summary",
+    "liquidity_metrics_table": [
+      {"metric": "string", "current_reading": "string", "wow_change": "string", "interpretation": "string"}
+    ],
+    "section_markdown": "Markdown body for Section 1"
+  },
+  "high_velocity_tracker": {
+    "section_markdown": "Markdown body for Section 2",
+    "velocity_table": [
+      {"asset": "string", "7d_change_pct": "string", "liquidity_score": "string", "game_to_game_note": "string", "catalyst": "string"}
+    ]
+  },
+  "blue_chip_registry": {
+    "section_markdown": "Markdown body for Section 3",
+    "registry_table": [
+      {"asset": "string", "psa10_population": "string", "auction_house_baseline": "string", "volatility_profile": "string", "stability_note": "string"}
+    ]
+  },
+  "slab_raw_multiplier_matrix": {
+    "section_markdown": "Markdown body for Section 4",
+    "multiplier_table": [
+      {"card": "string", "raw_median_usd": "number|string", "psa10_median_usd": "number|string", "multiplier_x": "number|string", "data_source_note": "string"}
+    ]
+  }
+}
+"""
+
     try:
         # Modern Tooling
         search_tool = types.Tool(google_search=types.GoogleSearch())
-        
-        prompt = f"""
-        You are a professional Market Analyst for TradeValue.
-        
-        Perform research on these topics using your 'Google Search' ability. Specifically for the 2015-16 O-Pee-Chee Platinum Connor McDavid, you MUST prioritize recent eBay Sold listings for PSA 10 graded copies to capture the true slabbed premium:
-        1. 'upcoming {current_month} card releases'
-        2. 'top 5 trending sports card sales this week'
-        3. 'trading card market sentiment 2026'
-        
-        STRICT OUTPUT FORMAT (JSON ONLY):
-        {{
-          "executive_summary": "Concise overview...",
-          "breaking_news": ["Headline 1", "Headline 2"],
-          "trending_table": [{{"card": "...", "price": "...", "trend_insight": "..."}}],
-          "drop_calendar": [{{"product_name": "...", "release_date": "..."}}]
-        }}
-        """
-        
-        print(f"[MarketAnalyst] Starting research for {current_month}...")
+
+        system_instruction = f"""You are the TradeValue Institutional Research Desk (Gemini 3.5 Flash).
+Author an institutional-grade ALTERNATIVE-ASSET market report for high-net-worth collectors and allocators.
+
+DO NOT write a broad, generic macro blog post. DO NOT open with vague market commentary.
+Use Google Search to ground all pricing in recent eBay sold/active comps and auction house baselines.
+
+Reporting period: {current_month} (report date: {report_date}).
+
+MANDATORY REPORT ARCHITECTURE — produce ALL four sections in `full_report_markdown` using clean Markdown,
+with explicit horizontal rules (`---`) between each major section, and Markdown tables for all pricing arrays.
+
+## 1. Macro Market Sentiment & Liquidity
+- Institutional tone: liquidity regimes, bid-ask behavior, capital flows in sports cards/TCG as alternative assets.
+- REQUIRED subsection: **Market Velocity Alert** — summarize high-frequency transactional data, sell-through speed,
+  and whether velocity is accelerating or decelerating week-over-week.
+
+## 2. High-Velocity Modern & Prospect Tracker
+- Group highly liquid, volatile performers (active rookie hype, playoff breakout stars e.g. Wembanyama, Skenes, elite modern prospects).
+- Emphasize game-to-game value swings and short holding-period liquidity.
+
+## 3. Blue-Chip & Registry Asset Analysis
+- Segment low-volatility, long-term portfolio anchors (e.g. Mickey Mantle, Wayne Gretzky, LeBron James).
+- Focus on population caps (PSA/BGS/SGC), registry scarcity, and auction-house baseline tracking (Goldin, PWCC, Heritage).
+
+## 4. Slab-to-Raw Premium Multipliers Matrix
+- Explicitly compare raw listings vs PSA 10 (or top grade) for the same card using recent market data.
+- Express each relationship as a clear numerical multiplier (e.g. "PSA 10 copies command a 20x premium over raw equivalents").
+- Populate `multiplier_table` with numeric multipliers derived from cited medians.
+
+FORMATTING RULES:
+- `full_report_markdown` must include all four section headings exactly as numbered above.
+- Place `---` on its own line between sections 1-2, 2-3, and 3-4.
+- Every pricing array field in JSON must also appear as a Markdown table in the relevant section.
+- Use concise, data-dense prose suitable for a weekly institutional newsletter."""
+
+        prompt = f"""Generate this week's institutional alternative-asset market report for TradeValue subscribers.
+
+Research using Google Search. Prioritize:
+- High-velocity modern rookies and breakout performers with measurable weekly price deltas
+- Blue-chip registry assets with population and auction baseline references
+- Recent eBay sold BIN data to build raw vs PSA 10 multiplier math (show your medians)
+
+Return JSON ONLY matching this schema (no extra keys, no markdown fences outside JSON values):
+{INSTITUTIONAL_REPORT_SCHEMA}
+
+Set report_date to "{report_date}".
+Ensure multiplier_x values are computed from stated raw_median_usd and psa10_median_usd when possible."""
+
+        print(f"[MarketAnalyst] Starting institutional report for {current_month}...")
         
         # Use API key client — proven path with gemini-3.5-flash + google_search.
         # The Vertex AI client has region/grounding compatibility issues with 3.5 Flash.
@@ -103,7 +169,11 @@ class AgentClass:
         else:
             report_client = client  # Fall back to module-level Vertex AI client
 
-        config = types.GenerateContentConfig(tools=[search_tool], temperature=1.0)
+        config = types.GenerateContentConfig(
+            tools=[search_tool],
+            temperature=0.25,
+            system_instruction=system_instruction,
+        )
             
         response = report_client.models.generate_content(
             model=self.model_name,
@@ -140,16 +210,10 @@ class AgentClass:
                 
         if not is_valid:
             print("[MarketAnalyst] JSON was invalid or corrupted. Running repair model...")
-            repair_prompt = f"""You are a JSON repair tool. Your task is to take a potentially corrupted JSON string and return a perfectly formatted, valid JSON object matching the schema below.
-If there are corrupted elements or brackets, repair them intelligently (e.g. if the trending_table starts with corrupted characters, turn it into a valid list of objects).
+            repair_prompt = f"""You are a JSON repair tool. Repair the corrupted string into valid JSON matching this institutional report schema exactly.
 
 SCHEMA:
-{{
-  "executive_summary": "string",
-  "breaking_news": ["string"],
-  "trending_table": [{{"card": "string", "price": "string", "trend_insight": "string"}}],
-  "drop_calendar": [{{"product_name": "string", "release_date": "string"}}]
-}}
+{INSTITUTIONAL_REPORT_SCHEMA}
 
 CORRUPTED JSON STRING TO REPAIR:
 {res_text}"""
@@ -170,10 +234,30 @@ CORRUPTED JSON STRING TO REPAIR:
         print(f"[MarketAnalyst] Report generation failed or throttled: {str(e)}")
         # Graceful fallback: return a basic cached-style structure
         return json.dumps({
-            "executive_summary": "Market data is currently being updated. Please check back in a few minutes.",
-            "breaking_news": ["Market systems refreshing..."],
-            "trending_table": [],
-            "drop_calendar": [],
+            "report_title": "TradeValue Institutional Alternative-Asset Market Report",
+            "report_date": report_date,
+            "full_report_markdown": (
+                "# TradeValue Institutional Alternative-Asset Market Report\n\n"
+                "Market data is currently being updated. Please check back shortly.\n\n---\n"
+                "*Systems refresh in progress*"
+            ),
+            "macro_market_sentiment": {
+                "market_velocity_alert": "Data refresh in progress.",
+                "liquidity_metrics_table": [],
+                "section_markdown": "Liquidity metrics unavailable during refresh."
+            },
+            "high_velocity_tracker": {
+                "section_markdown": "Velocity tracker unavailable during refresh.",
+                "velocity_table": []
+            },
+            "blue_chip_registry": {
+                "section_markdown": "Registry analysis unavailable during refresh.",
+                "registry_table": []
+            },
+            "slab_raw_multiplier_matrix": {
+                "section_markdown": "Multiplier matrix unavailable during refresh.",
+                "multiplier_table": []
+            },
             "error": f"Search tool throttled or unavailable: {str(e)}"
         })
 
