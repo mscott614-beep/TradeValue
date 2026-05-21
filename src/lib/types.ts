@@ -75,9 +75,11 @@ export interface Alert {
   active: boolean;
 }
 
+export type { ArbitrageSignal, ArbitrageConfidence } from "./arbitrage";
+
 export interface MarketAlert {
   id?: string;
-  type: 'rise' | 'drop' | 'optimal_sell' | 'red_flag';
+  type: 'rise' | 'drop' | 'optimal_sell' | 'red_flag' | 'arbitrage';
   title: string;
   message: string;
   timestamp: string;

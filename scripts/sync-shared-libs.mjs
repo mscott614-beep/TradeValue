@@ -14,6 +14,8 @@ const copies = [
   "hockey-card-year.ts",
   "pricing-extract.ts",
   "institutional-report-prompt.ts",
+  "arbitrage.ts",
+  "ebay-pricing.ts",
 ];
 
 for (const name of copies) {

@@ -52,8 +52,16 @@ Edit canonical sources only:
 - `src/lib/hockey-card-year.ts`
 - `src/lib/pricing-extract.ts`
 - `src/lib/ebay-pricing.ts`
+- `src/lib/arbitrage.ts`
 
-Do **not** hand-edit `functions/src/hockey-card-year.ts` or `pricing-extract.ts` (auto-generated).
+Do **not** hand-edit `functions/src/hockey-card-year.ts`, `pricing-extract.ts`, `ebay-pricing.ts`, or `arbitrage.ts` (auto-generated).
+
+### Slab-to-raw arbitrage scanner
+
+- **Function:** `scheduledArbitrageScan` — 8:30 AM & 8:30 PM America/New_York (`us-east4`).
+- **Firestore:** `arbitrage_signals` (auth read; Functions write only).
+- **UI:** Market Hub → **Arbitrage** tab, or `/market/arbitrage`.
+- **Env (optional):** `ARBITRAGE_SIGNAL_TTL_HOURS` (default `48`).
 
 Deploy:
 

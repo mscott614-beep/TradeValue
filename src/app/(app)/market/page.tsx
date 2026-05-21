@@ -18,7 +18,8 @@ import {
   Scale, 
   ExternalLink, 
   RefreshCw,
-  Printer
+  Printer,
+  Sparkles,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ import {
   TabsTrigger 
 } from "@/components/ui/tabs";
 import { AuctionList } from "@/components/market/auction-list";
+import { ArbitrageDashboard } from "@/components/market/arbitrage-dashboard";
 import { MarketReportDocument } from "@/components/market/MarketReportDocument";
 import { cn } from "@/lib/utils";
 
@@ -270,7 +272,14 @@ export default function MarketHubPage() {
           description="Track live auctions, analyze trending cards, and generate AI market reports."
           className="mb-0"
         />
-        <div className="shrink-0">
+        <div className="shrink-0 flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => window.location.href = "/market/arbitrage"}
+            className="hidden md:flex"
+          >
+            <Sparkles className="mr-2 h-4 w-4" /> Arbitrage
+          </Button>
           <Button onClick={() => window.location.href = '/market/compare'} className="bg-primary hover:bg-primary/90 text-primary-foreground hidden md:flex">
             <Scale className="mr-2 h-4 w-4" /> Compare Cards
           </Button>
@@ -279,10 +288,11 @@ export default function MarketHubPage() {
 
       <Tabs defaultValue="auctions" className="w-full">
         <TabsList className={cn(
-          "grid w-full grid-cols-2 lg:w-[400px] no-print transition-all duration-500",
+          "grid w-full grid-cols-3 lg:w-[520px] no-print transition-all duration-500",
           isFocusMode && "opacity-0 h-0 overflow-hidden"
         )}>
           <TabsTrigger value="auctions">Live Auctions</TabsTrigger>
+          <TabsTrigger value="arbitrage">Arbitrage</TabsTrigger>
           <TabsTrigger value="intelligence">Market Intelligence</TabsTrigger>
         </TabsList>
 
@@ -321,6 +331,10 @@ export default function MarketHubPage() {
               <AuctionList initialAuctions={auctions} />
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="arbitrage" className="mt-6 space-y-4 no-print">
+          <ArbitrageDashboard />
         </TabsContent>
 
         <TabsContent value="intelligence" className="mt-6 space-y-6">

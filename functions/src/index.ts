@@ -723,6 +723,30 @@ export const refreshMarketCardTask = onTaskDispatched(
 );
 // Export new Shadow Engine v2
 export { marketReportV2 } from "./marketReportV2";
+
+// Slab-to-raw arbitrage scanner (eBay raw vs PSA 10 comps)
+export const scheduledArbitrageScan = onSchedule(
+  {
+    schedule: "30 8,20 * * *",
+    timeZone: "America/New_York",
+    region: "us-east4",
+    memory: "512MiB",
+    timeoutSeconds: 300,
+    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
+  },
+  async () => {
+    const { EbayService } = await import("./ebay");
+    const { runArbitrageScan } = await import("./arbitrage-scanner");
+    const ebay = new EbayService(
+      EBAY_CLIENT_ID.value(),
+      EBAY_CLIENT_SECRET.value(),
+      EBAY_ENV.value() || "production"
+    );
+    const result = await runArbitrageScan(admin.firestore(), ebay);
+    console.log("[ArbitrageScan] Scheduled run complete:", result);
+  }
+);
+
 // Global Batch Sync Scheduler (6:00 AM)
 export const globalBatchSync = onSchedule({
   schedule: "0 6 * * *",
