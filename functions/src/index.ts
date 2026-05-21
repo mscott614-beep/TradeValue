@@ -26,7 +26,7 @@ async function loadGenkit() {
 }
 
 const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
-const FALLBACK_MODEL = 'googleai/gemini-1.5-flash';
+const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");
@@ -286,9 +286,21 @@ export const geminiProcessingQueue = onTaskDispatched(
         throw new Error("Rate limit hit, retrying...");
       }
 
+      const rawMessage = error.message || "Unknown error during AI processing";
+      let userMessage = rawMessage;
+      if (rawMessage.includes("prepayment credits are depleted")) {
+        userMessage =
+          "Gemini API billing credits are depleted. Restore billing in Google AI Studio, then scan again.";
+      } else if (rawMessage.includes("429") || rawMessage.includes("Quota")) {
+        userMessage = "AI quota limit reached. Please wait a minute and try again.";
+      } else if (rawMessage.includes("404") && rawMessage.includes("models/")) {
+        userMessage =
+          "Scanner model configuration error. A deploy fix is in progress — please retry in a few minutes.";
+      }
+
       await jobRef.update({
         status: "error",
-        error: error.message || "Unknown error during AI processing",
+        error: userMessage,
         updatedAt: new Date().toISOString(),
       });
     }
