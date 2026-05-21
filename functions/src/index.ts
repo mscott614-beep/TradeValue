@@ -296,6 +296,12 @@ export const geminiProcessingQueue = onTaskDispatched(
       } else if (rawMessage.includes("404") && rawMessage.includes("models/")) {
         userMessage =
           "Scanner model configuration error. A deploy fix is in progress — please retry in a few minutes.";
+      } else if (
+        rawMessage.includes("Schema validation failed") ||
+        rawMessage.includes("must have required property")
+      ) {
+        userMessage =
+          "Scanner could not read all card fields. Please retry with a clearer back photo showing the card number and year.";
       }
 
       await jobRef.update({

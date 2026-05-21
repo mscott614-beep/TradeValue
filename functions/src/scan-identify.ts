@@ -17,24 +17,81 @@ export const ScanOutputSchema = z.object({
 export const CardOcrSchema = z.object({
   frontTextLines: z
     .array(z.string())
+    .default([])
     .describe("Every legible text line on the front, smallest copyright included"),
   backTextLines: z
     .array(z.string())
+    .default([])
     .describe("Every legible text line on the back"),
+  // optional() — model may omit keys; enrichOcrFromTextLines fills gaps from line text
   cardNumber: z
     .string()
-    .nullable()
+    .optional()
     .describe("Card number exactly as printed (usually on back)"),
   yearSeason: z
     .string()
-    .nullable()
+    .optional()
     .describe(
       'Season/year printed on card, e.g. "1987-88". Transcribe digits carefully — 1987 is NOT 1978.'
     ),
-  brand: z.string().nullable().describe("Manufacturer if visible, e.g. O-Pee-Chee"),
-  setName: z.string().nullable().describe("Subset name if visible"),
-  playerName: z.string().nullable().describe("Player name if visible"),
+  brand: z.string().optional().describe("Manufacturer if visible, e.g. O-Pee-Chee"),
+  setName: z.string().optional().describe("Subset name if visible"),
+  playerName: z.string().optional().describe("Player name if visible"),
 });
+
+export type CardOcrResult = z.infer<typeof CardOcrSchema>;
+
+/** Extract year/card #/player from raw OCR lines when structured fields are missing. */
+export function enrichOcrFromTextLines(ocr: CardOcrResult): CardOcrResult {
+  const front = ocr.frontTextLines ?? [];
+  const back = ocr.backTextLines ?? [];
+  const allLines = [...front, ...back];
+  const combined = allLines.join("\n");
+
+  let yearSeason = ocr.yearSeason?.trim();
+  if (!yearSeason) {
+    const seasonMatch = combined.match(/\b((?:19|20)\d{2})\s*[-–/]\s*(\d{2})\b/);
+    if (seasonMatch) {
+      yearSeason = `${seasonMatch[1]}-${seasonMatch[2]}`;
+    }
+  }
+
+  let cardNumber = ocr.cardNumber?.trim();
+  if (!cardNumber) {
+    const hashMatch = combined.match(/#\s*(\d{1,4})\b/i);
+    const noMatch = combined.match(/\bNo\.?\s*(\d{1,4})\b/i);
+    const backNum = back.join("\n").match(/\b(\d{1,4})\b/);
+    cardNumber = hashMatch?.[1] || noMatch?.[1] || (back.length > 0 ? backNum?.[1] : undefined);
+  }
+
+  let playerName = ocr.playerName?.trim();
+  if (!playerName) {
+    const gretzky = allLines.find((l) => /gretzky/i.test(l));
+    if (gretzky) playerName = "Wayne Gretzky";
+    else {
+      const nameLine = front.find((l) => /^[A-Z][a-z]+ [A-Z][a-z]+/.test(l.trim()));
+      if (nameLine) playerName = nameLine.trim();
+    }
+  }
+
+  let brand = ocr.brand?.trim();
+  if (!brand) {
+    if (/o-pee-chee|o pee chee|\bopc\b/i.test(combined)) brand = "O-Pee-Chee";
+    else if (/upper deck/i.test(combined)) brand = "Upper Deck";
+    else if (/topps/i.test(combined)) brand = "Topps";
+    else if (/parkhurst/i.test(combined)) brand = "Parkhurst";
+  }
+
+  return {
+    frontTextLines: front,
+    backTextLines: back,
+    yearSeason: yearSeason || ocr.yearSeason,
+    cardNumber: cardNumber ? String(cardNumber).replace(/^#/, "") : ocr.cardNumber,
+    brand: brand || ocr.brand,
+    setName: ocr.setName,
+    playerName: playerName || ocr.playerName,
+  };
+}
 
 export function mimeFromDataUri(dataUri: string): string {
   const match = dataUri.match(/^data:([^;]+);base64,/i);
@@ -72,12 +129,12 @@ CRITICAL FOR YEARS/SEASONS:
 - Look for copyright lines, "OPC", "O-Pee-Chee", "Topps", and season strings on the front or back border.
 - If the back image is provided, the card number and season year are usually on the back — prioritize back text for cardNumber and yearSeason.
 
-Return JSON with:
-- frontTextLines: array of strings
-- backTextLines: array of strings (empty if no back image)
-- cardNumber: exact number from card (e.g. "183", "#183") or null
-- yearSeason: exact season string printed on card (e.g. "1987-88") or null
-- brand, setName, playerName: only if clearly visible`;
+Return JSON with ALL keys present:
+- frontTextLines: array of strings (required, can be empty)
+- backTextLines: array of strings (required, use [] if no back image)
+- cardNumber: string if visible, otherwise omit this key
+- yearSeason: string if visible (e.g. "1987-88"), otherwise omit this key
+- brand, setName, playerName: include only when clearly visible`;
 
 const IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
 
@@ -110,6 +167,11 @@ export async function identifyCardFromImages(
     });
   };
 
+  const MinimalOcrSchema = z.object({
+    frontTextLines: z.array(z.string()).default([]),
+    backTextLines: z.array(z.string()).default([]),
+  });
+
   let ocrResponse;
   try {
     ocrResponse = await runGenerate(
@@ -118,20 +180,40 @@ export async function identifyCardFromImages(
       CardOcrSchema
     );
   } catch (err: any) {
-    console.warn(`[Scanner] OCR pass failed (${err.message}), retrying...`);
-    ocrResponse = await runGenerate(
-      fallbackModel,
-      [{ text: OCR_PROMPT }, ...mediaParts],
-      CardOcrSchema
-    );
+    console.warn(`[Scanner] OCR pass failed (${err.message}), retrying fallback model...`);
+    try {
+      ocrResponse = await runGenerate(
+        fallbackModel,
+        [{ text: OCR_PROMPT }, ...mediaParts],
+        CardOcrSchema
+      );
+    } catch (err2: any) {
+      console.warn(
+        `[Scanner] OCR strict schema failed (${err2.message}), using minimal schema...`
+      );
+      ocrResponse = await runGenerate(
+        fallbackModel,
+        [{ text: OCR_PROMPT }, ...mediaParts],
+        MinimalOcrSchema
+      );
+    }
   }
 
-  const ocr = ocrResponse.output as z.infer<typeof CardOcrSchema> | null;
+  let ocr = ocrResponse.output as CardOcrResult | null;
   if (!ocr) {
     throw new Error("OCR pass failed to return structured text.");
   }
 
-  console.log("[Scanner] OCR yearSeason:", ocr.yearSeason, "cardNumber:", ocr.cardNumber);
+  ocr = enrichOcrFromTextLines(ocr);
+
+  console.log(
+    "[Scanner] OCR yearSeason:",
+    ocr.yearSeason,
+    "cardNumber:",
+    ocr.cardNumber,
+    "lines:",
+    (ocr.frontTextLines?.length ?? 0) + (ocr.backTextLines?.length ?? 0)
+  );
 
   const identifyPrompt = `${IDENTIFY_PROMPT_PREFIX}${JSON.stringify(ocr, null, 2)}`;
 
@@ -162,9 +244,14 @@ export async function identifyCardFromImages(
 /** Prefer OCR-printed year/number when the vision model drifts. */
 export function reconcileScanWithOcr(
   result: z.infer<typeof ScanOutputSchema>,
-  ocr: z.infer<typeof CardOcrSchema>
+  ocr: CardOcrResult
 ): z.infer<typeof ScanOutputSchema> {
   const normalized = { ...result };
+
+  // If identify pass missed year but OCR lines contain a season, use it
+  if (!normalized.year?.trim() && ocr.yearSeason?.trim()) {
+    normalized.year = normalizeSeason(ocr.yearSeason);
+  }
 
   if (ocr.yearSeason?.trim()) {
     const ocrYear = normalizeSeason(ocr.yearSeason);
