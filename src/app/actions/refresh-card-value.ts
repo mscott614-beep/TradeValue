@@ -171,6 +171,7 @@ export async function analyzeCardAction(card: Portfolio) {
             player: card.player,
             year: yearFix.year,
             brand: card.brand,
+            set: card.set,
             parallel: card.parallel,
             condition: card.condition,
             currentMarketValue: card.currentMarketValue,
@@ -206,7 +207,28 @@ export async function analyzeCardAction(card: Portfolio) {
 
         return { success: true, result: analysis };
     } catch (error: any) {
-        console.error("[Analysis Error]", error);
-        return { success: false, error: error.message };
+        console.error("[Analysis Error] Agent failed, trying Genkit fallback:", error);
+        try {
+            const { analyzeCardInvestment } = await import("@/ai/flows/analyze-card");
+            const fallback = await analyzeCardInvestment({
+                card: {
+                    ...card,
+                    year: normalizeHockeyCardYear({
+                        year: card.year,
+                        brand: card.brand,
+                        player: card.player,
+                        cardNumber: card.cardNumber,
+                        set: card.set,
+                    }).year,
+                },
+            });
+            return { success: true, result: fallback };
+        } catch (fallbackErr: any) {
+            console.error("[Analysis Error] Genkit fallback failed:", fallbackErr);
+            return {
+                success: false,
+                error: fallbackErr?.message || error?.message || "Analysis failed",
+            };
+        }
     }
 }

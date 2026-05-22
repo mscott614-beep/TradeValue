@@ -86,7 +86,18 @@ export default function CompareCardsPage() {
 
 
             } else {
-                toast({ title: "Analysis Failed", description: "One or both cards failed to analyze.", variant: "destructive" });
+                const parts: string[] = [];
+                if (!res1.success) {
+                    parts.push(`${card1.year} ${card1.player}: ${res1.error || "failed"}`);
+                }
+                if (!res2.success) {
+                    parts.push(`${card2.year} ${card2.player}: ${res2.error || "failed"}`);
+                }
+                toast({
+                    title: "Analysis Failed",
+                    description: parts.length ? parts.join(" · ") : "One or both cards failed to analyze.",
+                    variant: "destructive",
+                });
             }
         } catch (error) {
             console.error(error);

@@ -249,6 +249,35 @@ app = FastAPI()
 # Valuation cache: skip Gemini + Google Search when a fresh entry exists (default 24h).
 VALUATION_CACHE_TTL_SECONDS = int(os.environ.get("VALUATION_CACHE_TTL_HOURS", "24")) * 3600
 
+# Batch sync budget guards (scheduler / globalBatchSync → /batch-sync)
+BATCH_SYNC_MAX_CARDS = max(10, int(os.environ.get("BATCH_SYNC_MAX_CARDS", "60")))
+BATCH_SYNC_RETRY_HOURS = max(6, int(os.environ.get("BATCH_SYNC_RETRY_HOURS", "48")))
+
+
+def batch_sync_should_skip_card(data: dict) -> tuple[bool, str]:
+    """
+    Skip Gemini + Google Search when a zero-value card was already valued recently
+    and is still in manual_review / error (avoids daily re-burn on hopeless rows).
+    """
+    last = data.get("lastMarketValueUpdate") or data.get("last_updated")
+    if not last:
+        return False, ""
+    try:
+        last_dt = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+        age_h = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+    except (TypeError, ValueError):
+        return False, ""
+    if age_h >= BATCH_SYNC_RETRY_HOURS:
+        return False, ""
+    try:
+        val = float(data.get("currentMarketValue") or 0)
+    except (TypeError, ValueError):
+        val = 0.0
+    status = str(data.get("status") or "").lower()
+    if val <= 0.01 or status in ("manual_review", "error", "failed"):
+        return True, f"recent_attempt_{int(age_h)}h"
+    return False, ""
+
 
 class ValuationRequest(BaseModel):
     userId: str
@@ -342,7 +371,11 @@ async def execute_batch_sync_worker(userId: str):
         db = get_db()
         # MCP Timeout: Increased to 60s as requested
         # Wrap the fetch in a 60s timeout for longer batch runs
-        cards_ref = db.collection_group("portfolios").where("currentMarketValue", "in", [0.0, 0.01]).limit(200)
+        cards_ref = (
+            db.collection_group("portfolios")
+            .where("currentMarketValue", "in", [0.0, 0.01])
+            .limit(BATCH_SYNC_MAX_CARDS)
+        )
         try:
             cards = await asyncio.wait_for(asyncio.to_thread(lambda: list(cards_ref.stream())), timeout=60.0)
         except asyncio.TimeoutError:
@@ -353,6 +386,7 @@ async def execute_batch_sync_worker(userId: str):
             print("[BatchSync] No cards found needing sync.")
             return
 
+        skipped_recent = 0
         # Chunk into groups of 20
         chunk_size = 20
         for i in range(0, len(cards), chunk_size):
@@ -368,6 +402,12 @@ async def execute_batch_sync_worker(userId: str):
                 # --- METADATA VALIDATION (SKIP INCOMPLETE) ---
                 if not player or not brand or not year:
                     print(f"[BatchSync] SKIP: Incomplete metadata for {card_doc.id}")
+                    continue
+
+                skip, reason = batch_sync_should_skip_card(data)
+                if skip:
+                    skipped_recent += 1
+                    print(f"[BatchSync] SKIP: {card_doc.id} ({reason})")
                     continue
 
                 # Trigger valuation using the grounded value_card logic for precision
@@ -395,6 +435,11 @@ async def execute_batch_sync_worker(userId: str):
                 await asyncio.sleep(1.0)
             
             print(f"[BatchSync] Completed chunk {i//chunk_size}")
+
+        print(
+            f"[BatchSync] Done. max={BATCH_SYNC_MAX_CARDS} retry_cooldown={BATCH_SYNC_RETRY_HOURS}h "
+            f"skipped_recent={skipped_recent}"
+        )
             
     except Exception as e:
         print(f"[BatchSync] Worker ERROR: {str(e)}")
@@ -417,6 +462,128 @@ async def warm_series_context_caches():
         "series": results,
         "count": len(results),
     }
+
+
+class AnalyzeCardBody(BaseModel):
+    card: dict
+
+
+def normalize_analysis_payload(raw: dict | None) -> dict:
+    """Ensure CardAnalysisResult JSON shape for the Next.js compare / insights UI."""
+    raw = raw or {}
+
+    def outlook_field(key: str, allowed: tuple, default: str = "Neutral"):
+        v = raw.get("investmentOutlook", {}).get(key) if isinstance(raw.get("investmentOutlook"), dict) else None
+        return v if v in allowed else default
+
+    grading = raw.get("gradingRoi") if isinstance(raw.get("gradingRoi"), dict) else {}
+    grades = raw.get("gradeProbabilities") if isinstance(raw.get("gradeProbabilities"), dict) else {}
+    outlook = raw.get("investmentOutlook") if isinstance(raw.get("investmentOutlook"), dict) else {}
+
+    return {
+        "gradingRoi": {
+            "isRecommended": bool(grading.get("isRecommended", False)),
+            "estimatedCost": float(grading.get("estimatedCost") or 30),
+            "potentialValueIncreasePercent": float(grading.get("potentialValueIncreasePercent") or 0),
+            "reasoning": str(grading.get("reasoning") or "Insufficient data for grading ROI."),
+        },
+        "gradeProbabilities": {
+            "psa10_percent": float(grades.get("psa10_percent") or 0),
+            "psa9_percent": float(grades.get("psa9_percent") or 0),
+            "psa8_or_lower_percent": float(grades.get("psa8_or_lower_percent") or 0),
+            "commonConditionIssues": str(
+                grades.get("commonConditionIssues") or "Typical centering and surface issues for this era."
+            ),
+        },
+        "investmentOutlook": {
+            "shortTerm": outlook_field("shortTerm", ("Bearish", "Neutral", "Bullish")),
+            "longTerm": outlook_field("longTerm", ("Bearish", "Neutral", "Bullish")),
+            "riskLevel": outlook_field("riskLevel", ("Low", "Medium", "High"), "Medium"),
+        },
+        "historicalSignificance": str(
+            raw.get("historicalSignificance")
+            or "Historical context unavailable for this card."
+        ),
+        "comparisonMatchup": raw.get("comparisonMatchup"),
+    }
+
+
+@app.post("/analyze-card")
+async def analyze_card_endpoint(body: AnalyzeCardBody):
+    """
+    Investment / grading analysis for compare tool and card insights (no eBay search).
+    """
+    card = body.card or {}
+    api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GOOGLE_GENAI_API_KEY not configured")
+
+    player = str(card.get("player") or "Unknown").strip()
+    year = str(card.get("year") or "").strip()
+    brand = str(card.get("brand") or "").strip()
+    set_name = str(card.get("set") or "").strip()
+    parallel = str(card.get("parallel") or "None").strip()
+    condition = str(card.get("condition") or "Unknown").strip()
+    value = card.get("currentMarketValue") or 0
+    grade = str(card.get("estimatedGrade") or card.get("grade") or "Raw").strip()
+
+    prompt = f"""You are an expert sports card evaluator, historian, and investment analyst.
+Analyze this card and return ONLY valid JSON (no markdown fences).
+
+Card:
+- Title: {card.get('title') or ''}
+- Player: {player}
+- Year: {year}
+- Brand/Set: {brand} {set_name}
+- Parallel: {parallel}
+- Condition: {condition}
+- Current market value (USD): {value}
+- Estimated grade: {grade}
+
+Cover: grading ROI ($25-$40 typical submit cost), realistic PSA 10/9/8+ probabilities for this era/set,
+short/long investment outlook, and historical significance.
+
+JSON schema:
+{{
+  "gradingRoi": {{
+    "isRecommended": boolean,
+    "estimatedCost": number,
+    "potentialValueIncreasePercent": number,
+    "reasoning": "string"
+  }},
+  "gradeProbabilities": {{
+    "psa10_percent": number,
+    "psa9_percent": number,
+    "psa8_or_lower_percent": number,
+    "commonConditionIssues": "string"
+  }},
+  "investmentOutlook": {{
+    "shortTerm": "Bearish" | "Neutral" | "Bullish",
+    "longTerm": "Bearish" | "Neutral" | "Bullish",
+    "riskLevel": "Low" | "Medium" | "High"
+  }},
+  "historicalSignificance": "string"
+}}"""
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=os.getenv("ANALYSIS_MODEL", "gemini-3.5-flash"),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        res_text = response.text or ""
+        parsed = robust_json_parse(res_text) if res_text else None
+        if not parsed:
+            raise HTTPException(status_code=502, detail="Analysis model returned unparseable JSON")
+        return {"analysis": normalize_analysis_payload(parsed)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AgentService] analyze-card failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/trigger-newsletter", status_code=202)
