@@ -5,19 +5,32 @@ runConfig:
   maxInstances: 1
   memoryMiB: 2048
 
-# Environment variables for the App Hosting backend
+# Environment variables and secrets (must live under `env`, not a separate `secrets` block)
 env:
   - variable: EBAY_ENV
     value: production
+    availability:
+      - BUILD
+      - RUNTIME
 
-# Secrets for the App Hosting backend (single source of truth in Secret Manager)
-secrets:
   - variable: AGENT_SERVICE_URL
     secret: AGENT_SERVICE_URL
+    availability:
+      - RUNTIME
+
   - variable: EBAY_CLIENT_ID
     secret: EBAY_CLIENT_ID
+    availability:
+      - RUNTIME
+
   - variable: EBAY_CLIENT_SECRET
     secret: EBAY_CLIENT_SECRET
+    availability:
+      - RUNTIME
+
   # App Hosting exposes GEMINI_API_KEY; value comes from canonical GOOGLE_GENAI_API_KEY secret
   - variable: GEMINI_API_KEY
     secret: GOOGLE_GENAI_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
