@@ -14,6 +14,15 @@ service cloud.firestore {
       }
     }
 
+    // Rules for root-level portfolio history
+    match /portfolios/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      match /{allSubcollections=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
     // Rules for global Market Prices (publicly readable)
     match /market_prices/{document=**} {
       allow read: if true;

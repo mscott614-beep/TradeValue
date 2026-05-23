@@ -48,6 +48,14 @@ export type PortfolioHistory = {
   value: number;
 };
 
+export type HistoricalSnapshot = {
+  id: string; // dateId (YYYY-MM-DD)
+  timestamp: any;
+  totalValue: number;
+  cardCount: number;
+  netChange: number;
+};
+
 export interface AlertConfig {
   id?: string;
   targetType: 'portfolio' | 'player' | 'brand' | 'card';

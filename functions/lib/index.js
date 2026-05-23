@@ -325,15 +325,29 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
     }
 });
 exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
-    schedule: "0 0 * * *", // Midnight UTC daily
-    timeZone: "UTC",
+    schedule: "0 0 * * *", // Midnight Eastern daily
+    timeZone: "America/New_York",
     region: "us-east4",
     timeoutSeconds: 300,
     memory: "256MiB",
 }, async () => {
     const db = admin.firestore();
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-    console.log(`[PriceSnapshot] Starting daily snapshot for ${today}`);
+    // Determine precise YYYY-MM-DD dates in New York timezone to prevent UTC-shift shifts
+    const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date());
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(yesterdayDate);
+    console.log(`[PriceSnapshot] Starting daily snapshot for ${today} (yesterday was ${yesterday})`);
     const usersSnap = await db.collection("users").listDocuments();
     let totalCards = 0;
     for (const userDocRef of usersSnap) {
@@ -341,13 +355,12 @@ exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
         const batch = db.batch();
         let batchCount = 0;
         let totalPortfolioValue = 0;
-        // yesterday variable removed due to changes in 24h metrics logic
         for (const cardDoc of portfolioSnap.docs) {
             const cardData = cardDoc.data();
             const value = cardData.currentMarketValue;
             if (typeof value === "number" && value > 0) {
                 totalPortfolioValue += value;
-                // 1. Save history snapshot
+                // 1. Save history snapshot (card level)
                 const historyRef = cardDoc.ref
                     .collection("priceHistory")
                     .doc(today);
@@ -355,14 +368,37 @@ exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
                     value,
                     timestamp: new Date().toISOString(),
                 }, { merge: true });
-                // 2. 24h metrics are now handled in real-time by the refresh tasks 
-                // to ensure they reflect the most recent market activity compared to yesterday.
                 batchCount++;
                 totalCards++;
             }
         }
-        // Record total portfolio value for the user
+        // Record total portfolio value for the user in both root and legacy subcollections
         if (totalPortfolioValue > 0) {
+            // Fetch yesterday's snapshot to compute netChange (defensively defaulting to 0)
+            const yesterdayDoc = await db
+                .collection("portfolios")
+                .doc(userDocRef.id)
+                .collection("history")
+                .doc(yesterday)
+                .get();
+            let totalValueYesterday = 0;
+            if (yesterdayDoc.exists) {
+                totalValueYesterday = yesterdayDoc.data()?.totalValue || 0;
+            }
+            const netChange = totalPortfolioValue - totalValueYesterday;
+            // A. Root portfolios subcollection pattern (Time-Series architecture)
+            const portfolioRootHistoryRef = db
+                .collection("portfolios")
+                .doc(userDocRef.id)
+                .collection("history")
+                .doc(today);
+            batch.set(portfolioRootHistoryRef, {
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                totalValue: totalPortfolioValue,
+                cardCount: portfolioSnap.size,
+                netChange: netChange
+            }, { merge: true });
+            // B. Legacy user-level history collection (Backward-compatibility)
             const portfolioHistoryRef = userDocRef
                 .collection("portfolioHistory")
                 .doc(today);
@@ -371,7 +407,7 @@ exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
                 timestamp: new Date().toISOString(),
                 cardCount: portfolioSnap.size
             }, { merge: true });
-            batchCount++;
+            batchCount += 2;
         }
         if (batchCount > 0) {
             await batch.commit();
@@ -379,7 +415,6 @@ exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
     }
     console.log(`[PriceSnapshot] Done. Snapshotted ${totalCards} cards for ${today}.`);
 });
-// --- Morning Refresh: Updates Prices From eBay ---
 /**
  * Triggered at 8:00 AM EST (12:00/13:00 UTC)
  * Iterates through all cards and enqueues them for price refreshing.

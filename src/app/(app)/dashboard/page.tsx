@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowUpRight, DollarSign, TrendingUp, Layers, Loader2, Info, WandSparkles } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import PortfolioChart from "@/components/dashboard/portfolio-chart";
+import PortfolioChart from "@/components/dashboard/PortfolioChart";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
@@ -169,31 +169,62 @@ export default function DashboardPage() {
     const portfolioHistoryQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
         return query(
-            collection(firestore, `users/${user.uid}/portfolioHistory`),
-            orderBy('__name__', 'asc'),
-            limit(30)
+            collection(firestore, `portfolios/${user.uid}/history`),
+            orderBy('__name__', 'asc')
         );
     }, [firestore, user]);
 
-    const { data: historyDocs, isLoading: isLoadingHistory } = useCollection<{ totalValue: number }>(portfolioHistoryQuery);
+    const { data: historyDocs, isLoading: isLoadingHistory } = useCollection<{ totalValue: number; cardCount: number; netChange: number }>(portfolioHistoryQuery);
 
     const historyData = useMemo(() => {
         if (!historyDocs || historyDocs.length === 0) {
-            // If no history yet, return empty but with a future-looking placeholder if not in demo
-            if (isDemo) return []; 
+            if (isDemo) {
+                // Generate a rich, dynamic 90-day daily historical dataset with sine-wave fluctuations around base value
+                const mockData = [];
+                const baseValue = 29220000; // Total value of all 5 demo cards
+                const datesCount = 90;
+                
+                for (let i = datesCount - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    
+                    const dateStr = d.toISOString().split('T')[0];
+                    // Create realistic-looking daily fluctuations + slight upward trend
+                    const wave = Math.sin(i / 8) * 0.04;
+                    const trend = (datesCount - i) * 0.0008;
+                    const noise = (Math.random() - 0.5) * 0.015;
+                    const val = baseValue * (1 + wave + trend + noise);
+                    
+                    const prevWave = Math.sin((i + 1) / 8) * 0.04;
+                    const prevTrend = (datesCount - (i + 1)) * 0.0008;
+                    const prevVal = baseValue * (1 + prevWave + prevTrend);
+                    
+                    mockData.push({
+                        date: dateStr,
+                        displayDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                        totalValue: Math.round(val),
+                        cardCount: 5,
+                        netChange: Math.round(val - prevVal),
+                    });
+                }
+                return mockData;
+            }
             return [];
         }
 
         return historyDocs.map((doc: any) => {
             const dateStr = doc.id;
             const parts = dateStr.split('-');
-            const label = parts.length === 3
+            const displayLabel = parts.length === 3
                 ? new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                 : dateStr;
             
             return {
-                month: label,
-                value: doc.totalValue
+                date: dateStr,
+                displayDate: displayLabel,
+                totalValue: doc.totalValue || 0,
+                cardCount: doc.cardCount || 0,
+                netChange: doc.netChange || 0,
             };
         });
     }, [historyDocs, isDemo]);
@@ -282,15 +313,15 @@ export default function DashboardPage() {
                             <CardTitle>Portfolio Value History</CardTitle>
                             <CardDescription>Estimated performance over time.</CardDescription>
                         </CardHeader>
-                        <CardContent className="h-[300px] flex flex-col justify-center">
+                        <CardContent className="min-h-[300px]">
                             {isLoadingHistory ? (
-                                <div className="flex items-center justify-center h-full">
+                                <div className="flex items-center justify-center h-[250px]">
                                     <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
                                 </div>
                             ) : historyData.length > 0 ? (
                                 <PortfolioChart data={historyData} />
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+                                <div className="flex flex-col items-center justify-center h-[250px] text-center space-y-3">
                                     <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
                                         <TrendingUp className="h-6 w-6 text-muted-foreground opacity-40" />
                                     </div>
