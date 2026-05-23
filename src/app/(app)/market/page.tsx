@@ -374,8 +374,12 @@ export default function MarketHubPage() {
                   const baseValue = parseFloat(item.value.replace(/[^0-9.]/g, '')) || 100;
                   const isHighEnd = baseValue > 150 || isBlueChip || item.player.includes("Bedard") || item.player.includes("Ohtani") || item.title.includes("Rookie");
                   
-                  const rawValue = baseValue * 0.15;
-                  const psa9Value = baseValue * 0.40;
+                  // Create a deterministic pseudo-random ratio based on the player name length so the multiplier isn't hardcoded to 6.7x
+                  const hash = item.player.length + item.title.length;
+                  const rawRatio = 0.08 + ((hash % 12) / 100); // 0.08 to 0.19
+                  
+                  const rawValue = baseValue * rawRatio;
+                  const psa9Value = baseValue * (rawRatio * 2.5);
                   const psa10Value = baseValue;
                   const multiplier = (psa10Value / rawValue).toFixed(1);
 
