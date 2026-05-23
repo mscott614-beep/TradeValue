@@ -93,10 +93,35 @@ class EbayService {
         return this.accessToken;
     }
 
+    private getMockEbayResponse(): EbayAuctionResponse {
+        return {
+            itemSummaries: [
+                {
+                    itemId: "mock1",
+                    title: "Mock Trading Card 1",
+                    price: { value: "150.00", currency: "USD" },
+                    itemWebUrl: "https://ebay.com/mock"
+                },
+                {
+                    itemId: "mock2",
+                    title: "Mock Trading Card 2",
+                    price: { value: "165.00", currency: "USD" },
+                    itemWebUrl: "https://ebay.com/mock"
+                }
+            ],
+            total: 2
+        };
+    }
+
     /**
      * Search for active items using the Browse API.
      */
     async searchActiveItems(query: string, limit: number = 10, sort: string = 'price', includeAuctions: boolean = false): Promise<EbayAuctionResponse> {
+        if (!this.clientId || !this.clientSecret) {
+            console.warn(`[eBay Service] Credentials missing. Returning mock data for query: ${query}`);
+            return this.getMockEbayResponse();
+        }
+
         const token = await this.getAccessToken();
         
         const url = new URL(this.BASE_URLS[this.env].browse);
@@ -132,6 +157,11 @@ class EbayService {
      * Search specifically for active auctions.
      */
     async searchActiveAuctions(query: string, limit: number = 10): Promise<EbayAuctionResponse> {
+        if (!this.clientId || !this.clientSecret) {
+            console.warn(`[eBay Service] Credentials missing. Returning mock data for auction query: ${query}`);
+            return this.getMockEbayResponse();
+        }
+
         const token = await this.getAccessToken();
         
         const url = new URL(this.BASE_URLS[this.env].browse);
@@ -167,6 +197,11 @@ class EbayService {
         upc?: string, 
         limit?: number 
     }): Promise<EbayAuctionResponse> {
+        if (!this.clientId || !this.clientSecret) {
+            console.warn(`[eBay Service] Credentials missing. Returning mock data for sold query: ${options.cardTitle}`);
+            return this.getMockEbayResponse();
+        }
+
         const token = await this.getAccessToken();
         const { cardTitle, epid, upc, limit = 5 } = options;
 

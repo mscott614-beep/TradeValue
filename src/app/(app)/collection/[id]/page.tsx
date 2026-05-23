@@ -357,7 +357,8 @@ export default function CardDetailsPage() {
         const fetchSimilar = async () => {
             setIsFetchingSimilar(true);
             try {
-                const response = await getSimilarCardsAction(card);
+                const plainCard = JSON.parse(JSON.stringify(card));
+                const response = await getSimilarCardsAction(plainCard);
                 if (!cancelled && response.success && response.similarCards) {
                     setSimilarCards(response.similarCards);
                 }
@@ -454,7 +455,8 @@ export default function CardDetailsPage() {
         if (!card) return;
         setIsAnalyzing(true);
         try {
-            const response = await analyzeCardAction(card);
+            const plainCard = JSON.parse(JSON.stringify(card));
+            const response = await analyzeCardAction(plainCard);
             if (response.success && response.result) {
                 setAnalysis(response.result);
                 toast({
@@ -481,10 +483,11 @@ export default function CardDetailsPage() {
         setIsDeepDiving(true);
         setIsAnalyzing(true);
         try {
+            const plainCard = JSON.parse(JSON.stringify(card));
             // Run both in parallel for efficiency
             const [deepDiveResponse, analysisResponse] = await Promise.all([
-                getCardDeepDiveAction(card),
-                analyzeCardAction(card)
+                getCardDeepDiveAction(plainCard),
+                analyzeCardAction(plainCard)
             ]);
 
             if (deepDiveResponse.success && deepDiveResponse.result) {
@@ -1342,9 +1345,20 @@ export default function CardDetailsPage() {
                                                 </p>
                                             </div>
                                         ) : (
-                                            <div className="prose prose-sm prose-invert max-w-none text-muted-foreground">
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                    {deepDive.analysis}
+                                            <div className="prose prose-sm prose-invert max-w-none">
+                                                <ReactMarkdown 
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={{
+                                                        p: ({node, ...props}) => <p className="mb-4 text-slate-300 leading-relaxed" {...props} />,
+                                                        strong: ({node, ...props}) => <strong className="font-semibold text-blue-100 bg-blue-500/10 px-1 py-0.5 rounded" {...props} />,
+                                                        h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mb-4 mt-6 border-b border-blue-500/20 pb-2" {...props} />,
+                                                        h2: ({node, ...props}) => <h2 className="text-lg font-bold text-blue-400 mb-3 mt-5" {...props} />,
+                                                        h3: ({node, ...props}) => <h3 className="text-base font-bold text-blue-300 mb-2 mt-4" {...props} />,
+                                                        ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-2 text-slate-300" {...props} />,
+                                                        li: ({node, ...props}) => <li className="text-slate-300 leading-relaxed" {...props} />,
+                                                    }}
+                                                >
+                                                    {deepDive.analysis.replace(/([^\n])\n([^\n])/g, '$1\n\n$2')}
                                                 </ReactMarkdown>
                                             </div>
                                         )}

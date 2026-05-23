@@ -337,81 +337,129 @@ export default function MarketHubPage() {
           <ArbitrageDashboard />
         </TabsContent>
 
-        <TabsContent value="intelligence" className="mt-6 space-y-6">
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className={cn(
-              "lg:col-span-1 no-print transition-all duration-500",
-              isFocusMode && "opacity-0 w-0 h-0 overflow-hidden p-0 m-0"
-            )}>
-              <Card className="sticky top-6">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Flame className="w-5 h-5 text-orange-500" />
-                      Trending Cards
-                    </CardTitle>
-                    <Button variant="ghost" size="sm" onClick={loadTrending} disabled={isLoadingTrending} className="h-8 w-8 p-0">
-                      <RefreshCw className={cn("w-4 h-4", isLoadingTrending && "animate-spin")} />
-                    </Button>
-                  </div>
-                  <CardDescription>Real-time market movers and shakers.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingTrending ? (
-                    <div className="space-y-3">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className="h-16 rounded-lg bg-muted/50 animate-pulse" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {Array.isArray(trending) && trending.map((item) => (
-                        <div key={item.id} className="flex items-start justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors rounded-lg gap-3 text-sm border border-transparent hover:border-border/50">
-                          <div className="min-w-0">
-                            <div className="font-bold truncate">{item.player}</div>
-                            <div className="text-xs text-muted-foreground truncate">{item.title}</div>
-                            <div className="text-[10px] text-primary/70 mt-1 line-clamp-2 leading-tight italic">{item.reason}</div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <div className="font-mono font-bold">{item.value}</div>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "mt-1.5 px-1 py-0 text-[10px] flex items-center gap-0.5 border-none bg-transparent",
-                                item.trend === "up" ? "text-green-500" : "text-red-400"
-                              )}
-                            >
-                              {item.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                              {item.change}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+        <TabsContent value="intelligence" className="mt-6 space-y-10">
+          
+          {/* Trending This Week Section - Elite Dashboard UI */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between no-print">
+              <div>
+                <h3 className="text-xl font-bold flex items-center gap-2 text-slate-100">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  Trending This Week
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">Real-time volume and valuation movers across the registry.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadTrending} disabled={isLoadingTrending} className="border-slate-800 hover:bg-slate-800">
+                <RefreshCw className={cn("w-4 h-4 mr-2", isLoadingTrending && "animate-spin")} />
+                Refresh Matrix
+              </Button>
             </div>
 
+            {isLoadingTrending ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-64 rounded-xl bg-slate-900/40 border border-slate-800/80 animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Array.isArray(trending) && trending.map((item) => {
+                  const blueChip = ["LeBron", "Gretzky", "Crosby", "Ovechkin", "Curry", "Brady", "Jordan", "Mantle", "Ruth", "Kobe", "McDavid"];
+                  const isBlueChip = blueChip.some(p => item.player.includes(p));
+                  const tier = isBlueChip 
+                    ? { label: 'Blue-Chip Registry Anchor', classes: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' }
+                    : { label: 'High-Velocity Speculative', classes: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' };
+
+                  // Multiplier Matrix Logic
+                  const baseValue = parseFloat(item.value.replace(/[^0-9.]/g, '')) || 100;
+                  const isHighEnd = baseValue > 150 || isBlueChip || item.player.includes("Bedard") || item.player.includes("Ohtani") || item.title.includes("Rookie");
+                  
+                  const rawValue = baseValue * 0.15;
+                  const psa9Value = baseValue * 0.40;
+                  const psa10Value = baseValue;
+                  const multiplier = (psa10Value / rawValue).toFixed(1);
+
+                  return (
+                    <div key={item.id} className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 shadow-xl transition-all hover:border-slate-700/50 flex flex-col group">
+                      <div className="flex justify-between items-start mb-5">
+                        <div className="space-y-2 flex-1 pr-4">
+                          <Badge variant="outline" className={cn("px-2.5 py-0.5 text-[10px] uppercase font-bold tracking-wider", tier.classes)}>
+                            {tier.label}
+                          </Badge>
+                          <div>
+                            <h4 className="text-lg font-bold text-slate-100 leading-tight">{item.player}</h4>
+                            <p className="text-sm text-slate-400 truncate">{item.title}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-2xl font-extrabold text-emerald-400 tabular-nums tracking-tight">
+                            {item.value}
+                          </div>
+                          <div className={cn(
+                            "mt-1.5 text-sm font-bold flex items-center justify-end gap-1",
+                            item.trend === "up" ? "text-emerald-500" : "text-rose-500"
+                          )}>
+                            {item.trend === "up" ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                            {item.change}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="text-sm text-slate-300 leading-relaxed flex-1 border-l-2 border-slate-700 pl-4 py-1 mb-2 bg-gradient-to-r from-slate-800/20 to-transparent">
+                        <span className="italic">"{item.reason}"</span>
+                      </div>
+                      
+                      {isHighEnd && (
+                        <div className="mt-5 pt-4 border-t border-slate-800/80">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Slab-to-Raw Variance</span>
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] uppercase font-bold tracking-wider">
+                              {multiplier}x Slab Multiplier
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-center gap-2">
+                            <div className="flex-1 bg-slate-950/60 rounded-lg py-2 border border-slate-800/60">
+                              <div className="text-[10px] text-slate-500 font-bold mb-0.5 tracking-wider">RAW</div>
+                              <div className="text-sm font-semibold text-slate-300">${rawValue.toFixed(0)}</div>
+                            </div>
+                            <div className="text-slate-700 font-black text-xs">›</div>
+                            <div className="flex-1 bg-slate-950/60 rounded-lg py-2 border border-slate-800/60">
+                              <div className="text-[10px] text-slate-500 font-bold mb-0.5 tracking-wider">PSA 9</div>
+                              <div className="text-sm font-semibold text-slate-300">${psa9Value.toFixed(0)}</div>
+                            </div>
+                            <div className="text-slate-700 font-black text-xs">›</div>
+                            <div className="flex-1 bg-blue-950/40 rounded-lg py-2 border border-blue-900/40 ring-1 ring-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+                              <div className="text-[10px] text-blue-400 font-bold mb-0.5 tracking-wider">PSA 10</div>
+                              <div className="text-sm font-extrabold text-blue-300">${psa10Value.toFixed(0)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Market Intelligence Report */}
+          <div className="grid gap-6">
             <div className={cn(
               "transition-all duration-700 ease-in-out",
-              isFocusMode ? "lg:col-span-3 max-w-5xl mx-auto" : "lg:col-span-2"
+              isFocusMode ? "max-w-5xl mx-auto w-full" : "w-full"
             )}>
               <div className="flex items-center justify-between mb-4 no-print">
                 <div>
-                  <h3 className="text-lg font-bold flex items-center gap-2">
+                  <h3 className="text-xl font-bold flex items-center gap-2 text-slate-100">
                     <FileText className="w-5 h-5 text-primary" />
                     Market Intelligence Report
                   </h3>
-                  <p className="text-sm text-muted-foreground italic" suppressHydrationWarning>Generated: {new Date().toLocaleDateString()}</p>
+                  <p className="text-sm text-slate-400 italic" suppressHydrationWarning>Synthesized: {new Date().toLocaleDateString()}</p>
                 </div>
                 {report && (
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handlePrintReport} className="h-8 gap-2">
-                      <Printer className="w-3.5 h-3.5" /> PDF
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={handleExportToGoogleDocs} className="h-8 gap-2">
-                      <ExternalLink className="w-3.5 h-3.5" /> Export
+                    <Button variant="outline" size="sm" onClick={handlePrintReport} className="h-8 gap-2 border-slate-800">
+                      <Printer className="w-3.5 h-3.5" /> Export PDF
                     </Button>
                   </div>
                 )}
@@ -426,15 +474,15 @@ export default function MarketHubPage() {
                   />
                 </div>
               ) : (
-                <Card className="flex flex-col items-center justify-center text-center p-12 border-dashed bg-muted/20">
-                  <div className="bg-primary/10 p-4 rounded-full mb-6">
+                <Card className="flex flex-col items-center justify-center text-center p-12 border border-slate-800/80 bg-slate-900/40 backdrop-blur-sm rounded-xl">
+                  <div className="bg-primary/10 p-5 rounded-full mb-6 ring-1 ring-primary/20">
                     <WandSparkles className="w-10 h-10 text-primary" />
                   </div>
-                  <h3 className="text-xl font-bold mb-2">No Report Active</h3>
-                  <p className="text-sm text-muted-foreground mb-8 max-w-sm">
-                    Leverage our AI engine to synthesize a professional market report based on current auction trends and historical data.
+                  <h3 className="text-2xl font-bold mb-3 text-slate-100">No Report Active</h3>
+                  <p className="text-sm text-slate-400 mb-8 max-w-md leading-relaxed">
+                    Leverage our AI engine to synthesize a professional market report based on current auction trends, multiplier variances, and historical data.
                   </p>
-                  <div className="flex w-full max-w-md items-center space-x-2">
+                  <div className="flex w-full max-w-lg items-center space-x-2">
                     <Input
                       type="text"
                       placeholder="Optional topic (e.g. Modern Hockey PSA 10)"
@@ -442,10 +490,10 @@ export default function MarketHubPage() {
                       onChange={(e) => setTopic(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleGenerateReport()}
                       disabled={isGenerating}
-                      className="bg-background"
+                      className="bg-slate-950/80 border-slate-800 h-11"
                     />
-                    <Button onClick={handleGenerateReport} disabled={isGenerating} className="shrink-0 gap-2">
-                      {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate"}
+                    <Button onClick={handleGenerateReport} disabled={isGenerating} className="shrink-0 gap-2 h-11 px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
+                      {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate Report"}
                     </Button>
                   </div>
                 </Card>

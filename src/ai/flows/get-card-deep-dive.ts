@@ -89,29 +89,20 @@ export const getCardDeepDive = ai.defineFlow(
             const response = await generateWithFallback({
                 model: PRIMARY_MODEL,
                 prompt: prompt,
+                output: { schema: CardDeepDiveSchema }
             });
 
-            let rawOutput = response.output as any;
+            const result = response.output;
 
-            // Sanitization: If AI returned a string with JSON inside, parse it
-            if (typeof rawOutput === 'string') {
-                try {
-                    // Find the first { and last }
-                    const firstBrace = rawOutput.indexOf('{');
-                    const lastBrace = rawOutput.lastIndexOf('}');
-                    if (firstBrace !== -1 && lastBrace !== -1) {
-                        rawOutput = JSON.parse(rawOutput.substring(firstBrace, lastBrace + 1));
-                    }
-                } catch (e) {
-                    console.error("[Shadow] Failed to parse raw string output:", e);
-                }
+            if (!result) {
+                throw new Error("Failed to generate structured output");
             }
 
             return {
-                marketFloor: (rawOutput.marketFloor || marketFloor) as number,
-                recentVelocity: (rawOutput.recentVelocity || velocitySummary) as string,
-                investmentGrade: (rawOutput.investmentGrade || 'Hold') as 'Strong Buy' | 'Buy' | 'Neutral' | 'Hold' | 'Sell' | 'Strong Sell',
-                analysis: (rawOutput.analysis || (typeof rawOutput === 'string' ? rawOutput : "Analysis generated.")) as string,
+                marketFloor: result.marketFloor,
+                recentVelocity: result.recentVelocity,
+                investmentGrade: result.investmentGrade,
+                analysis: result.analysis,
                 isGrounded: true
             };
 
