@@ -14,6 +14,8 @@ import {
 
 const COLLECTION = "arbitrage_signals";
 const SIGNAL_TTL_HOURS = parseInt(process.env.ARBITRAGE_SIGNAL_TTL_HOURS || "48", 10);
+const SCAN_COOLDOWN_HOURS = parseInt(process.env.ARBITRAGE_SCAN_COOLDOWN_HOURS || "12", 10);
+const MAX_WATCHLIST = parseInt(process.env.ARBITRAGE_MAX_WATCHLIST || "12", 10);
 
 function cardTitle(d: CardWatchDescriptor): string {
   return (
@@ -52,7 +54,20 @@ function mergeWatchlist(reportRows: CardWatchDescriptor[]): CardWatchDescriptor[
     seen.add(key);
     merged.push(d);
   }
-  return merged.slice(0, 20);
+  return merged.slice(0, MAX_WATCHLIST);
+}
+
+function shouldSkipEbayScan(existing: admin.firestore.DocumentSnapshot | null): boolean {
+  if (!existing?.exists) return false;
+  const data = existing.data();
+  const detectedAt = data?.detectedAt;
+  if (!detectedAt || typeof detectedAt !== "string") return false;
+  const detectedMs = new Date(detectedAt).getTime();
+  if (isNaN(detectedMs)) return false;
+  const ageMs = Date.now() - detectedMs;
+  if (ageMs >= SCAN_COOLDOWN_HOURS * 3600 * 1000) return false;
+  // Skip duplicate eBay pulls if we already have comps for this card
+  return typeof data?.rawMedianUsd === "number" && data.rawMedianUsd > 0;
 }
 
 function findBestUnderpricedListing(
@@ -85,7 +100,7 @@ function findBestUnderpricedListing(
 export async function runArbitrageScan(
   db: admin.firestore.Firestore,
   ebay: EbayService
-): Promise<{ scanned: number; signals: number }> {
+): Promise<{ scanned: number; signals: number; skippedCooldown: number }> {
   const reportWatch = await loadReportWatchlist(db);
   const watchlist = mergeWatchlist(reportWatch);
   const now = new Date();
@@ -93,10 +108,19 @@ export async function runArbitrageScan(
   const detectedAt = now.toISOString();
 
   let signalCount = 0;
+  let skippedCooldown = 0;
   const batch = db.batch();
 
   for (const card of watchlist) {
     try {
+      const cardKey = buildCardKey(card);
+      const docId = cardKey.replace(/[^a-z0-9_|.-]/gi, "_").slice(0, 128);
+      const existingSnap = await db.collection(COLLECTION).doc(docId).get();
+      if (shouldSkipEbayScan(existingSnap)) {
+        skippedCooldown += 1;
+        continue;
+      }
+
       const rawCard = {
         year: card.year,
         brand: card.brand,
@@ -139,9 +163,6 @@ export async function runArbitrageScan(
         gradingPassRate: card.gradingPassRate,
       });
 
-      const cardKey = buildCardKey(card);
-      const docId = cardKey.replace(/[^a-z0-9_|.-]/gi, "_").slice(0, 128);
-
       const payload = {
         cardKey,
         player: card.player,
@@ -183,6 +204,9 @@ export async function runArbitrageScan(
   }
 
   await batch.commit();
-  console.log(`[ArbitrageScan] Done. watchlist=${watchlist.length} active_signals=${signalCount}`);
-  return { scanned: watchlist.length, signals: signalCount };
+  console.log(
+    `[ArbitrageScan] Done. watchlist=${watchlist.length} active_signals=${signalCount} ` +
+      `skipped_cooldown=${skippedCooldown}`
+  );
+  return { scanned: watchlist.length, signals: signalCount, skippedCooldown };
 }

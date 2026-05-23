@@ -459,7 +459,10 @@ export const scheduledMarketRefresh = onSchedule(
           const userId = doc.ref.parent.parent?.id;
           if (userId && !passAIds.has(doc.id)) {
             passAIds.add(doc.id);
-            passATasks.push({ userId, cardId: doc.id, deepSearch: true });
+            const data = doc.data();
+            // deepSearch bypasses valuation cache — only for never-valued cards
+            const neverValued = !data.lastMarketValueUpdate;
+            passATasks.push({ userId, cardId: doc.id, deepSearch: neverValued });
           }
         });
       });
@@ -468,7 +471,7 @@ export const scheduledMarketRefresh = onSchedule(
       const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
       const MAX_DAILY_REFRESH = Math.max(
         10,
-        parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "150", 10)
+        parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "100", 10)
       );
 
       const isStaleRefresh = (data: admin.firestore.DocumentData): boolean => {
@@ -727,7 +730,8 @@ export { marketReportV2 } from "./marketReportV2";
 // Slab-to-raw arbitrage scanner (eBay raw vs PSA 10 comps)
 export const scheduledArbitrageScan = onSchedule(
   {
-    schedule: "30 8,20 * * *",
+    // Once daily (evening) — set ARBITRAGE_SCAN_CRON=30 8,20 * * * for twice daily
+    schedule: process.env.ARBITRAGE_SCAN_CRON || "30 20 * * *",
     timeZone: "America/New_York",
     region: "us-east4",
     memory: "512MiB",
@@ -747,24 +751,25 @@ export const scheduledArbitrageScan = onSchedule(
   }
 );
 
-// Global Batch Sync Scheduler (6:00 AM)
+// Global Batch Sync Scheduler (6:00 AM ET) — warm caches first, then batch (token-efficient order)
 export const globalBatchSync = onSchedule({
   schedule: "0 6 * * *",
+  timeZone: "America/New_York",
   region: "us-east4",
-  secrets: [AGENT_SERVICE_URL]
-}, async (event) => {
+  secrets: [AGENT_SERVICE_URL],
+}, async () => {
   const agentBase = AGENT_SERVICE_URL.value().trim();
-  try {
-    await axios.post(`${agentBase}/batch-sync`, { userId: "GLOBAL_BATCH_SYSTEM" });
-    console.log("[GlobalSync] Triggered Vertex AI Batch Prediction Job at 6:00 AM");
-  } catch (error) {
-    console.error("[GlobalSync] Failed to trigger batch job:", error);
-  }
   try {
     const warmRes = await axios.post(`${agentBase}/warm-series-context-caches`, {}, { timeout: 120000 });
     console.log("[GlobalSync] Warmed Gemini series context caches:", warmRes.data);
   } catch (warmErr) {
     console.error("[GlobalSync] Context cache warm failed (non-fatal):", warmErr);
+  }
+  try {
+    await axios.post(`${agentBase}/batch-sync`, { userId: "GLOBAL_BATCH_SYSTEM" });
+    console.log("[GlobalSync] Triggered batch-sync for zero-value cards");
+  } catch (error) {
+    console.error("[GlobalSync] Failed to trigger batch job:", error);
   }
 });
 

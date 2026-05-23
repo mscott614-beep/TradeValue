@@ -144,6 +144,20 @@ Return JSON with ALL keys present:
 - yearSeason: string if visible (e.g. "1987-88"), otherwise omit this key
 - brand, setName, playerName: include only when clearly visible`;
 
+const FRONT_ONLY_IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
+
+Using the provided front image and the OCR transcription below, identify the trading card's player, manufacturer (brand), card number, and product year/season.
+
+Since you only have the front of the card, you MUST use your visual recognition and extensive trading card catalog knowledge to determine:
+1. The exact product year/season (normalized to YYYY-YY or YYYY format, e.g. 1965-66, or 1965, or 1999-00). Note that for vintage card designs (e.g., the 1959 Topps circular porthole vignette design with slanted lowercase cursive text), the release year and card number are NOT printed on the front. You MUST ignore any random digits or letters in the raw OCR and rely strictly on your visual checklist catalog knowledge of that design set to resolve the exact correct year (e.g., 1959) and card checklist number.
+2. The manufacturer brand (e.g. Topps, Upper Deck, Fleer, OPC).
+3. The exact card number from the set (e.g. Rip Coleman is card #51, Vito Valentinetti is #44, Bill Hall is #49, Bill Henry is #46 in 1959 Topps Baseball).
+4. The exact player full name as spelled on the card.
+5. The subset or series name if applicable.
+
+OCR TRANSCRIPTION:
+`;
+
 const IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
 
 Using ONLY the OCR transcription below (not general knowledge about famous cards), produce the final card identity JSON.
@@ -214,6 +228,14 @@ export async function identifyCardFromImages(
 
   ocr = enrichOcrFromTextLines(ocr);
 
+  const isFrontOnly = !payload.backPhotoDataUri;
+  if (isFrontOnly) {
+    // For front-only scans, card numbers and years are almost never printed on the front.
+    // Clear out OCR-extracted fields to prevent hallucinated numbers from overriding correct visual cataloging.
+    ocr.yearSeason = undefined;
+    ocr.cardNumber = undefined;
+  }
+
   console.log(
     "[Scanner] OCR yearSeason:",
     ocr.yearSeason,
@@ -223,20 +245,31 @@ export async function identifyCardFromImages(
     (ocr.frontTextLines?.length ?? 0) + (ocr.backTextLines?.length ?? 0)
   );
 
-  const identifyPrompt = `${IDENTIFY_PROMPT_PREFIX}${JSON.stringify(ocr, null, 2)}`;
+  const identifyPrompt = `${isFrontOnly ? FRONT_ONLY_IDENTIFY_PROMPT_PREFIX : IDENTIFY_PROMPT_PREFIX}${JSON.stringify(ocr, null, 2)}`;
+
+  const idPromptParts: any[] = [{ text: identifyPrompt }];
+  if (isFrontOnly) {
+    // Include front image part so the vision model can visually inspect the card design
+    idPromptParts.push({
+      media: {
+        url: payload.frontPhotoDataUri,
+        contentType: mimeFromDataUri(payload.frontPhotoDataUri),
+      },
+    });
+  }
 
   let idResponse;
   try {
     idResponse = await runGenerate(
       primaryModel,
-      [{ text: identifyPrompt }],
+      idPromptParts,
       ScanOutputSchema
     );
   } catch (err: any) {
     console.warn(`[Scanner] Identify pass failed (${err.message}), retrying...`);
     idResponse = await runGenerate(
       fallbackModel,
-      [{ text: identifyPrompt }],
+      idPromptParts,
       ScanOutputSchema
     );
   }

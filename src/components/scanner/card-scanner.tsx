@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, WandSparkles, Loader2, CheckCircle, PlusCircle } from "lucide-react";
+import { Upload, X, WandSparkles, Loader2, CheckCircle, PlusCircle, LayoutGrid, Scan } from "lucide-react";
 import Image from "next/image";
 import { Card, CardContent } from "../ui/card";
 import { useFirestore, useUser } from "@/firebase";
@@ -19,6 +19,8 @@ import { buildCardTitle, buildFullSetName } from "@/lib/card-utils";
 import { useAccountLimits } from "@/hooks/use-account-limits";
 import { AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { BatchProcessor } from "./BatchProcessor";
+
 
 interface ImageUploaderProps {
   file: File | null;
@@ -80,6 +82,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
 
 export function CardScanner() {
+  const [scanMode, setScanMode] = useState<"single" | "batch">("single");
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [frontPreview, setFrontPreview] = useState<string | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
@@ -329,133 +332,162 @@ export function CardScanner() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ImageUploader
-          file={frontFile}
-          preview={frontPreview}
-          onFileChange={(e) => handleFileChange(e, setFrontFile, setFrontPreview)}
-          onRemoveImage={handleRemoveFrontImage}
-          inputRef={frontFileInputRef as any}
-          title="Card Front"
-          description="Upload or drag & drop"
-        />
-        <ImageUploader
-          file={backFile}
-          preview={backPreview}
-          onFileChange={(e) => handleFileChange(e, setBackFile, setBackPreview)}
-          onRemoveImage={handleRemoveBackImage}
-          inputRef={backFileInputRef as any}
-          title="Card Back (Recommended)"
-          description="Card number & year — greatly improves ID accuracy"
-        />
-      </div>
-
-      <div className="flex justify-center">
-        <Button
-          size="lg"
-          onClick={handleScan}
-          disabled={!frontFile || isLoading || !canAction}
-          className="w-full max-w-sm"
-        >
-          {isLoading ? (
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          ) : (
-            <WandSparkles className="mr-2 h-5 w-5" />
-          )}
-          {isLoading ? (scanStatus === "processing" ? "Fetching Market Data..." : "Scanning...") : isLimitReached ? "Limit Reached" : "Scan Card with AI"}
-        </Button>
-      </div>
-
-      {isLimitReached && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-red-400" />
-            <div>
-              <p className="text-sm font-medium text-red-200">Guest Portfolio Limit Reached</p>
-              <p className="text-xs text-slate-400">You've used all {portfolioLimit} card slots available for guests.</p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/login">Sign Up to Unlock</Link>
+      {/* Mode Selector */}
+      <div className="flex justify-center mb-2">
+        <div className="bg-muted p-1 rounded-lg flex space-x-1 border border-border">
+          <Button
+            variant={scanMode === "single" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setScanMode("single")}
+            className="font-semibold flex items-center space-x-1.5 px-4 py-1 h-8 shadow-sm"
+          >
+            <Scan className="w-4 h-4 text-primary" />
+            <span>Single Scan</span>
+          </Button>
+          <Button
+            variant={scanMode === "batch" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setScanMode("batch")}
+            className="font-semibold flex items-center space-x-1.5 px-4 py-1 h-8 shadow-sm"
+          >
+            <LayoutGrid className="w-4 h-4 text-primary" />
+            <span>Batch Scan (Grid)</span>
           </Button>
         </div>
-      )}
+      </div>
 
-      {result && (
-        <Card className="bg-muted/50">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-6">
-              {frontPreview && (
-                <div className="shrink-0 mx-auto md:mx-0">
-                  <img 
-                    src={frontPreview} 
-                    alt="Scanned card" 
-                    className="rounded-lg object-contain w-[140px] h-[200px] border border-primary/20 shadow-md bg-background"
-                  />
+      {scanMode === "batch" ? (
+        <BatchProcessor />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ImageUploader
+              file={frontFile}
+              preview={frontPreview}
+              onFileChange={(e) => handleFileChange(e, setFrontFile, setFrontPreview)}
+              onRemoveImage={handleRemoveFrontImage}
+              inputRef={frontFileInputRef as any}
+              title="Card Front"
+              description="Upload or drag & drop"
+            />
+            <ImageUploader
+              file={backFile}
+              preview={backPreview}
+              onFileChange={(e) => handleFileChange(e, setBackFile, setBackPreview)}
+              onRemoveImage={handleRemoveBackImage}
+              inputRef={backFileInputRef as any}
+              title="Card Back (Recommended)"
+              description="Card number & year — greatly improves ID accuracy"
+            />
+          </div>
+
+          <div className="flex justify-center">
+            <Button
+              size="lg"
+              onClick={handleScan}
+              disabled={!frontFile || isLoading || !canAction}
+              className="w-full max-w-sm"
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                <WandSparkles className="mr-2 h-5 w-5" />
+              )}
+              {isLoading ? (scanStatus === "processing" ? "Fetching Market Data..." : "Scanning...") : isLimitReached ? "Limit Reached" : "Scan Card with AI"}
+            </Button>
+          </div>
+
+          {isLimitReached && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+                <div>
+                  <p className="text-sm font-medium text-red-200">Guest Portfolio Limit Reached</p>
+                  <p className="text-xs text-slate-400">You've used all {portfolioLimit} card slots available for guests.</p>
                 </div>
-              )}
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold mb-4 text-primary">Scan Results</h3>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-
-              <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
-              <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
-              <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
-              <p className="text-muted-foreground">Set:</p><p className="font-medium">{result.set || 'Base Set'}</p>
-              <p className="text-muted-foreground">Card #:</p>
-              <p className="font-medium">
-                {result.cardNumber?.toString().match(/^\d+$/) ? `#${result.cardNumber}` : result.cardNumber}
-              </p>
-              <p className="text-muted-foreground">Condition:</p><p className="font-medium text-green-400">{(result as any).conditionAssessment || result.estimatedGrade}</p>
-              <p className="text-muted-foreground">Grader:</p>
-              <p className="font-medium text-purple-400">
-                {result.grader && result.grader !== "null" ? result.grader : "None"}
-              </p>
-              <p className="text-primary font-bold">Est. Value:</p>
-              <p className="text-primary font-bold">
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}
-              </p>
-              {(result as any).yearCorrectionReason && (
-                <>
-                  <p className="text-[10px] text-muted-foreground">Year fix:</p>
-                  <p className="text-[10px] text-green-400">{(result as any).yearCorrectionReason}</p>
-                </>
-              )}
-              {(result as any).ocrTranscription?.yearSeason && (
-                <>
-                  <p className="text-[10px] text-muted-foreground">OCR year:</p>
-                  <p className="text-[10px] text-muted-foreground">{(result as any).ocrTranscription.yearSeason}</p>
-                </>
-              )}
-              {(result as any).lastSearchQuery && (
-                <>
-                  <p className="text-[10px] text-muted-foreground">Search:</p>
-                  <p className="text-[10px] text-muted-foreground col-span-1 break-words">{(result as any).lastSearchQuery}</p>
-                </>
-              )}
-              {(result as any).valuationMethod && (
-                <>
-                  <p className="text-[10px] text-muted-foreground">Method:</p>
-                  <p className="text-[10px] text-muted-foreground">{(result as any).valuationMethod}</p>
-                </>
-              )}
-            </div>
-            <div className="flex gap-2 mt-6">
-              <Button className="flex-1" onClick={handleAddToCollection} disabled={isLoading || isLimitReached}>
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                )}
-                {isLimitReached ? "Portfolio Full" : "Add to Collection"}
+              </div>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/login">Sign Up to Unlock</Link>
               </Button>
-              <Button variant="outline" className="flex-1" onClick={handleScanAnother} disabled={isLoading}>Scan Another</Button>
             </div>
-            </div>
-            </div>
-          </CardContent>
-        </Card>
+          )}
 
+          {result && (
+            <Card className="bg-muted/50">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                  {frontPreview && (
+                    <div className="shrink-0 mx-auto md:mx-0">
+                      <img 
+                        src={frontPreview} 
+                        alt="Scanned card" 
+                        className="rounded-lg object-contain w-[140px] h-[200px] border border-primary/20 shadow-md bg-background"
+                      />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold mb-4 text-primary">Scan Results</h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+
+                  <p className="text-muted-foreground">Player:</p><p className="font-medium">{result.player}</p>
+                  <p className="text-muted-foreground">Year:</p><p className="font-medium">{result.year}</p>
+                  <p className="text-muted-foreground">Brand:</p><p className="font-medium">{result.brand}</p>
+                  <p className="text-muted-foreground">Set:</p><p className="font-medium">{result.set || 'Base Set'}</p>
+                  <p className="text-muted-foreground">Card #:</p>
+                  <p className="font-medium">
+                    {result.cardNumber?.toString().match(/^\d+$/) ? `#${result.cardNumber}` : result.cardNumber}
+                  </p>
+                  <p className="text-muted-foreground">Condition:</p><p className="font-medium text-green-400">{(result as any).conditionAssessment || result.estimatedGrade}</p>
+                  <p className="text-muted-foreground">Grader:</p>
+                  <p className="font-medium text-purple-400">
+                    {result.grader && result.grader !== "null" ? result.grader : "None"}
+                  </p>
+                  <p className="text-primary font-bold">Est. Value:</p>
+                  <p className="text-primary font-bold">
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.estimatedMarketValue)}
+                  </p>
+                  {(result as any).yearCorrectionReason && (
+                    <>
+                      <p className="text-[10px] text-muted-foreground">Year fix:</p>
+                      <p className="text-[10px] text-green-400">{(result as any).yearCorrectionReason}</p>
+                    </>
+                  )}
+                  {(result as any).ocrTranscription?.yearSeason && (
+                    <>
+                      <p className="text-[10px] text-muted-foreground">OCR year:</p>
+                      <p className="text-[10px] text-muted-foreground">{(result as any).ocrTranscription.yearSeason}</p>
+                    </>
+                  )}
+                  {(result as any).lastSearchQuery && (
+                    <>
+                      <p className="text-[10px] text-muted-foreground">Search:</p>
+                      <p className="text-[10px] text-muted-foreground col-span-1 break-words">{(result as any).lastSearchQuery}</p>
+                    </>
+                  )}
+                  {(result as any).valuationMethod && (
+                    <>
+                      <p className="text-[10px] text-muted-foreground">Method:</p>
+                      <p className="text-[10px] text-muted-foreground">{(result as any).valuationMethod}</p>
+                    </>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-6">
+                  <Button className="flex-1" onClick={handleAddToCollection} disabled={isLoading || isLimitReached}>
+                    {isLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                    )}
+                    {isLimitReached ? "Portfolio Full" : "Add to Collection"}
+                  </Button>
+                  <Button variant="outline" className="flex-1" onClick={handleScanAnother} disabled={isLoading}>Scan Another</Button>
+                </div>
+                </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );

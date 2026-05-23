@@ -58,10 +58,18 @@ Do **not** hand-edit `functions/src/hockey-card-year.ts`, `pricing-extract.ts`, 
 
 ### Slab-to-raw arbitrage scanner
 
-- **Function:** `scheduledArbitrageScan` — 8:30 AM & 8:30 PM America/New_York (`us-east4`).
+- **Function:** `scheduledArbitrageScan` — default **8:30 PM ET once daily** (`us-east4`).
 - **Firestore:** `arbitrage_signals` (auth read; Functions write only).
 - **UI:** Market Hub → **Arbitrage** tab, or `/market/arbitrage`.
-- **Env (optional):** `ARBITRAGE_SIGNAL_TTL_HOURS` (default `48`).
+- **Env (optional):** `ARBITRAGE_SIGNAL_TTL_HOURS` (48), `ARBITRAGE_SCAN_COOLDOWN_HOURS` (12), `ARBITRAGE_MAX_WATCHLIST` (12), `ARBITRAGE_SCAN_CRON` for custom cron.
+
+### Scheduler cost controls
+
+| Job | Cost knobs |
+|-----|------------|
+| `globalBatchSync` | 6 AM ET: warm caches → batch-sync. Pause duplicate `daily-batch-market-sync-6am` in Cloud Scheduler console. |
+| `market-agent` `/batch-sync` | `BATCH_SYNC_MAX_CARDS` (60), `BATCH_SYNC_RETRY_HOURS` (48). |
+| `scheduledMarketRefresh` | `MAX_DAILY_REFRESH_ENQUEUES` (100); Pass A `deepSearch` only when never valued. |
 
 Deploy:
 
