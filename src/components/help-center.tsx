@@ -39,11 +39,11 @@ import { cn } from "@/lib/utils";
 const features = [
   {
     icon: ScanLine,
-    title: "Add Cards",
+    title: "Dynamic Card Ingestion",
     description:
-      "Add cards via AI Camera Scan, eBay URL import, or bulk CSV upload with AI title enhancement.",
+      "Ingest cards via Single Scan, Multi-Card Batch Scan (up to 8 cards in a grid), or bulk CSV upload with AI enhancement.",
     href: "/scanner",
-    badge: "3 Methods",
+    badge: "Batch Mode",
     color: "text-blue-500",
     bg: "bg-blue-500/10",
     infographic: "/infographics/card-scanner-infographic.png",
@@ -63,9 +63,9 @@ const features = [
   },
   {
     icon: CreditCard,
-    title: "Card Details",
+    title: "Market Valuation",
     description:
-      "Deep-dive into any card: edit attributes, run AI Analysis, and view 24h price history snapshots with direct eBay matches.",
+      "Accurate pricing powered by our 4-tier Pricing Waterfall, robust Trimmed Mean calculations, and direct eBay sold matches.",
     href: "/collection",
     badge: "AI Powered",
     color: "text-primary",
@@ -75,9 +75,9 @@ const features = [
   },
   {
     icon: LayoutDashboard,
-    title: "Portfolio Dashboard",
+    title: "Portfolio Analytics",
     description:
-      "Real-time value history, Total P&L, and a dynamic Market Ticker driven by your unique portfolio performance.",
+      "Track asset growth via the Historical Portfolio Equity Chart, view Total P&L, and monitor daily net changes.",
     href: "/dashboard",
     badge: "Production",
     color: "text-emerald-500",
@@ -111,9 +111,9 @@ const features = [
   },
   {
     icon: ShoppingCart,
-    title: "Market Hub",
+    title: "Market Reports",
     description:
-      "Browse live auctions with direct bidding links, generate AI market reports, and compare cards side-by-side.",
+      "Generate the Weekly Market Analyst Report, analyze risk/liquidity segmentation, and view Slab-to-Raw multipliers.",
     href: "/market",
     badge: "Market",
     color: "text-pink-500",
@@ -140,118 +140,64 @@ const features = [
 
 const faqs = [
   {
-    category: "Adding Cards",
-    question: "What's the best way to add a single graded card?",
+    category: "Ingestion & Scanning",
+    question: "How do I scan cards into my portfolio?",
     answer:
-      "Use Camera Scan on the Add Cards page. Upload a photo of the front (and optionally the back) and the AI will read the slab label, identify the player, year, brand, and grading company, then estimate its average asking price. Place the card on a dark, non-reflective surface in natural light for best results.",
+      "You can use the Single Card Scanner for individual additions, or our new Multi-Card Batch Scan Mode to save time. For Batch Mode, simply upload a 2x2 (4 cards), 3x2 (6 cards), or 4x2 (8 cards) photo grid. Our system automatically segments the images on the client side and passes them concurrently into the geminiProcessingQueue for rapid identification.",
   },
   {
-    category: "Adding Cards",
+    category: "Ingestion & Scanning",
+    question: "Why do I sometimes see a green \"Year fix:\" indicator?",
+    answer:
+      "Our background normalization engine actively monitors image OCR outputs. If it detects a common OCR date error (for instance, misreading 1999 as 1990), it intelligently overrides the error to protect your market queries. When this happens, a green \"Year fix:\" line displays to let you know the AI corrected the data.",
+  },
+  {
+    category: "Ingestion & Scanning",
     question: "How do I bulk import my card collection?",
     answer:
-      "Go to Add Cards → CSV Import tab. Upload your collection CSV. Common headers like \"Item Title\", \"Purchase Price\", and \"Purchase Date\" are auto-recognized. Click \"Enhance Rows with AI\" to have the AI clean up titles and extract Player, Year, Brand, Condition, Parallel, and Special Features automatically.",
+      "Go to Add Cards → CSV Import tab. Upload your collection CSV. Common headers like \"Item Title\" and \"Purchase Price\" are auto-recognized. Click \"Enhance Rows with AI\" to extract Player, Year, Brand, Condition, and Special Features automatically.",
   },
   {
-    category: "Adding Cards",
-    question: "Can I import from an active eBay listing?",
+    category: "Market Valuation",
+    question: "How does the advanced valuation engine calculate prices?",
     answer:
-      "Yes! Go to Add Cards → URL Import tab. Paste the full URL of an active eBay listing and click Import. The AI extracts all card details, price, and listing date automatically. Make sure the listing is still active — ended listings may not import correctly.",
+      "We use a strict 4-tier Pricing Waterfall to ensure accuracy and protect against market manipulation. First, we look for a High-Fidelity Header Price. Second, we calculate a Trimmed Mean of sold listings, deliberately throwing out extreme statistical outliers. Third, if data volume is exceptionally tight, we drop to a Listing Median Fallback. Finally, as an absolute last resort, the card defaults to an unpriced state requiring manual review.",
   },
   {
-    category: "Collection",
-    question: "How do I switch between List and Grid view?",
-    answer:
-      "Use the view toggle icons in the top-right corner of the Collection page. List View shows a sortable table with key stats; Grid View shows a visual gallery of card images.",
-  },
-  {
-    category: "Collection",
-    question: "How do I export my collection?",
-    answer:
-      "Click the \"Export CSV\" button at the top of the Collection page. This downloads your entire (or currently filtered) portfolio as a spreadsheet, great for record-keeping or backups.",
-  },
-  {
-    category: "Collection",
-    question: "How do I delete a card?",
-    answer:
-      "In List View, click the three-dot menu (⋮) on the card's row and select Delete. This permanently removes the card from your portfolio.",
-  },
-  {
-    category: "Card Details",
+    category: "Market Valuation",
     question: "How do I update my purchase price?",
     answer:
-      "Open the card's detail page and click the edit ✏️ icon next to Purchase Price. Enter the correct amount and save. Keeping this accurate is essential for correct ROI and Gain/Loss calculations.",
+      "Open the card's detail page and click the edit ✏️ icon next to Purchase Price. Enter the correct amount and save. Keeping this accurate is essential for correct ROI and Historical Portfolio Equity calculations.",
   },
   {
-    category: "Card Details",
-    question: "What does the AI Analysis tab tell me?",
+    category: "Portfolio Analytics",
+    question: "How can I track my overall collection value over time?",
     answer:
-      "Click Run AI Analysis on any card to get: Grading ROI (should you send it to PSA/BGS?), Grade Probabilities (odds of PSA 10/9/lower), Investment Outlook (Bullish/Neutral/Bearish short & long term), and Historical Significance of the card in the hobby.",
+      "Your dashboard features the Historical Portfolio Equity Chart, which tracks the cumulative net worth of your digital binder. A nightly background sync evaluates your active market values and plots your multi-month asset growth, net changes, and daily gains/losses, similar to a traditional financial portfolio.",
   },
   {
-    category: "Card Details",
-    question: "How do I add or change a card's image?",
-    answer:
-      "On the card detail page, click \"Upload Image\", select a photo from your device. The image is automatically compressed and saved to the card.",
-  },
-  {
-    category: "AI Insights",
-    question: "How is the Portfolio Risk Score calculated?",
-    answer:
-      "The Gemini AI evaluates your collection on four pillars: Diversification (era concentration), Quality (Graded vs Raw ratio), Liquidity (star players vs commons), and Market Trends (peaking vs undervalued cards). It produces a score from 1–100, where lower is safer, and labels it Low, Moderate, or High risk.",
-  },
-  {
-    category: "AI Insights",
-    question: "What do Buy, Sell, Hold, and Hidden Gem mean?",
-    answer:
-      "These are card-by-card AI signals: Hold = strong long-term outlook, keep it. Sell = low liquidity or declining market, consider exiting. Hidden Gem = undervalued relative to peers, a sleeper pick. Buy = favorable entry point, consider adding more. Each comes with a written reasoning.",
-  },
-  {
-    category: "AI Insights",
-    question: "Why did the Market Report fail to generate?",
-    answer:
-      "This is usually a temporary API rate limit. If you've run several AI operations recently (scans, CSV enhance, etc.), the Gemini API free tier may need ~60 seconds to reset. Wait a moment and try again.",
-  },
-  {
-    category: "Alerts",
-    question: "How do I set up a price alert for a specific player?",
-    answer:
-      "Go to Dashboard → Smart Notifications → Configure Rules. Set Target Type to \"Specific Player\", enter the player's name (e.g. \"Connor McDavid\"), choose a Condition (e.g. Rises Above $), set your Threshold, and save. Then click Run Market Scan to check immediately.",
-  },
-  {
-    category: "Alerts",
-    question: "What are the different alert types?",
-    answer:
-      "Price Drop (green) = buying opportunity. Price Rise (blue) = sell or hold signal. Optimal Sell (purple) = AI-identified profit-taking moment. Red Flag (red) = risk warning such as an overvalued card or soft market.",
-  },
-  {
-    category: "Market Hub",
-    question: "How do I compare two cards?",
-    answer:
-      "On the Market page, click Compare Cards (top-right button). Select two cards from your portfolio in the dropdowns and click Run Comparison. The AI generates a side-by-side report with Grading ROI, Grade Probabilities, Investment Outlook, and a final AI Verdict on which is the stronger hold.",
-  },
-  {
-    category: "Market Hub",
-    question: "Can I focus the Weekly Market Report on a specific topic?",
-    answer:
-      "Yes. On the Market → Market Intelligence tab, type a topic in the optional input field before clicking Generate (e.g., \"Connor McDavid\" or \"Junk Wax era\"). A focused report is far more actionable than a general overview.",
-  },
-  {
-    category: "Portfolio",
+    category: "Portfolio Analytics",
     question: "Where does the Market Ticker get its data?",
     answer:
-      "The ticker at the bottom of your screen displays real-time prices and 24-hour value changes pulled from official eBay active listings. It only displays cards with a valid asking price. If you are not logged in, it may show demo ‘whale’ data to demonstrate its functionality.",
+      "The ticker at the bottom of your screen displays real-time prices and 24-hour value changes pulled directly from our robust valuation engine, comparing your current live value against the previous day’s equity snapshot to show accurate gains or losses.",
   },
   {
-    category: "Portfolio",
-    question: "How is the 24-hour value change calculated?",
+    category: "Reports & Insights",
+    question: "What is the Weekly Market Analyst Report?",
     answer:
-      "Every midnight UTC, our engine takes a ‘snapshot’ of your portfolio’s total value and each card’s market price. The ticker and dashboard charts then compare your current live value against the previous day’s snapshot to show accurate gains or losses.",
+      "Our Weekly Market Analyst Report is an automated newsletter generated by our intelligence engine. It analyzes market velocity alerts, risk and liquidity segmentation (comparing High-Velocity Modern cards against Blue-Chip Registry Assets), and utilizes our Slab-to-Raw Premium Multiplier Matrix to surface alternative asset market trends.",
   },
   {
-    category: "Market Hub",
-    question: "Are the eBay auctions live and clickable?",
+    category: "Reports & Insights",
+    question: "How is the Portfolio Risk Score calculated?",
     answer:
-      "Yes! Every auction displayed in the Market Hub is actively running on eBay. You can click on the auction title or image to open the listing directly on eBay in a new tab for seamless bidding.",
+      "The Gemini AI evaluates your collection on four pillars: Diversification, Quality (Graded vs Raw ratio), Liquidity (star players vs commons), and Market Trends (peaking vs undervalued cards). It produces a score from 1–100, where lower is safer.",
+  },
+  {
+    category: "Reports & Insights",
+    question: "What do Buy, Sell, Hold, and Hidden Gem mean?",
+    answer:
+      "These are card-by-card AI signals: Hold = strong long-term outlook, keep it. Sell = low liquidity or declining market, consider exiting. Hidden Gem = undervalued relative to peers, a sleeper pick. Buy = favorable entry point, consider adding more.",
   },
 ];
 

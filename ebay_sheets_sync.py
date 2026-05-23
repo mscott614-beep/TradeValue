@@ -5,6 +5,7 @@ import requests
 import gspread
 import re
 import random
+import time
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 from google.cloud import firestore
@@ -17,6 +18,7 @@ load_dotenv()
 EBAY_CLIENT_ID = os.getenv("EBAY_CLIENT_ID")
 EBAY_CLIENT_SECRET = os.getenv("EBAY_CLIENT_SECRET")
 EBAY_ENV = os.getenv("EBAY_ENV", "production")
+AGENT_SERVICE_URL = os.getenv("AGENT_SERVICE_URL")
 
 # Google Sheets Configuration
 SERVICE_ACCOUNT_FILE = "service-account.json"
@@ -36,95 +38,68 @@ DEFAULT_SEARCH_QUERIES = [
     "Auston Matthews Young Guns"
 ]
 
-def get_ebay_access_token():
-    """Acquires active eBay access token via OAuth Client Credentials grant."""
-    if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
-        print("[eBay Auth] WARNING: eBay credentials missing from environment. Using API Mockup mode.")
+def fetch_listings_via_agent(query, details):
+    """Fetches sold listings by routing through the canonical market-agent layout."""
+    agent_url = os.getenv("AGENT_SERVICE_URL")
+    if not agent_url:
+        print("[Pipeline] WARNING: AGENT_SERVICE_URL missing from environment. Cannot route via agent.")
         return None
-
-    auth_url = (
-        "https://api.sandbox.ebay.com/identity/v1/oauth2/token"
-        if EBAY_ENV == "sandbox"
-        else "https://api.ebay.com/identity/v1/oauth2/token"
-    )
-    
-    auth_header = base64.b64encode(f"{EBAY_CLIENT_ID}:{EBAY_CLIENT_SECRET}".encode("utf-8")).decode("utf-8")
-    
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": f"Basic {auth_header}"
-    }
-    
-    data = {
-        "grant_type": "client_credentials",
-        "scope": "https://api.ebay.com/oauth/api_scope"
-    }
-
+        
     try:
-        print(f"[eBay Auth] Initiating client credentials handshake with eBay ({EBAY_ENV})...")
-        response = requests.post(auth_url, headers=headers, data=data, timeout=15)
+        print(f"[Agent API] Routing search for '{query}' through market-agent ({agent_url})...")
+        payload = {
+            "userId": USER_ID,
+            "cardId": "SHEET_SYNC",
+            "cardDetails": details or {}
+        }
+        # ensure no trailing slash
+        base_url = agent_url.rstrip("/")
+        response = requests.post(f"{base_url}/value-card", json=payload, timeout=90)
+        
         if response.status_code == 200:
             res_data = response.json()
-            print("[eBay Auth] Access token acquired successfully.")
-            return res_data.get("access_token")
-        else:
-            print(f"[eBay Auth] ERROR: Handshake failed (HTTP {response.status_code}): {response.text}")
-            return None
-    except Exception as e:
-        print(f"[eBay Auth] EXCEPTION during token exchange: {str(e)}")
-        return None
-
-def fetch_ebay_sold_listings(token, query):
-    """Fetches sold listings from eBay Browse API and parses metadata with listing URL."""
-    if not token:
-        return None
-
-    browse_url = (
-        "https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search"
-        if EBAY_ENV == "sandbox"
-        else "https://api.ebay.com/buy/browse/v1/item_summary/search"
-    )
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"
-    }
-
-    params = {
-        "q": query,
-        "limit": "10",
-        "category_ids": "261328",  # Sports Trading Cards
-        "filter": "buyingOptions:{FIXED_PRICE|AUCTION}",
-        "sort": "-endTime"
-    }
-
-    try:
-        print(f"[eBay API] Fetching listings for query: '{query}'...")
-        response = requests.get(browse_url, headers=headers, params=params, timeout=15)
-        if response.status_code == 200:
-            res_data = response.json()
-            items = res_data.get("itemSummaries", [])
+            sold = res_data.get("sold_listings", [])
+            active = res_data.get("active_listings", [])
+            
+            # Prefer sold listings, backfill with active if needed
+            combined = []
+            if sold:
+                combined.extend(sold)
+            if active and len(combined) < 10:
+                combined.extend(active)
+                
             parsed_items = []
-            for item in items:
-                title = item.get("title", "")
-                price_val = float(item.get("price", {}).get("value", 0.0))
-                end_date = item.get("itemEndDate", datetime.now().isoformat())
-                item_url = item.get("itemWebUrl", "https://www.ebay.com")
+            for item in combined[:10]:
+                title = item.get("title", "Unknown Card")
+                
+                # Extract numeric price robustly
+                price_val = 0.0
+                price_field = item.get("price") or item.get("currentBid") or item.get("amount") or item.get("value")
+                if isinstance(price_field, dict):
+                    price_val = float(price_field.get("value", 0.0))
+                else:
+                    try:
+                        price_val = float(re.sub(r'[^\d.]', '', str(price_field))) if price_field else 0.0
+                    except:
+                        pass
+                
+                date_val = item.get("date") or item.get("endTime") or item.get("itemEndDate") or datetime.now().isoformat()
+                item_url = item.get("url") or item.get("itemWebUrl") or "https://www.ebay.com"
                 
                 parsed_items.append({
                     "title": title,
                     "price": price_val,
-                    "date": end_date,
+                    "date": date_val,
                     "url": item_url
                 })
-            print(f"[eBay API] Successfully parsed {len(parsed_items)} listings.")
+            
+            print(f"[Agent API] Successfully fetched {len(parsed_items)} listings from agent.")
             return parsed_items
         else:
-            print(f"[eBay API] Error fetching listings (HTTP {response.status_code}): {response.text}")
+            print(f"[Agent API] Error fetching listings (HTTP {response.status_code}): {response.text}")
             return None
     except Exception as e:
-        print(f"[eBay API] EXCEPTION during search for '{query}': {str(e)}")
+        print(f"[Agent API] EXCEPTION during search for '{query}': {str(e)}")
         return None
 
 def generate_dynamic_mock_listings(query, label):
@@ -338,6 +313,9 @@ def sync_to_google_sheets(data_by_query):
                 print(f"[Google Sheets] Successfully synced {len(new_rows)} clickable listings to tab '{tab_title}'.", flush=True)
             else:
                 print(f"[Google Sheets] No listings available for tab '{tab_title}'.", flush=True)
+                
+            # Rate limit mitigation: sleep 2.5 seconds between sheet operations to prevent Google Sheets API 429 rate limit exceptions
+            time.sleep(2.5)
 
         return True
 
@@ -382,10 +360,7 @@ def main():
     print(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("====================================================================")
 
-    # 1. Acquire eBay access token
-    ebay_token = get_ebay_access_token()
-    
-    # 2. Fetch user's portfolios from Firestore (representing actual Saved Searches)
+    # 1. Fetch user's portfolios from Firestore (representing actual Saved Searches)
     portfolio_queries = get_saved_searches_from_firestore()
     
     # Fallback to defaults if Firestore is empty
@@ -398,15 +373,14 @@ def main():
                 "details": {}
             })
             
-    # 3. Retrieve & parse listings for each query
+    # 2. Retrieve & parse listings via Agent for each query
     all_query_data = []
     for item in portfolio_queries:
         query = item["query"]
         label = item["label"]
+        details = item.get("details", {})
         
-        listings = None
-        if ebay_token:
-            listings = fetch_ebay_sold_listings(ebay_token, query)
+        listings = fetch_listings_via_agent(query, details)
         
         if not listings:
             print(f"[Pipeline] Generating dynamic listings for card query: '{query}'")
