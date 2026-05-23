@@ -61,7 +61,7 @@ export default function InsightsPage() {
                 grader: c.grader,
                 purchasePrice: c.purchasePrice,
             }));
-            const response = await getPortfolioInsightsAction(user!.uid);
+            const response = await getPortfolioInsightsAction(user!.uid, trimmedCards);
             if (response.success && response.result) {
                 setInsights(response.result as InsightResult);
             } else {
@@ -134,96 +134,103 @@ export default function InsightsPage() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid gap-6">
-                    <div className="grid gap-6 md:grid-cols-3">
-                        <Card className="md:col-span-1">
-                            <CardHeader>
-                                <CardTitle>Portfolio Health</CardTitle>
-                                <CardDescription>Risk scoring and assessment.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex flex-col items-center justify-center pb-8 text-center">
-                                <div className={cn("text-6xl font-black mb-2", getRiskColor(insights.riskScore))}>
-                                    {insights.riskScore}
+                <div className="grid gap-6 lg:grid-cols-3">
+                    {/* Left Panel: Portfolio Health */}
+                    <Card className="flex flex-col border-primary/20 bg-card/50">
+                        <CardHeader className="pb-2">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1">Left Panel</div>
+                            <CardTitle className="text-xl">Portfolio Health</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col items-center justify-center flex-1 pb-8 text-center pt-6">
+                            <div className="relative w-40 h-40 mb-8 flex items-center justify-center">
+                                {/* SVG Circular Gauge */}
+                                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="42" className="stroke-muted fill-none stroke-[8]" />
+                                    <circle 
+                                        cx="50" cy="50" r="42" 
+                                        className={cn("fill-none stroke-[8] stroke-current transition-all duration-1000 ease-out", getRiskColor(insights.riskScore))} 
+                                        strokeDasharray={`${2 * Math.PI * 42}`}
+                                        strokeDashoffset={`${2 * Math.PI * 42 * (1 - insights.riskScore / 100)}`}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span className="text-5xl font-black tracking-tighter">{insights.riskScore}</span>
+                                    <span className="text-[10px] font-bold text-muted-foreground tracking-widest mt-1">RISK SCORE</span>
                                 </div>
-                                <Badge variant={insights.riskLevel === 'High' ? 'destructive' : insights.riskLevel === 'Moderate' ? 'secondary' : 'default'} className="mb-4">
-                                    {insights.riskLevel} Risk
-                                </Badge>
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                    {insights.healthSummary}
-                                </p>
-                            </CardContent>
-                        </Card>
+                            </div>
 
-                        <Card className="md:col-span-2">
-                            <CardHeader>
-                                <CardTitle>AI Recommendations</CardTitle>
-                                <CardDescription>Dynamic buy, sell, and hold suggestions.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    {Array.isArray(insights.recommendations) && insights.recommendations.map((rec, i) => (
-                                        <div key={i} className="p-4 border rounded-lg bg-card hover:border-primary/50 transition-colors">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="font-bold text-sm">{rec.cardTitle}</span>
-                                                <Badge variant="outline" className="flex items-center gap-1">
-                                                    {getActionIcon(rec.action)}
-                                                    {rec.action}
-                                                </Badge>
-                                            </div>
-                                            <p className="text-xs text-muted-foreground leading-snug">
-                                                {rec.reason}
-                                            </p>
+                            <div className="flex gap-2 justify-center mb-6">
+                                <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5", insights.riskLevel === 'Low' ? 'border-green-500 text-green-500 bg-green-500/10' : 'border-muted text-muted-foreground')}>LOW RISK</Badge>
+                                <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5", insights.riskLevel === 'Moderate' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-muted text-muted-foreground')}>MODERATE</Badge>
+                                <Badge variant="outline" className={cn("text-[10px] px-2 py-0.5", insights.riskLevel === 'High' ? 'border-red-500 text-red-500 bg-red-500/10' : 'border-muted text-muted-foreground')}>MONITOR</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed px-4">
+                                {insights.healthSummary}
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Center Panel: AI Recommendations */}
+                    <Card className="flex flex-col border-primary/20 bg-card/50">
+                        <CardHeader className="pb-4">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1">Center Panel</div>
+                            <CardTitle className="text-xl">AI Recommendations</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex-1">
+                            <div className="grid grid-cols-2 gap-3 h-full content-start">
+                                {Array.isArray(insights.recommendations) && insights.recommendations.slice(0, 4).map((rec, i) => (
+                                    <div key={i} className="p-3 border rounded-xl bg-card flex flex-col relative group hover:border-primary/50 transition-colors h-full">
+                                        <div className="absolute top-3 right-3 text-xs font-black text-muted-foreground/30">{i + 1}</div>
+                                        <Badge variant="outline" className={cn(
+                                            "text-[10px] mb-3 inline-flex items-center gap-1 border-0 px-2 py-0.5 w-fit rounded-md",
+                                            rec.action === 'Buy' ? "bg-green-500/10 text-green-500" :
+                                            rec.action === 'Sell' ? "bg-red-500/10 text-red-500" :
+                                            rec.action === 'Hidden Gem' ? "bg-yellow-500/10 text-yellow-500" :
+                                            "bg-blue-500/10 text-blue-500"
+                                        )}>
+                                            {getActionIcon(rec.action)}
+                                            {rec.action.toUpperCase()}
+                                        </Badge>
+                                        <h4 className="font-bold text-xs leading-snug mb-1 pr-4">{rec.cardTitle}</h4>
+                                        <p className="text-[10px] text-muted-foreground line-clamp-3 leading-snug mt-auto pt-2">
+                                            {rec.reason}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Right Panel: Optimization Strategy */}
+                    <Card className="flex flex-col border-primary/20 bg-card/50">
+                        <CardHeader className="pb-4">
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1">Right Panel</div>
+                            <CardTitle className="text-xl">Optimization Strategy</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col flex-1 justify-between">
+                            <ul className="space-y-4 mb-6">
+                                {Array.isArray(insights.optimizationAdvice) && insights.optimizationAdvice.map((advice, i) => (
+                                    <li key={i} className="flex items-start gap-3">
+                                        <div className="mt-0.5 w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                                            <span className="text-[10px] font-bold text-primary">{i + 1}</span>
                                         </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <div className="grid gap-6 md:grid-cols-2">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2 text-primary">
-                                    <CheckCircle2 className="w-5 h-5" />
-                                    Optimization Strategy
-                                </CardTitle>
-                                <CardDescription>Action steps to improve portfolio value.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <ul className="space-y-3">
-                                    {Array.isArray(insights.optimizationAdvice) && insights.optimizationAdvice.map((advice, i) => (
-                                        <li key={i} className="flex items-start gap-3 text-sm">
-                                            <div className="mt-1 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                                <span className="text-[10px] font-bold text-primary">{i + 1}</span>
-                                            </div>
-                                            <span>{advice}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="bg-primary/5 border-primary/20">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <AlertTriangle className="w-5 h-5 text-orange-500" />
-                                    Risk Mitigation
-                                </CardTitle>
-                                <CardDescription>Automated insights on diversification.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <p className="text-sm italic">
+                                        <span className="text-xs text-muted-foreground leading-snug">{advice}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            
+                            <div className="pt-4 border-t mt-auto space-y-4">
+                                <p className="text-[11px] italic text-muted-foreground leading-relaxed">
                                     &ldquo;{insights.riskMitigation}&rdquo;
                                 </p>
-                                <div className="pt-4 border-t flex justify-center">
-                                    <Button variant="outline" onClick={handleGenerateInsights} disabled={isGenerating}>
-                                        {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <WandSparkles className="w-4 h-4 mr-2" />}
-                                        Refresh Analysis
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                <Button size="sm" className="w-full text-xs" onClick={handleGenerateInsights} disabled={isGenerating}>
+                                    {isGenerating ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <WandSparkles className="w-3 h-3 mr-2" />}
+                                    Refresh Analysis
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             )}
 
