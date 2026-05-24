@@ -145,10 +145,11 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
             result = await identifyCardFromImages(ai, {
                 frontPhotoDataUri: jobData.payload.frontPhotoDataUri,
                 backPhotoDataUri: jobData.payload.backPhotoDataUri,
+                isSingleScan: jobData.payload.isSingleScan,
             }, PRIMARY_MODEL, FALLBACK_MODEL);
         }
         else if (jobData.type === "text-parse") {
-            const promptText = `Parse this card title into structured metadata: ${jobData.payload.title}`;
+            const promptText = `Parse this card title into structured metadata: ${jobData.payload.title}. DO NOT generate a conditionAssessment (return null for conditionAssessment).`;
             let response;
             try {
                 response = await ai.generate({
@@ -220,7 +221,7 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
                     result.year = yearMatch[0];
                 }
             }
-            result.estimatedGrade = result.grade || result.conditionAssessment || "Raw";
+            result.estimatedGrade = result.grade || result.conditionAssessment?.estimatedGradeTarget || "Raw";
             result.valuationMethod =
                 valuation.method || agentData.valuation_method || agentData.method;
             result.lastSearchQuery = searchQuery;
@@ -270,7 +271,7 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
                 result.estimatedMarketValue = 0.99;
                 result.valuationMethod = "fallback_unpriced";
             }
-            result.estimatedGrade = result.grade || result.conditionAssessment || "Raw";
+            result.estimatedGrade = result.grade || result.conditionAssessment?.estimatedGradeTarget || "Raw";
         }
         if (result.grader == null) {
             result.grader = "None";
@@ -451,34 +452,28 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
         // Pass B: Cards not in Pass A — skip if refreshed within cooldown (budget guard)
         const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
         const MAX_DAILY_REFRESH = Math.max(10, parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "100", 10));
-        const isStaleRefresh = (data) => {
-            const last = data.lastMarketValueUpdate;
-            if (!last || typeof last !== "string")
-                return true;
-            const lastMs = new Date(last).getTime();
-            if (isNaN(lastMs))
-                return true;
-            return Date.now() - lastMs >= REFRESH_COOLDOWN_MS;
-        };
-        const allSnap = await db.collectionGroup("portfolios").get();
+        const staleDateMs = Date.now() - REFRESH_COOLDOWN_MS;
+        const staleDateISO = new Date(staleDateMs).toISOString();
+        const passBCap = Math.max(0, MAX_DAILY_REFRESH - passATasks.length);
         const passBTasks = [];
-        let passBSkipped = 0;
-        allSnap.docs.forEach(doc => {
-            if (!passAIds.has(doc.id)) {
-                const userId = doc.ref.parent.parent?.id;
-                if (!userId)
-                    return;
-                const data = doc.data();
-                if (!isStaleRefresh(data)) {
-                    passBSkipped++;
-                    return;
+        if (passBCap > 0) {
+            // Optimize: Use native Firestore inequality query instead of scanning the full collection
+            const staleSnap = await db.collectionGroup("portfolios")
+                .where("lastMarketValueUpdate", "<", staleDateISO)
+                .limit(passBCap + passATasks.length) // Fetch a bit extra in case of overlap with Pass A
+                .get();
+            staleSnap.docs.forEach(doc => {
+                if (!passAIds.has(doc.id)) {
+                    const userId = doc.ref.parent.parent?.id;
+                    if (!userId)
+                        return;
+                    passBTasks.push({ userId, cardId: doc.id, deepSearch: false });
                 }
-                passBTasks.push({ userId, cardId: doc.id, deepSearch: false });
-            }
-        });
-        const passBCapped = passBTasks.slice(0, Math.max(0, MAX_DAILY_REFRESH - passATasks.length));
+            });
+        }
+        const passBCapped = passBTasks.slice(0, passBCap);
         console.log(`[MarketRefresh] Pass A (N/A Priority): ${passATasks.length} cards.`);
-        console.log(`[MarketRefresh] Pass B eligible: ${passBTasks.length}, skipped (fresh <24h): ${passBSkipped}, ` +
+        console.log(`[MarketRefresh] Pass B eligible (via index): ${passBTasks.length}, ` +
             `capped to: ${passBCapped.length} (max ${MAX_DAILY_REFRESH}/day).`);
         const finalQueue = [...passATasks, ...passBCapped];
         let totalEnqueued = 0;

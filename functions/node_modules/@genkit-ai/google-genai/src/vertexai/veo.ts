@@ -148,6 +148,7 @@ function commonRef(
 const GENERIC_MODEL = commonRef('veo');
 
 const KNOWN_MODELS = {
+  'veo-3.1-lite-generate-001': commonRef('veo-3.1-lite-generate-001'),
   'veo-3.1-fast-generate-001': commonRef('veo-3.1-fast-generate-001'),
   'veo-3.1-generate-001': commonRef('veo-3.1-generate-001'),
 } as const;
@@ -227,15 +228,16 @@ export function defineModel(
         clientOpt
       );
 
-      return fromVeoOperation(response);
+      return fromVeoOperation(response, clientOpt);
     },
     async check(operation) {
+      const checkClientOptions = toVeoClientOptions(operation, clientOptions);
       const response = await veoCheckOperation(
         toVeoModel(operation),
         toVeoOperationRequest(operation),
-        toVeoClientOptions(operation, clientOptions)
+        checkClientOptions
       );
-      return fromVeoOperation(response);
+      return fromVeoOperation(response, checkClientOptions);
     },
   });
 }

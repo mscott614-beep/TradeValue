@@ -37,7 +37,7 @@ import { refreshCardValueAction } from "@/app/actions/refresh-card-value";
 import { getSimilarCardsAction, type SimilarCard } from "@/app/actions/get-similar-cards";
 import { fetchAndEncodeImageAction } from "@/app/actions/fetch-image";
 import type { CardAnalysisResult } from "@/lib/types";
-import { BarChart3, LineChart as LineChartIcon, BrainCircuit, CheckCircle2, TrendingDown, Edit3, X, Check, Upload, Image as ImageIcon } from "lucide-react";
+import { BarChart3, LineChart as LineChartIcon, BrainCircuit, CheckCircle2, TrendingDown, Edit3, X, Check, Upload, Image as ImageIcon, WandSparkles, AlertCircle } from "lucide-react";
 import { CARD_ATTRIBUTES, CARD_PARALLELS, CARD_CONDITIONS, CARD_GRADERS, CARD_GRADES } from "@/lib/constants";
 import { compressImage } from "@/lib/image-utils";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ import { cleanTitle } from "@/lib/card-utils";
 import { getCardDeepDiveAction } from "@/app/actions/get-card-deep-dive";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ShieldCheck, AlertCircle } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { useRef, useMemo } from 'react';
 import {
     AreaChart,
@@ -1029,6 +1029,40 @@ export default function CardDetailsPage() {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* VISUAL CONDITION ASSESSMENT */}
+                                {card?.conditionAssessment && (
+                                    <div className="pt-6 border-t border-muted">
+                                        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                                            <WandSparkles className="h-4 w-4 text-purple-400" />
+                                            Visual Condition Assessment
+                                        </h4>
+                                        <div className="bg-muted/30 border border-border/50 rounded-lg p-4 space-y-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-semibold">Centering</p>
+                                                    <p className="text-sm font-medium">{card.conditionAssessment.centeringRatio}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-semibold">Grade Target</p>
+                                                    <p className="text-sm font-bold text-primary">{card.conditionAssessment.estimatedGradeTarget}</p>
+                                                </div>
+                                            </div>
+                                            {card.conditionAssessment.edgeWearAlerts && card.conditionAssessment.edgeWearAlerts.length > 0 && (
+                                                <div>
+                                                    <p className="text-[10px] text-muted-foreground uppercase font-semibold mb-1 flex items-center gap-1">
+                                                        <AlertCircle className="h-3 w-3 text-amber-500" /> Edge & Surface Flags
+                                                    </p>
+                                                    <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
+                                                        {card.conditionAssessment.edgeWearAlerts.map((alert: string, idx: number) => (
+                                                            <li key={idx}>{alert}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="pt-6 border-t border-muted">
                                     <div className="flex items-center justify-between mb-4">

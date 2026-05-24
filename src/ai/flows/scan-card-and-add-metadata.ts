@@ -32,11 +32,17 @@ const ScanCardAndAddMetadataOutputSchema = z.object({
   set: z.string().describe('The specific subset or series name ONLY — NOT the brand. Examples: "Young Guns", "Ultimate Collection", "Prizm", "Chrome". If no specific subset, return "Base". Do NOT repeat the brand name.').default("Base"),
   player: z.string().describe('The name of the player featured on the card.'),
   parallel: z.string().optional().describe('The specific parallel or refractor name (e.g. "Silver", "Red Wave", "Refractor"). Leave blank if base.').default(""),
-  cardNumber: z.string().describe('The card identifier from the BACK of the card (e.g., "DTA-TT", "202", "150"). Do NOT use the serial number/print run here.'),
+  cardNumber: z.string().describe('The card identifier from the BACK of the card (usually in the top corners, e.g., "6", "DTA-TT", "202"). DO NOT infer the card number by looking at the jersey in the photograph. Do NOT use the serial number.'),
   serialNumber: z.string().optional().describe('The print run/serial number if present (e.g., "/149", "25/99"). Leave blank if not numbered.').default(""),
   estimatedGrade: z.string().describe('The estimated condition/grade of the card (e.g., Mint, Near Mint).'),
   grader: z.string().describe('The specific grading company (e.g., PSA, BGS, SGC, GMA) if the card is in a slab. Return "None" if it is raw/ungraded.').default("None"),
   estimatedMarketValue: z.number().describe('The estimated current market value of the card in USD, based on identity and condition.'),
+  conditionAssessment: z.object({
+    centeringRatio: z.string().describe('e.g., "55/45 left-to-right, 50/50 top-to-bottom"'),
+    edgeWearAlerts: z.array(z.string()).describe('List of noted issues, e.g., ["surface silvering", "minor corner softening top-left"]'),
+    estimatedGradeTarget: z.string().describe('e.g., "PSA 8 - PSA 9 Near-Mint/Mint"'),
+    conditionConfidenceScore: z.number().min(0).max(100).describe('0-100 score indicating visual clarity confidence')
+  }).describe('Visual assessment of the physical condition of the card.'),
 });
 
 export type ScanCardAndAddMetadataOutput = z.infer<typeof ScanCardAndAddMetadataOutputSchema>;
@@ -58,10 +64,14 @@ Return a JSON object that contains the following keys:
 - brand: The brand of the trading card (e.g., Topps, Upper Deck).
 - set: The specific set or subset name (e.g. "Ultimate Collection", "Young Guns", "Prizm Base", "Chrome"). Look for this text on the card.
 - player: The name of the player featured on the card.
-- cardNumber: The card number (if any, e.g. "102", "DTATT"). Be very precise.
+- cardNumber: The card number (if any, e.g. "6", "102", "DTATT"). Be very precise. DO NOT identify or infer the card number by looking at the player's jersey in the photograph. Note: Card numbers are generally (but not always) found on the top corners of the back of the card. If you cannot see the printed card number, just output "Unknown" or infer from set logic.
 - estimatedGrade: The estimated condition/grade of the card (e.g., Mint, Near Mint, 9, 10).
 - grader: Is the card encased in a professional grading slab? If yes, output the company acronym (e.g. "PSA", "BGS", "SGC", "CGC", "GMA"). If it is raw/ungraded, output exactly "None".
 - estimatedMarketValue: Calculate the current market value by taking the average of the last 5 actual **eBay sold listings** for this exact card. If the card is graded, use recent sales of that specific grade. If raw, use raw sales. Provide ONLY the calculated average number in USD.
+- conditionAssessment: A deep visual diagnostic. 
+  1. Examine the symmetry of the outer card margins relative to the inner artwork borders. Calculate the horizontal and vertical centering ratios.
+  2. Inspect the contrast points along the four corners and perimeter edges. Look for white chipping spots, fraying fibers, surface scratches, or print lines.
+  3. Output a realistic, highly defensive condition grading target based on standard hobby registries (like PSA/BGS). Avoid grading hallucinations by relying strictly on clear, visible structural elements.
 
 Analyze the following card image(s):
 Card Front:

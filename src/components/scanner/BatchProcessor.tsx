@@ -18,7 +18,7 @@ import {
 import { Card, CardContent } from "../ui/card";
 import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, setDoc, onSnapshot, writeBatch } from "firebase/firestore";
-import { compressImage } from "@/lib/image-utils";
+import { compressCardImage, blobToDataUrl } from "@/lib/image-processor";
 import { buildCardTitle, buildFullSetName } from "@/lib/card-utils";
 import { useAccountLimits } from "@/hooks/use-account-limits";
 
@@ -196,9 +196,20 @@ export function BatchProcessor() {
         targetHeight
       );
 
-      // Compress to dataURL format
-      const dataUrl = cropCanvas.toDataURL("image/jpeg", 0.85);
-      slot.dataUrl = dataUrl;
+      // Pre-process and compress the grid segment
+      const rawBlob = await new Promise<Blob | null>(resolve => cropCanvas.toBlob(resolve, "image/jpeg", 0.95));
+      if (rawBlob) {
+        try {
+          const compressedBlob = await compressCardImage(rawBlob);
+          slot.dataUrl = await blobToDataUrl(compressedBlob);
+        } catch (error) {
+          console.error(`[Scanner] Batch segment compression failed for slot ${i}, using raw segment.`, error);
+          slot.dataUrl = cropCanvas.toDataURL("image/jpeg", 0.85);
+        }
+      } else {
+        slot.dataUrl = cropCanvas.toDataURL("image/jpeg", 0.85);
+      }
+      
       slot.status = "queued";
     }
 

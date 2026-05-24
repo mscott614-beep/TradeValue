@@ -55,11 +55,7 @@ export default function InsightsPage() {
                 brand: c.brand,
                 player: c.player,
                 condition: c.condition,
-                currentMarketValue: c.currentMarketValue,
-                parallel: c.parallel,
-                cardNumber: c.cardNumber,
-                grader: c.grader,
-                purchasePrice: c.purchasePrice,
+                currentMarketValue: c.currentMarketValue
             }));
             const response = await getPortfolioInsightsAction(user!.uid, trimmedCards);
             if (response.success && response.result) {

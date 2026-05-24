@@ -16,7 +16,7 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "@genkit-ai/google-genai": "^1.33.0",
+    "@genkit-ai/google-genai": "^1.35.0",
     "@genkit-ai/googleai": "^1.28.0",
     "@genkit-ai/vertexai": "^1.33.0",
     "@google/generative-ai": "^0.24.1",

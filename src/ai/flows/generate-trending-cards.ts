@@ -83,7 +83,21 @@ export const generateTrendingCards = ai.defineFlow(
                 },
             });
 
-            return response.output ?? [];
+            let rawOutput = response.output || response.text;
+            
+            if (typeof rawOutput === 'string') {
+                try {
+                    const firstBracket = rawOutput.indexOf('[');
+                    const lastBracket = rawOutput.lastIndexOf(']');
+                    if (firstBracket !== -1 && lastBracket !== -1) {
+                        rawOutput = JSON.parse(rawOutput.substring(firstBracket, lastBracket + 1));
+                    }
+                } catch (e) {
+                    console.error("Failed to parse raw string output:", e);
+                }
+            }
+            
+            return (rawOutput || []) as any;
         } catch (aiError) {
             console.warn(
                 "[Trending] Gemini unavailable, using eBay liquidity fallback:",

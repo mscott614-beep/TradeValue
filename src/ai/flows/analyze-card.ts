@@ -87,6 +87,20 @@ export const analyzeCardInvestment = ai.defineFlow(
             output: { format: 'json' }
         });
 
-        return response.output as any;
+        let rawOutput = response.output || response.text;
+        
+        if (typeof rawOutput === 'string') {
+            try {
+                const firstBrace = rawOutput.indexOf('{');
+                const lastBrace = rawOutput.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    rawOutput = JSON.parse(rawOutput.substring(firstBrace, lastBrace + 1));
+                }
+            } catch (e) {
+                console.error("Failed to parse raw string output:", e);
+            }
+        }
+        
+        return rawOutput as any;
     }
 );

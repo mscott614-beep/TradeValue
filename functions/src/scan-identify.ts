@@ -10,13 +10,16 @@ export const ScanOutputSchema = z.object({
   brand: z.string().describe("Manufacturer, e.g. O-Pee-Chee, Topps"),
   set: z.string().nullable().describe("Subset/series name"),
   player: z.string().describe("Player full name"),
-  cardNumber: z.string().describe("Card number as printed"),
+  cardNumber: z.string().describe("Card number as printed on the back. DO NOT infer the card number by looking at the player's jersey in the photograph."),
   parallel: z.string().default("Base"),
   grade: z.string().nullable(),
   grader: z.string().nullable(),
-  conditionAssessment: z
-    .enum(["Near Mint", "Excellent", "Very Good", "Good", "Poor"])
-    .default("Near Mint"),
+  conditionAssessment: z.object({
+    centeringRatio: z.string().describe('e.g., "55/45 left-to-right, 50/50 top-to-bottom"'),
+    edgeWearAlerts: z.array(z.string()).describe('List of noted issues, e.g., ["surface silvering", "minor corner softening top-left"]'),
+    estimatedGradeTarget: z.string().describe('e.g., "PSA 8 - PSA 9 Near-Mint/Mint"'),
+    conditionConfidenceScore: z.number().min(0).max(100).describe('0-100 score indicating visual clarity confidence')
+  }).describe('Visual assessment of the physical condition of the card.').nullable(),
 });
 
 export const CardOcrSchema = z.object({
@@ -32,7 +35,7 @@ export const CardOcrSchema = z.object({
   cardNumber: z
     .string()
     .optional()
-    .describe("Card number exactly as printed (usually on back)"),
+    .describe("Card number exactly as printed (usually on back, often in the top corners, e.g. '6' or '202'). DO NOT infer by looking at the player's jersey."),
   yearSeason: z
     .string()
     .optional()
@@ -144,37 +147,11 @@ Return JSON with ALL keys present:
 - yearSeason: string if visible (e.g. "1987-88"), otherwise omit this key
 - brand, setName, playerName: include only when clearly visible`;
 
-const FRONT_ONLY_IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
-
-Using the provided front image and the OCR transcription below, identify the trading card's player, manufacturer (brand), card number, and product year/season.
-
-Since you only have the front of the card, you MUST use your visual recognition and extensive trading card catalog knowledge to determine:
-1. The exact product year/season (normalized to YYYY-YY or YYYY format, e.g. 1965-66, or 1965, or 1999-00). Note that for vintage card designs (e.g., the 1959 Topps circular porthole vignette design with slanted lowercase cursive text), the release year and card number are NOT printed on the front. You MUST ignore any random digits or letters in the raw OCR and rely strictly on your visual checklist catalog knowledge of that design set to resolve the exact correct year (e.g., 1959) and card checklist number.
-2. The manufacturer brand (e.g. Topps, Upper Deck, Fleer, OPC).
-3. The exact card number from the set (e.g. Rip Coleman is card #51, Vito Valentinetti is #44, Bill Hall is #49, Bill Henry is #46 in 1959 Topps Baseball).
-4. The exact player full name as spelled on the card.
-5. The subset or series name if applicable.
-
-OCR TRANSCRIPTION:
-`;
-
-const IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
-
-Using ONLY the OCR transcription below (not general knowledge about famous cards), produce the final card identity JSON.
-
-RULES:
-1. If yearSeason is present in OCR, the "year" field MUST match it exactly (normalize to YYYY-YY).
-2. If cardNumber is present in OCR, "cardNumber" MUST match it (strip leading # only).
-3. Never substitute a famous/default Gretzky checklist card (e.g. do not output 1979-80 or #1 unless OCR shows that).
-4. brand = manufacturer only. set = subset name only.
-5. For 1980s O-Pee-Chee hockey, common seasons include 1986-87, 1987-88, 1988-89 — verify digits against OCR.
-
-OCR TRANSCRIPTION:
-`;
+// Prompt generators moved inside identifyCardFromImages to handle dynamic flags.
 
 export async function identifyCardFromImages(
   ai: { generate: (opts: any) => Promise<any> },
-  payload: { frontPhotoDataUri: string; backPhotoDataUri?: string | null },
+  payload: { frontPhotoDataUri: string; backPhotoDataUri?: string | null; isSingleScan?: boolean },
   primaryModel: string,
   fallbackModel: string
 ): Promise<z.infer<typeof ScanOutputSchema>> {
@@ -245,15 +222,66 @@ export async function identifyCardFromImages(
     (ocr.frontTextLines?.length ?? 0) + (ocr.backTextLines?.length ?? 0)
   );
 
+  const conditionRuleFront = payload.isSingleScan
+    ? `6. A deep visual diagnostic of the condition:
+   - Examine the symmetry of the outer card margins relative to the inner artwork borders. Calculate the horizontal and vertical centering ratios.
+   - Inspect the contrast points along the four corners and perimeter edges. Look for white chipping spots, fraying fibers, surface scratches, or print lines.
+   - Output a realistic, highly defensive condition grading target based on standard hobby registries (like PSA/BGS). Avoid grading hallucinations by relying strictly on clear, visible structural elements.`
+    : `6. DO NOT provide a conditionAssessment. Set conditionAssessment to null.`;
+
+  const conditionRuleStandard = payload.isSingleScan
+    ? `6. Provide a deep visual diagnostic of the physical condition (centering, edges, grade target).`
+    : `6. DO NOT provide a conditionAssessment. Set conditionAssessment to null.`;
+
+  const FRONT_ONLY_IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
+
+Using the provided front image and the OCR transcription below, identify the trading card's player, manufacturer (brand), card number, and product year/season.
+
+Since you only have the front of the card, you MUST use your visual recognition and extensive trading card catalog knowledge to determine:
+1. The exact product year/season (normalized to YYYY-YY or YYYY format, e.g. 1965-66, or 1965, or 1999-00). Note that for vintage card designs (e.g., the 1959 Topps circular porthole vignette design with slanted lowercase cursive text), the release year and card number are NOT printed on the front. You MUST ignore any random digits or letters in the raw OCR and rely strictly on your visual checklist catalog knowledge of that design set to resolve the exact correct year (e.g., 1959) and card checklist number.
+2. The manufacturer brand (e.g. Topps, Upper Deck, Fleer, OPC).
+3. The exact card number from the set (e.g. Rip Coleman is card #51, Vito Valentinetti is #44, Bill Hall is #49, Bill Henry is #46 in 1959 Topps Baseball).
+4. The exact player full name as spelled on the card.
+5. The subset or series name if applicable.
+${conditionRuleFront}
+
+OCR TRANSCRIPTION:
+`;
+
+  const IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
+
+Using the provided images and the OCR transcription below, produce the final card identity JSON.
+
+RULES:
+1. If yearSeason is present in OCR, the "year" field MUST match it exactly (normalize to YYYY-YY).
+2. If cardNumber is present in OCR, "cardNumber" MUST match it (strip leading # only).
+3. Never substitute a famous/default Gretzky checklist card (e.g. do not output 1979-80 or #1 unless OCR shows that).
+4. brand = manufacturer only. set = subset name only.
+5. For 1980s O-Pee-Chee hockey, common seasons include 1986-87, 1987-88, 1988-89 — verify digits against OCR.
+${conditionRuleStandard}
+7. DO NOT identify or infer the card number by looking at the player's jersey in the photograph. Only use numbers that are explicitly printed as the card number index. Note: Card numbers are generally (but not always) found on the top corners of the back of the card.
+
+OCR TRANSCRIPTION:
+`;
+
   const identifyPrompt = `${isFrontOnly ? FRONT_ONLY_IDENTIFY_PROMPT_PREFIX : IDENTIFY_PROMPT_PREFIX}${JSON.stringify(ocr, null, 2)}`;
 
   const idPromptParts: any[] = [{ text: identifyPrompt }];
-  if (isFrontOnly) {
-    // Include front image part so the vision model can visually inspect the card design
+  
+  // ALWAYS include the front image so the vision model can visually inspect the card design and condition
+  idPromptParts.push({
+    media: {
+      url: payload.frontPhotoDataUri,
+      contentType: mimeFromDataUri(payload.frontPhotoDataUri),
+    },
+  });
+
+  // If a back image was provided, include it as well
+  if (!isFrontOnly && payload.backPhotoDataUri) {
     idPromptParts.push({
       media: {
-        url: payload.frontPhotoDataUri,
-        contentType: mimeFromDataUri(payload.frontPhotoDataUri),
+        url: payload.backPhotoDataUri,
+        contentType: mimeFromDataUri(payload.backPhotoDataUri),
       },
     });
   }

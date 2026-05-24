@@ -14,7 +14,7 @@ import { Card, CardContent } from "../ui/card";
 import { useFirestore, useUser } from "@/firebase";
 import { collection, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { compressImage } from "@/lib/image-utils";
+import { compressCardImage, blobToDataUrl } from "@/lib/image-processor";
 import { buildCardTitle, buildFullSetName } from "@/lib/card-utils";
 import { useAccountLimits } from "@/hooks/use-account-limits";
 import { AlertCircle } from "lucide-react";
@@ -168,12 +168,14 @@ export function CardScanner() {
     try {
       // Stricter compression to ensure we are well under the 1MB Firestore limit per document
       console.log("Starting image compression...");
-      const frontPhotoDataUri = await compressImage(frontFile, 1200);
+      const frontBlob = await compressCardImage(frontFile);
+      const frontPhotoDataUri = await blobToDataUrl(frontBlob);
       console.log(`Front Image compressed size: ${Math.round(frontPhotoDataUri.length / 1024)} KB`);
       
       let backPhotoDataUri: string | undefined = undefined;
       if (backFile) {
-        backPhotoDataUri = await compressImage(backFile, 1200);
+        const backBlob = await compressCardImage(backFile);
+        backPhotoDataUri = await blobToDataUrl(backBlob);
         console.log(`Back Image compressed size: ${Math.round(backPhotoDataUri.length / 1024)} KB`);
       }
 
@@ -187,6 +189,7 @@ export function CardScanner() {
         payload: {
           frontPhotoDataUri,
           backPhotoDataUri: backPhotoDataUri ?? null,
+          isSingleScan: true,
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -245,17 +248,10 @@ export function CardScanner() {
       if (frontFile) {
         try {
           // Compress aggressively to fit under Firestore's 1MB doc limit
-          // Using 400px max width to keep the base64 string small
-          compressedImageUrl = await compressImage(frontFile, 400);
+          const compressedBlob = await compressCardImage(frontFile);
+          compressedImageUrl = await blobToDataUrl(compressedBlob);
           const sizeKb = Math.round(compressedImageUrl.length / 1024);
           console.log(`[Scanner] Compressed image size: ${sizeKb} KB`);
-          
-          // Safety check: if still too large (>700KB), compress harder
-          if (compressedImageUrl.length > 700 * 1024) {
-            console.warn(`[Scanner] Image too large (${sizeKb}KB), re-compressing at 250px`);
-            compressedImageUrl = await compressImage(frontFile, 250);
-            console.log(`[Scanner] Re-compressed to: ${Math.round(compressedImageUrl.length / 1024)} KB`);
-          }
         } catch (error) {
           console.error("[Scanner] Failed to compress image:", error);
           // Non-fatal, continue without image
@@ -301,6 +297,7 @@ export function CardScanner() {
         estimatedGrade: result.estimatedGrade || "Raw",
         grader: result.grader || "None",
         imageUrl: compressedImageUrl || "",
+        conditionAssessment: result.conditionAssessment || null,
       };
 
 
@@ -437,7 +434,7 @@ export function CardScanner() {
                   <p className="font-medium">
                     {result.cardNumber?.toString().match(/^\d+$/) ? `#${result.cardNumber}` : result.cardNumber}
                   </p>
-                  <p className="text-muted-foreground">Condition:</p><p className="font-medium text-green-400">{(result as any).conditionAssessment || result.estimatedGrade}</p>
+                  <p className="text-muted-foreground">Condition:</p><p className="font-medium text-green-400">{result.estimatedGrade}</p>
                   <p className="text-muted-foreground">Grader:</p>
                   <p className="font-medium text-purple-400">
                     {result.grader && result.grader !== "null" ? result.grader : "None"}
@@ -452,25 +449,53 @@ export function CardScanner() {
                       <p className="text-[10px] text-green-400">{(result as any).yearCorrectionReason}</p>
                     </>
                   )}
-                  {(result as any).ocrTranscription?.yearSeason && (
-                    <>
-                      <p className="text-[10px] text-muted-foreground">OCR year:</p>
-                      <p className="text-[10px] text-muted-foreground">{(result as any).ocrTranscription.yearSeason}</p>
-                    </>
-                  )}
-                  {(result as any).lastSearchQuery && (
-                    <>
-                      <p className="text-[10px] text-muted-foreground">Search:</p>
-                      <p className="text-[10px] text-muted-foreground col-span-1 break-words">{(result as any).lastSearchQuery}</p>
-                    </>
-                  )}
-                  {(result as any).valuationMethod && (
-                    <>
-                      <p className="text-[10px] text-muted-foreground">Method:</p>
-                      <p className="text-[10px] text-muted-foreground">{(result as any).valuationMethod}</p>
-                    </>
-                  )}
                 </div>
+
+                {result.conditionAssessment && (
+                  <div className="mt-6 border border-primary/20 rounded-xl p-4 bg-background/50">
+                    <h4 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
+                      <Scan className="w-4 h-4" />
+                      Visual Condition Assessment
+                    </h4>
+                    
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <span className="text-xs text-muted-foreground">Est. Grade Target</span>
+                        <span className={`text-xs px-2 py-1 rounded-md font-medium ${
+                          (result.conditionAssessment.estimatedGradeTarget.toLowerCase().match(/9|10|mint|gem/)) 
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : (result.conditionAssessment.estimatedGradeTarget.toLowerCase().match(/7|8|near/))
+                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                              : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}>
+                          {result.conditionAssessment.estimatedGradeTarget}
+                        </span>
+                      </div>
+                      
+                      <div className="flex justify-between items-start">
+                        <span className="text-xs text-muted-foreground">Centering</span>
+                        <span className="text-xs font-medium text-right max-w-[180px]">{result.conditionAssessment.centeringRatio}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-start">
+                        <span className="text-xs text-muted-foreground">Confidence</span>
+                        <span className="text-xs font-medium">{result.conditionAssessment.conditionConfidenceScore}%</span>
+                      </div>
+                      
+                      {result.conditionAssessment.edgeWearAlerts && result.conditionAssessment.edgeWearAlerts.length > 0 && (
+                        <div className="pt-2 border-t border-border/50">
+                          <span className="text-xs text-muted-foreground block mb-2">Edge & Surface Alerts:</span>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {result.conditionAssessment.edgeWearAlerts.map((alert, idx) => (
+                              <li key={idx} className="text-xs text-amber-400/80">{alert}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-2 mt-6">
                   <Button className="flex-1" onClick={handleAddToCollection} disabled={isLoading || isLimitReached}>
                     {isLoading ? (
