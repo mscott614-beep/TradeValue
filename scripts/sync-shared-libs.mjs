@@ -16,6 +16,7 @@ const copies = [
   "institutional-report-prompt.ts",
   "arbitrage.ts",
   "ebay-pricing.ts",
+  "image-boundary-scanner.ts",
 ];
 
 for (const name of copies) {

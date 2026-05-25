@@ -347,6 +347,7 @@ def get_or_create_series_cache(
             config=types.CreateCachedContentConfig(
                 display_name=profile["display_name"],
                 system_instruction=profile["system_instruction"],
+                tools=[types.Tool(google_search=types.GoogleSearch())],
                 contents=[profile["static_context"]],
                 ttl=ttl,
             ),

@@ -4,6 +4,7 @@ import {
   normalizeHockeyCardYear,
   normalizeSeason,
 } from "./hockey-card-year";
+import { calculateCardBorders } from "./image-boundary-scanner";
 
 export const ScanOutputSchema = z.object({
   year: z.string().describe("Year or season on the card, e.g. 1987-88"),
@@ -12,10 +13,10 @@ export const ScanOutputSchema = z.object({
   player: z.string().describe("Player full name"),
   cardNumber: z.string().describe("Card number as printed on the back. DO NOT infer the card number by looking at the player's jersey in the photograph."),
   parallel: z.string().default("Base"),
-  grade: z.string().nullable(),
-  grader: z.string().nullable(),
+  grade: z.string().nullable().describe("Numeric grade (e.g., '5', '8'). Even if raw/ungraded, output an estimated condition. Do NOT return 'RAW' or null if you can estimate condition."),
+  grader: z.string().nullable().describe("Grading company acronym (e.g., 'PSA'). Set to null if raw/ungraded. Do NOT return 'RAW'."),
   conditionAssessment: z.object({
-    centeringRatio: z.string().describe('e.g., "55/45 left-to-right, 50/50 top-to-bottom"'),
+    centeringRatio: z.string().describe('You MUST explain your math. Example: "Left cardboard margin is 10%, Right is 90%. Top is 50%, Bottom is 50%. Final Ratio: 10/90 L/R, 50/50 T/B." Do not just output the ratio, write out the margin measurements first.'),
     edgeWearAlerts: z.array(z.string()).describe('List of noted issues, e.g., ["surface silvering", "minor corner softening top-left"]'),
     estimatedGradeTarget: z.string().describe('e.g., "PSA 8 - PSA 9 Near-Mint/Mint"'),
     conditionConfidenceScore: z.number().min(0).max(100).describe('0-100 score indicating visual clarity confidence')
@@ -222,15 +223,36 @@ export async function identifyCardFromImages(
     (ocr.frontTextLines?.length ?? 0) + (ocr.backTextLines?.length ?? 0)
   );
 
+  let borderMetricsStr = "";
+  try {
+    const base64Data = payload.frontPhotoDataUri.replace(/^data:image\/\w+;base64,/, "");
+    const imageBuffer = Buffer.from(base64Data, "base64");
+    const metrics = await calculateCardBorders(imageBuffer);
+    borderMetricsStr = `\n[SYSTEM INJECTED BORDER METRICS]
+The backend image pre-processor has already calculated the physical margins of this card:
+- Calculated Left/Right Ratio: ${metrics.leftRightRatio}
+- Calculated Top/Bottom Ratio: ${metrics.topBottomRatio}
+- Hard Miscut Flag: ${metrics.isMiscut ? 'true' : 'false'}
+- Raw Margins (px): L=${metrics.margins.left}, R=${metrics.margins.right}, T=${metrics.margins.top}, B=${metrics.margins.bottom}
+
+If Hard Miscut Flag is true, or if either ratio shows a split worse than 70/30, you must ignore any clean surfaces or sharp corners you think you see. You are forbidden from outputting an optimistic grade. Your final JSON output for BOTH estimatedGrade AND estimatedGradeTarget MUST be capped at a maximum value of PSA 6 or lower. Even if raw, output a numeric grade estimate (e.g. 'PSA 5' or 'Excellent'). Do not output null for estimatedGrade.
+You MUST use these exact ratios for your condition assessment. Do not override them with your visual estimation.\n`;
+  } catch (err) {
+    console.warn("[Scanner] Failed to calculate card borders:", err);
+  }
+
   const conditionRuleFront = payload.isSingleScan
     ? `6. A deep visual diagnostic of the condition:
-   - Examine the symmetry of the outer card margins relative to the inner artwork borders. Calculate the horizontal and vertical centering ratios.
+   - CRITICAL: GEOMETRIC ANCHORING & SEVERE ASYMMETRY PROTOCOL. You are currently misinterpreting severe card asymmetry as a balanced 45/55 split. You must completely reset your spatial coordinate tracking by performing the following strict geometric audit before making any grading judgments. 1. Locate the absolute physical edge of the entire image asset (the outermost pixels of the card canvas). 2. Measure inward from the extreme LEFT outer boundary to the first graphic line of the inner card artwork. Note this pixel distance as [L_Margin]. 3. Measure inward from the extreme RIGHT outer boundary to the last graphic line of the inner card artwork. Note this pixel distance as [R_Margin]. Execute this Explicit Chain-of-Thought Validation: Compare [L_Margin] directly to [R_Margin]. Is one margin visibly microscopic, near-zero, or multi-times smaller than the other? If [L_Margin] is less than 15% of the total combined margins, do NOT output a balanced ratio. You are likely anchoring to an internal graphic line instead of the true physical border. You must explicitly state: "Checking for extreme negative space collapse." If one side has virtually no background margin compared to the opposite side, you must flag this as an extreme 5/95 to 10/90 structural asymmetry. Strict Rule: If there is an obvious visual imbalance where the artwork is jammed against one edge and wide open on the other, any output declaring a 45/55 or 50/50 split is a geometric failure and violates instructions. Adjust your calculated ratio to reflect the raw imbalance. Hard Rule: If centering is 10/90 or worse, the 'estimatedGradeTarget' MUST be capped at a maximum of PSA 5 to PSA 6 (Excellent to Excellent-Mint), or flagged with a mandatory "MC" (Miscut) qualifier in your notes.
    - Inspect the contrast points along the four corners and perimeter edges. Look for white chipping spots, fraying fibers, surface scratches, or print lines.
    - Output a realistic, highly defensive condition grading target based on standard hobby registries (like PSA/BGS). Avoid grading hallucinations by relying strictly on clear, visible structural elements.`
     : `6. DO NOT provide a conditionAssessment. Set conditionAssessment to null.`;
 
   const conditionRuleStandard = payload.isSingleScan
-    ? `6. Provide a deep visual diagnostic of the physical condition (centering, edges, grade target).`
+    ? `6. A deep visual diagnostic of the condition:
+   - CRITICAL: GEOMETRIC ANCHORING & SEVERE ASYMMETRY PROTOCOL. You are currently misinterpreting severe card asymmetry as a balanced 45/55 split. You must completely reset your spatial coordinate tracking by performing the following strict geometric audit before making any grading judgments. 1. Locate the absolute physical edge of the entire image asset (the outermost pixels of the card canvas). 2. Measure inward from the extreme LEFT outer boundary to the first graphic line of the inner card artwork. Note this pixel distance as [L_Margin]. 3. Measure inward from the extreme RIGHT outer boundary to the last graphic line of the inner card artwork. Note this pixel distance as [R_Margin]. Execute this Explicit Chain-of-Thought Validation: Compare [L_Margin] directly to [R_Margin]. Is one margin visibly microscopic, near-zero, or multi-times smaller than the other? If [L_Margin] is less than 15% of the total combined margins, do NOT output a balanced ratio. You are likely anchoring to an internal graphic line instead of the true physical border. You must explicitly state: "Checking for extreme negative space collapse." If one side has virtually no background margin compared to the opposite side, you must flag this as an extreme 5/95 to 10/90 structural asymmetry. Strict Rule: If there is an obvious visual imbalance where the artwork is jammed against one edge and wide open on the other, any output declaring a 45/55 or 50/50 split is a geometric failure and violates instructions. Adjust your calculated ratio to reflect the raw imbalance. Hard Rule: If centering is 10/90 or worse, the 'estimatedGradeTarget' MUST be capped at a maximum of PSA 5 to PSA 6 (Excellent to Excellent-Mint), or flagged with a mandatory "MC" (Miscut) qualifier in your notes.
+   - Inspect the contrast points along the four corners and perimeter edges on both sides. Look for white chipping spots, fraying fibers, surface scratches, or print lines.
+   - Output a realistic, highly defensive condition grading target based on standard hobby registries (like PSA/BGS). Avoid grading hallucinations by relying strictly on clear, visible structural elements.`
     : `6. DO NOT provide a conditionAssessment. Set conditionAssessment to null.`;
 
   const FRONT_ONLY_IDENTIFY_PROMPT_PREFIX = `You are an expert trading card cataloguer.
@@ -243,7 +265,10 @@ Since you only have the front of the card, you MUST use your visual recognition 
 3. The exact card number from the set (e.g. Rip Coleman is card #51, Vito Valentinetti is #44, Bill Hall is #49, Bill Henry is #46 in 1959 Topps Baseball).
 4. The exact player full name as spelled on the card.
 5. The subset or series name if applicable.
-${conditionRuleFront}
+6. GRADING RULES:
+   - If the card is professionally graded (encased in a plastic grading slab with a company label like PSA, BGS, SGC, or CGC), set "grader" to the company acronym (e.g., "PSA", "BGS", "SGC", "CGC") and "grade" to the numeric grade (e.g., "10", "9", "8.5").
+   - If the card is RAW/ungraded (i.e. not in a professional slab), you MUST set "grader" to null and "grade" to null. Do NOT return "RAW", "Raw", or any placeholder string for these fields.
+${conditionRuleFront}${borderMetricsStr}
 
 OCR TRANSCRIPTION:
 `;
@@ -258,8 +283,11 @@ RULES:
 3. Never substitute a famous/default Gretzky checklist card (e.g. do not output 1979-80 or #1 unless OCR shows that).
 4. brand = manufacturer only. set = subset name only.
 5. For 1980s O-Pee-Chee hockey, common seasons include 1986-87, 1987-88, 1988-89 — verify digits against OCR.
-${conditionRuleStandard}
+${conditionRuleStandard}${borderMetricsStr}
 7. DO NOT identify or infer the card number by looking at the player's jersey in the photograph. Only use numbers that are explicitly printed as the card number index. Note: Card numbers are generally (but not always) found on the top corners of the back of the card.
+8. GRADING RULES:
+   - If the card is professionally graded (encased in a plastic grading slab with a company label like PSA, BGS, SGC, or CGC), set "grader" to the company acronym (e.g., "PSA", "BGS", "SGC", "CGC") and "grade" to the numeric grade (e.g., "10", "9", "8.5").
+   - If the card is RAW/ungraded (i.e. not in a professional slab), you MUST set "grader" to null and "grade" to null. Do NOT return "RAW", "Raw", or any placeholder string for these fields.
 
 OCR TRANSCRIPTION:
 `;

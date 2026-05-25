@@ -1106,9 +1106,9 @@ async def value_card(req: ValuationRequest):
                 sys_inst = build_card_valuation_instruction(
                     player, cleaned_num, card_desc, series_id=series_id
                 )
+                # Cannot set system_instruction or tools when using cached_content
+                q = f"{sys_inst}\n\nUSER REQUEST: {q}"
                 gen_config = types.GenerateContentConfig(
-                    system_instruction=sys_inst,
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
                     cached_content=cached_content_name,
                 )
             else:
@@ -1169,18 +1169,20 @@ async def value_card(req: ValuationRequest):
         raw_res = await attempt_run(f"Search eBay for active and sold listings for: {card_desc}")
         print(f"[AgentService] Raw Response Preview: {raw_res[:200] if raw_res else 'EMPTY'}")
         
-        # Cascading fallback: second google_search only when primary parse fails (cost guard)
+        res_json = robust_json_parse(raw_res)
+        
+        # Cascading fallback: second google_search only when primary parse fails or returns 0 (cost guard)
         if not req.deepSearch and (
-            not raw_res or "$0" in raw_res or "0.00" in raw_res or "no results" in raw_res.lower()
+            not res_json or res_json.get('currentMarketValue', 0) == 0 or "no results" in (raw_res or "").lower()
         ):
             print(f"[AgentService] Triggering Fallback Search for {player}...")
             method_used = "fallback_broad_search"
-            raw_res = await attempt_run(f"VALUE: {player} {cleaned_num} {brand_raw} {year}. JSON.")
+            raw_res = await attempt_run(f"VALUE: {card_desc}. JSON.")
             print(f"[AgentService] Fallback Response Preview: {raw_res[:200] if raw_res else 'EMPTY'}")
+            res_json = robust_json_parse(raw_res)
             
-        res_json = robust_json_parse(raw_res)
         if not res_json: 
-            print(f"[AgentService] WARNING: JSON parse failed. Raw: {raw_res[:500]}")
+            print(f"[AgentService] WARNING: JSON parse failed. Raw: {(raw_res or '')[:500]}")
             return error_fallback
 
         # Prepare listings for UI (Fix: Align with marketPrices structure)

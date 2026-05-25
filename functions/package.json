@@ -25,7 +25,8 @@
     "firebase-admin": "^13.7.0",
     "firebase-functions": "^7.2.2",
     "genkit": "^1.33.0",
-    "google-auth-library": "latest"
+    "google-auth-library": "latest",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@emnapi/core": "^1.9.1",
