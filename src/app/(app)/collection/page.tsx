@@ -90,36 +90,6 @@ export default function CollectionPage() {
   const [tempTitle, setTempTitle] = useState('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // Fix 3 & 4: Manual Overlay Kill & Z-Index Audit
-  // Ensures that when the dialog closes, we explicitly restore interactivity
-  React.useEffect(() => {
-    if (!isEditDialogOpen) {
-      const cleanup = () => {
-        // Force cleanup of body styles
-        document.body.style.pointerEvents = 'auto';
-        document.body.style.overflow = 'auto';
-        
-        // Final fallback: Ensure the html element is also unlocked
-        document.documentElement.style.pointerEvents = 'auto';
-        document.documentElement.style.overflow = 'auto';
-
-        // Remove any stuck radix-overlay elements if they persist (safety check)
-        const overlays = document.querySelectorAll('[data-radix-portal]');
-        if (overlays.length > 0) {
-           overlays.forEach(el => {
-             if (el.innerHTML.includes('Dialog') || el.innerHTML === '') {
-                // (Optional) Potential manual removal if desperate, 
-                // but let's stick to pointer-events first
-             }
-           });
-        }
-      };
-      
-      // Small delay to ensure Radix has finished its own transition
-      const timer = setTimeout(cleanup, 10);
-      return () => clearTimeout(timer);
-    }
-  }, [isEditDialogOpen]);
 
   const portfoliosCollection = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -223,21 +193,16 @@ export default function CollectionPage() {
     // Fix 1 & 2: Immediate Unmount & Force Cleanup
     setIsEditDialogOpen(false);
     
-    try {
-      const docRef = doc(firestore, `users/${user.uid}/portfolios`, editingCard.id);
-      updateDocumentNonBlocking(docRef, {
-        title: tempTitle.trim()
-      }).then(() => {
-        setEditingCard(null);
-        toast.success('Title updated successfully');
-      }).catch(err => {
-        console.error('Failed to update title:', err);
-        toast.error('Failed to update title');
-      });
-    } finally {
-      document.body.style.pointerEvents = 'auto';
-      document.body.style.overflow = 'auto';
-    }
+    const docRef = doc(firestore, `users/${user.uid}/portfolios`, editingCard.id);
+    updateDocumentNonBlocking(docRef, {
+      title: tempTitle.trim()
+    }).then(() => {
+      setEditingCard(null);
+      toast.success('Title updated successfully');
+    }).catch(err => {
+      console.error('Failed to update title:', err);
+      toast.error('Failed to update title');
+    });
   };
 
   return (
@@ -420,8 +385,7 @@ export default function CollectionPage() {
                             <DropdownMenuItem onClick={() => router.push(`/collection/${card.id}`)}>
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={(e) => {
-                              e.preventDefault();
+                            <DropdownMenuItem onSelect={() => {
                               setTimeout(() => openEditDialog(card), 0);
                             }}>
                               <Edit2 className="mr-2 h-4 w-4" />
