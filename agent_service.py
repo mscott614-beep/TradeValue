@@ -246,8 +246,8 @@ def sanitize_firestore_payload(payload: dict) -> dict:
 
 app = FastAPI()
 
-# Valuation cache: skip Gemini + Google Search when a fresh entry exists (default 24h).
-VALUATION_CACHE_TTL_SECONDS = int(os.environ.get("VALUATION_CACHE_TTL_HOURS", "24")) * 3600
+# Valuation cache: skip Gemini + Google Search when a fresh entry exists (default 48h).
+VALUATION_CACHE_TTL_SECONDS = int(os.environ.get("VALUATION_CACHE_TTL_HOURS", "48")) * 3600
 
 # Batch sync budget guards (scheduler / globalBatchSync → /batch-sync)
 BATCH_SYNC_MAX_CARDS = max(10, int(os.environ.get("BATCH_SYNC_MAX_CARDS", "60")))
@@ -1032,7 +1032,7 @@ async def value_card(req: ValuationRequest):
         card_desc = query
         print(f"[AgentService] Optimized Search Query: {card_desc}")
         
-        # --- VALUATION CACHE (Firestore, TTL via VALUATION_CACHE_TTL_HOURS, default 24h) ---
+        # --- VALUATION CACHE (Firestore, TTL via VALUATION_CACHE_TTL_HOURS, default 48h) ---
         # Skips google_search + Gemini when hit. Bypass with forceRefresh or deepSearch.
         import hashlib
         cache_key_material = f"{card_desc}|graded={is_graded}|grader={grader_val}|grade={grade_val}"

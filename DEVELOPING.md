@@ -69,7 +69,7 @@ Do **not** hand-edit `functions/src/hockey-card-year.ts`, `pricing-extract.ts`, 
 |-----|------------|
 | `globalBatchSync` | 6 AM ET: warm caches → batch-sync. Pause duplicate `daily-batch-market-sync-6am` in Cloud Scheduler console. |
 | `market-agent` `/batch-sync` | `BATCH_SYNC_MAX_CARDS` (60), `BATCH_SYNC_RETRY_HOURS` (48). |
-| `scheduledMarketRefresh` | `MAX_DAILY_REFRESH_ENQUEUES` (100); Pass A `deepSearch` only when never valued. |
+| `scheduledMarketRefresh` | `MAX_DAILY_REFRESH_ENQUEUES` (50); Pass A `deepSearch` only when never valued. |
 
 Deploy:
 

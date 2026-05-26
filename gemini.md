@@ -41,7 +41,7 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 ## 🔧 Operations (P5)
 
 - **Secrets:** Run `node scripts/secrets-hygiene.mjs` to sync `GEMINI_API_KEY` ← `GOOGLE_GENAI_API_KEY`. Use `--prune` to remove unused `OPENROUTER_API_KEY`.
-- **Morning refresh:** `scheduledMarketRefresh` skips cards updated within 24h (Pass B) and caps enqueues (`MAX_DAILY_REFRESH_ENQUEUES`, default 150).
+- **Morning refresh:** `scheduledMarketRefresh` skips cards updated within 24h (Pass B) and caps enqueues (`MAX_DAILY_REFRESH_ENQUEUES`, default 50).
 - **Reports:** On-demand UI, `marketReportV2`, and weekly newsletter share `src/lib/institutional-report-prompt.ts` (synced to Functions).
 - **Regions:** Agent + Functions + Vertex default `us-east4`; `ingestBatchResults` stays `us-central1` (GCS bucket locality).
 
@@ -55,7 +55,7 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 
 - **`refreshMarketCardTask`**: `maxConcurrentDispatches: 2` (was 10) to cap parallel agent valuations.
 - **`marketReportV2`**: Primary `gemini-3.5-flash`, fallback `gemini-2.5-flash` (not 1.5); `maxInstances: 2`.
-- **Valuation cache**: Firestore `valuation_cache` with TTL `VALUATION_CACHE_TTL_HOURS` (default 24). Bypass with `forceRefresh` or `deepSearch` on `/value-card`.
+- **Valuation cache**: Firestore `valuation_cache` with TTL `VALUATION_CACHE_TTL_HOURS` (default 48). Bypass with `forceRefresh` or `deepSearch` on `/value-card`.
 - **Pro fallback**: `gemini-3.1-pro-preview` only when `ENABLE_PRO_VALUATION_FALLBACK=true` on Cloud Run (default off).
 
 ## 🧠 Context Caching & Compute Optimization

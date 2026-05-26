@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -89,6 +90,9 @@ export default function CollectionPage() {
   const [editingCard, setEditingCard] = useState<Portfolio | null>(null);
   const [tempTitle, setTempTitle] = useState('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
 
   const portfoliosCollection = useMemoFirebase(() => {
@@ -160,6 +164,53 @@ export default function CollectionPage() {
       return 0;
     });
   }, [cards, filter, yearFilter, brandFilter, conditionFilter, gradingFilter, sortConfig]);
+
+  const toggleSelectCard = useCallback((cardId: string) => {
+    setSelectedCardIds(prev => {
+      const next = new Set(prev);
+      if (next.has(cardId)) {
+        next.delete(cardId);
+      } else {
+        next.add(cardId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    const allFilteredIds = filteredAndSortedCards.map(c => c.id);
+    const allFilteredSelected = allFilteredIds.every(id => selectedCardIds.has(id));
+
+    setSelectedCardIds(prev => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        allFilteredIds.forEach(id => next.delete(id));
+      } else {
+        allFilteredIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  }, [filteredAndSortedCards, selectedCardIds]);
+
+  const handleBatchDelete = useCallback(async () => {
+    if (!user || !firestore || selectedCardIds.size === 0) return;
+    setIsConfirmOpen(false);
+
+    const idsToDelete = Array.from(selectedCardIds);
+    try {
+      const batch = writeBatch(firestore);
+      idsToDelete.forEach(id => {
+        const docRef = doc(firestore, `users/${user.uid}/portfolios`, id);
+        batch.delete(docRef);
+      });
+      await batch.commit();
+      setSelectedCardIds(new Set());
+      toast.success(`Successfully deleted ${idsToDelete.length} cards`);
+    } catch (err) {
+      console.error("Batch delete failed:", err);
+      toast.error("Failed to delete selected cards");
+    }
+  }, [user, firestore, selectedCardIds]);
 
   const handleDelete = useCallback((cardId: string) => {
     if (!user || !firestore) return;
@@ -325,6 +376,16 @@ export default function CollectionPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px] p-4 pr-0">
+                    <Checkbox
+                      checked={
+                        filteredAndSortedCards.length > 0 &&
+                        filteredAndSortedCards.every(c => selectedCardIds.has(c.id))
+                      }
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
                   <TableHead onClick={() => handleSort('player')} className="cursor-pointer">
                     Name {renderSortArrow('player')}
                   </TableHead>
@@ -346,7 +407,14 @@ export default function CollectionPage() {
                   </TableRow>
                 ) : (Array.isArray(filteredAndSortedCards) && filteredAndSortedCards.length > 0) ? (
                   filteredAndSortedCards.map(card => (
-                    <TableRow key={card.id}>
+                    <TableRow key={card.id} className={cn(selectedCardIds.has(card.id) && "bg-muted/40")}>
+                      <TableCell className="w-[50px] p-4 pr-0">
+                        <Checkbox
+                          checked={selectedCardIds.has(card.id)}
+                          onCheckedChange={() => toggleSelectCard(card.id)}
+                          aria-label={`Select ${card.title}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           {card.imageUrl ? (
@@ -419,9 +487,47 @@ export default function CollectionPage() {
             </div>
           ) : (Array.isArray(filteredAndSortedCards) && filteredAndSortedCards.length > 0) ? (
             filteredAndSortedCards.map((card, index) => (
-              <Link key={card.id || index} href={`/collection/${card.id}`}>
-                <Card className="overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer relative">
-                  <div className="aspect-[2.5/3.5] relative bg-muted w-full">
+              <div
+                key={card.id || index}
+                onClick={(e) => {
+                  if (selectedCardIds.size > 0) {
+                    e.preventDefault();
+                    toggleSelectCard(card.id);
+                  }
+                }}
+                className="block"
+              >
+                <Link
+                  href={`/collection/${card.id}`}
+                  onClick={(e) => {
+                    if (selectedCardIds.size > 0) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <Card className={cn(
+                    "overflow-hidden hover:border-primary/50 transition-all group cursor-pointer relative",
+                    selectedCardIds.has(card.id) && "ring-2 ring-primary border-primary bg-muted/10 shadow-lg scale-[0.98]"
+                  )}>
+                    <div className="aspect-[2.5/3.5] relative bg-muted w-full">
+                      <div
+                        className="absolute top-2.5 left-2.5 z-10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          toggleSelectCard(card.id);
+                        }}
+                      >
+                        <Checkbox
+                          checked={selectedCardIds.has(card.id)}
+                          onCheckedChange={() => toggleSelectCard(card.id)}
+                          className={cn(
+                            "h-5 w-5 bg-background/80 backdrop-blur-sm border-slate-500/80 transition-opacity rounded-sm shadow-md",
+                            selectedCardIds.size === 0 && "opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=checked]:opacity-100"
+                          )}
+                          aria-label={`Select ${card.title}`}
+                        />
+                      </div>
                     {card.imageUrl ? (
                       card.imageUrl.startsWith('data:') ? (
                         <img
@@ -456,7 +562,8 @@ export default function CollectionPage() {
                   </CardContent>
                 </Card>
               </Link>
-            ))
+            </div>
+          ))
           ) : (
             <div className="col-span-full py-12 text-center text-muted-foreground border rounded-lg border-dashed">
               No cards in your collection. <Link href="/scanner" className="text-primary hover:underline">Add one now</Link>!
@@ -492,6 +599,52 @@ export default function CollectionPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveTitle}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Floating Bulk Actions Bar */}
+      {selectedCardIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md border border-slate-700/60 rounded-full px-6 py-3 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5 duration-300">
+          <span className="text-sm font-medium text-slate-200">
+            {selectedCardIds.size} {selectedCardIds.size === 1 ? 'card' : 'cards'} selected
+          </span>
+          <div className="h-4 w-px bg-slate-700" />
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setSelectedCardIds(new Set())}
+            className="text-xs hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-full h-8"
+          >
+            Deselect All
+          </Button>
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={() => setIsConfirmOpen(true)}
+            className="text-xs font-semibold rounded-full h-8 px-4 flex items-center gap-1.5"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete Selected
+          </Button>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Dialog */}
+      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Confirm Batch Deletion
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete these <strong>{selectedCardIds.size}</strong> cards from your digital binder? This action is irreversible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleBatchDelete}>Delete Permanently</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

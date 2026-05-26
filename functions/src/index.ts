@@ -508,7 +508,7 @@ export const scheduledMarketRefresh = onSchedule(
       const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
       const MAX_DAILY_REFRESH = Math.max(
         10,
-        parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "100", 10)
+        parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "50", 10)
       );
 
       const staleDateMs = Date.now() - REFRESH_COOLDOWN_MS;

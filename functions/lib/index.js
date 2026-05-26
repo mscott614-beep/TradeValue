@@ -451,7 +451,7 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
         });
         // Pass B: Cards not in Pass A — skip if refreshed within cooldown (budget guard)
         const REFRESH_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-        const MAX_DAILY_REFRESH = Math.max(10, parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "100", 10));
+        const MAX_DAILY_REFRESH = Math.max(10, parseInt(process.env.MAX_DAILY_REFRESH_ENQUEUES || "50", 10));
         const staleDateMs = Date.now() - REFRESH_COOLDOWN_MS;
         const staleDateISO = new Date(staleDateMs).toISOString();
         const passBCap = Math.max(0, MAX_DAILY_REFRESH - passATasks.length);
