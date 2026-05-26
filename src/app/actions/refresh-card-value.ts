@@ -68,21 +68,9 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
             url: item.url,
             imageUrl: item.image_url
         }));
-        
-        const activeItems = (result.active_listings || []).map((item: any) => ({
-            title: String(item.title || "No Title"),
-            price: Number(item.price || 0),
-            url: String(item.url || "#"),
-            imageUrl: item.image_url || item.imageUrl || null
-        }));
+        const activeItems = preFilterListings(result.active_listings, false);
+        const soldItems = preFilterListings(result.sold_listings, true);
 
-        const soldItems = (result.sold_listings || []).map((item: any) => ({
-            title: String(item.title || "No Title"),
-            price: Number(item.price || 0),
-            url: String(item.url || "#"),
-            imageUrl: item.image_url || item.imageUrl || null,
-            endDate: String(item.endDate || item.end_date || new Date().toISOString().split('T')[0])
-        }));
 
         const avgSoldPrice = result.avg_sold_price || 0;
         const lowVolumeData = result.low_volume || false;
@@ -232,3 +220,41 @@ export async function analyzeCardAction(card: Portfolio) {
         }
     }
 }
+
+/**
+ * Truncates raw listing titles, cleans URLs, and caps comp items to 5
+ * to prevent context bloat and minimize Firestore document storage footprints.
+ */
+function preFilterListings(listings: any[], isSold = false): any[] {
+    if (!Array.isArray(listings)) return [];
+    
+    return listings.slice(0, 5).map((item: any) => {
+        // 1. Truncate long eBay URLs to basic product ID
+        let cleanUrl = String(item.url || "#").trim();
+        const itmMatch = cleanUrl.match(/(https:\/\/www\.ebay\.com\/itm\/\d+)/i);
+        if (itmMatch) {
+            cleanUrl = itmMatch[1];
+        }
+
+        // 2. Clean listing titles (strip common marketing bloat)
+        let cleanTitle = String(item.title || "No Title").trim();
+        cleanTitle = cleanTitle
+            .replace(/\b(LQQK|RARE|VINTAGE|GEM|MINT|HOT|🔥|⭐|💥|⚡|L@@K)\b/gi, "")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const baseItem: any = {
+            title: cleanTitle,
+            price: Number(item.price || item.amount || 0),
+            url: cleanUrl,
+            imageUrl: item.image_url || item.imageUrl || null
+        };
+
+        if (isSold) {
+            baseItem.endDate = String(item.endDate || item.end_date || item.endDate || new Date().toISOString().split('T')[0]);
+        }
+
+        return baseItem;
+    });
+}
+

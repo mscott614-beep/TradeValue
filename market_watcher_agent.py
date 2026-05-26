@@ -24,8 +24,19 @@ PROJECT_ID = os.getenv("PROJECT_ID", "puckvaluebak-38609945-5e85c")
 LOCATION = os.getenv("LOCATION", "us-east4")  # Align with Cloud Run + Firebase Functions
 # ---------------------
 
-# Initialize Google Gen AI Client for Vertex AI
-client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
+# Lazy Google Gen AI Client for Vertex AI (prevents block-hangs during local imports)
+_client = None
+def get_vertex_client():
+    global _client
+    if _client is None:
+        try:
+            print("[MarketWatcher] Initializing Vertex AI Client...")
+            _client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
+        except Exception as e:
+            print(f"[MarketWatcher] Warning: Vertex AI client failed: {e}")
+            return None
+    return _client
+
 
 VertexAiSessionService = in_memory_session_service.InMemorySessionService
 
@@ -167,7 +178,8 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
         if api_key:
             report_client = genai.Client(api_key=api_key)
         else:
-            report_client = client  # Fall back to module-level Vertex AI client
+            report_client = get_vertex_client()  # Fall back to module-level Vertex AI client
+
 
         config = types.GenerateContentConfig(
             tools=[search_tool],

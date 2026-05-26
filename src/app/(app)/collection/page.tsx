@@ -520,9 +520,8 @@ export default function CollectionPage() {
                       >
                         <Checkbox
                           checked={selectedCardIds.has(card.id)}
-                          onCheckedChange={() => toggleSelectCard(card.id)}
                           className={cn(
-                            "h-5 w-5 bg-background/80 backdrop-blur-sm border-slate-500/80 transition-opacity rounded-sm shadow-md",
+                            "h-5 w-5 bg-background/80 backdrop-blur-sm border-slate-500/80 transition-opacity rounded-sm shadow-md pointer-events-none",
                             selectedCardIds.size === 0 && "opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=checked]:opacity-100"
                           )}
                           aria-label={`Select ${card.title}`}

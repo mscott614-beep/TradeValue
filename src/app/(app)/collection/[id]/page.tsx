@@ -409,7 +409,8 @@ export default function CardDetailsPage() {
         if (!card || !cardDocRef || !user) return;
         setIsRefreshingValue(true);
         try {
-            const response = await refreshCardValueAction(user.uid, card);
+            const plainCard = JSON.parse(JSON.stringify(card));
+            const response = await refreshCardValueAction(user.uid, plainCard);
             if (response.success && response.newPrice !== undefined) {
                 // Success: Update local state only (Server handles persistence)
                 setLiveListings(response.top5 || []);
