@@ -159,7 +159,7 @@ export default function DashboardPage() {
 
         const uBrands = new Set(cards.map(c => c.brand)).size;
 
-        const gCount = cards.filter(c => isGraded(c.grader) || isGraded(c.estimatedGrade)).length;
+        const gCount = cards.filter(c => isGraded(c.grader)).length;
         const rCount = cards.length - gCount;
 
 

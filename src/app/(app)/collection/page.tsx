@@ -127,8 +127,7 @@ export default function CollectionPage() {
       const yearMatch = yearFilter === 'all' || card.year.toString() === yearFilter;
       const brandMatch = brandFilter === 'all' || card.brand === brandFilter;
       const conditionMatch = conditionFilter === 'all' || card.condition === conditionFilter;
-      
-      const isCardGraded = isGraded(card.grader) || isGraded(card.estimatedGrade);
+      const isCardGraded = isGraded(card.grader);
       
       const gradingMatch = gradingFilter === 'all' || 
                            (gradingFilter === 'graded' && isCardGraded) || 
@@ -141,8 +140,8 @@ export default function CollectionPage() {
       let aValue: any;
       let bValue: any;
       if (sortConfig.key === 'grader') {
-        const isAGraded = isGraded(a.grader) || isGraded(a.estimatedGrade);
-        const isBGraded = isGraded(b.grader) || isGraded(b.estimatedGrade);
+        const isAGraded = isGraded(a.grader);
+        const isBGraded = isGraded(b.grader);
 
         
         aValue = isAGraded ? 1 : 0;
