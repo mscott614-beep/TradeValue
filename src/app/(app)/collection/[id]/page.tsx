@@ -1060,6 +1060,15 @@ export default function CardDetailsPage() {
                                                     </ul>
                                                 </div>
                                             )}
+
+                                            <div className="pt-3 border-t border-border/50">
+                                                <div className="flex gap-2 items-start bg-background/50 p-3 rounded-lg border border-border/50">
+                                                    <AlertCircle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                                                    <p className="text-[10px] leading-relaxed text-muted-foreground">
+                                                        <strong>Disclaimer:</strong> All grades provided by this tool are automated AI estimations based on visual image analysis. These metrics are strictly for informational and reference purposes and should not be interpreted as financial advice or legal guarantees of condition. Professional third-party grading services (such as PSA, BGS, or SGC) use specialized physical tools and human evaluation criteria that may yield different grading assessments. TradeValue is not liable for any discrepancies between this estimation and official certifications.
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
