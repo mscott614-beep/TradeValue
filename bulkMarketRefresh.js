@@ -1,6 +1,10 @@
 const { spawn } = require('child_process');
 const admin = require('firebase-admin');
 const path = require('path');
+const axios = require('axios');
+const dotenv = require('dotenv');
+
+dotenv.config({ path: path.join(__dirname, '.env.local') });
 
 // Set environment variable for child processes (Python agent)
 const keyPath = path.join(__dirname, 'service-account.json');
@@ -16,14 +20,42 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+async function sendHermesNotification(subject, htmlContent) {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    if (!apiKey) {
+        console.warn("[Hermes] Resend API key not configured. Skipping email notification.");
+        return;
+    }
+    try {
+        await axios.post(
+            "https://api.resend.com/emails",
+            {
+                from: "TradeValue Hermes <onboarding@resend.dev>",
+                to: "mscott614@gmail.com",
+                subject: subject,
+                html: htmlContent,
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+        console.log("[Hermes] Email dispatched successfully.");
+    } catch (error) {
+        console.error("[Hermes] Failed to send email via Resend:", error?.response?.data || error.message);
+    }
+}
+
 /**
  * Runs the Gemini Market Watcher Agent for a single card.
  * Returns the agent's JSON result.
  */
 function runAgent(userId, cardId, cardDetails, searchQuery) {
     return new Promise((resolve, reject) => {
-        const pythonPath = 'python';
-        const scriptPath = path.join(__dirname, 'market_watcher_agent.py');
+        const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+        const scriptPath = path.join(__dirname, 'local_value_card.py');
 
         const pythonProcess = spawn(pythonPath, [
             scriptPath,
@@ -34,6 +66,7 @@ function runAgent(userId, cardId, cardDetails, searchQuery) {
         ], {
             env: {
                 ...process.env,
+                PYTHONUNBUFFERED: '1',
                 GOOGLE_CLOUD_PROJECT: 'puckvaluebak-38609945-5e85c',
                 GOOGLE_CLOUD_LOCATION: 'global'
             }
@@ -43,7 +76,9 @@ function runAgent(userId, cardId, cardDetails, searchQuery) {
         let errorString = '';
 
         pythonProcess.stdout.on('data', (data) => {
-            dataString += data.toString();
+            const chunk = data.toString();
+            dataString += chunk;
+            console.log(`[Python Output] ${chunk.trim()}`);
         });
 
         pythonProcess.stderr.on('data', (data) => {
@@ -51,6 +86,7 @@ function runAgent(userId, cardId, cardDetails, searchQuery) {
             // Suppress warnings
             if (!err.includes('Warning') && !err.includes('deprecated')) {
                 errorString += err;
+                console.error(`[Python Error] ${err.trim()}`);
             }
         });
 
@@ -179,6 +215,12 @@ async function bulkRefresh(targetUserId) {
                     newPrice = 0.99;
                 }
 
+                // Sticky Valuation Guard: Don't let a failed agent overwrite a valid price with $0.00
+                if ((newPrice === 0 || newPrice === 0.0) && cardData.currentMarketValue > 0) {
+                    console.log(`[Refresh] Agent returned 0.00. Preserving existing value of ${cardData.currentMarketValue} for ${cardId}`);
+                    newPrice = cardData.currentMarketValue;
+                }
+
                 const updateData = {
                     currentMarketValue: newPrice,
                     lastMarketValueUpdate: new Date().toISOString(),
@@ -212,6 +254,42 @@ async function bulkRefresh(targetUserId) {
     console.log(`[Refresh] All cards processed. Committing ${processedCount} updates to Firestore...`);
     await batch.commit();
     console.log(`[Refresh] Bulk refresh complete. Success: ${processedCount}, Failures: ${errorCount}`);
+
+    // Send Hermes email notification upon completion
+    const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date());
+
+    await sendHermesNotification(
+        `⚡ Morning Market Refresh Complete — ${today}`,
+        `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff;">
+            <h2 style="color: #2563eb; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+                ⚡ Morning Market Refresh (Local Hermes Worker)
+            </h2>
+            <p style="font-size: 14px; color: #6b7280; margin-top: -8px;">Date: ${today}</p>
+            <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+            <p style="font-size: 15px; color: #374151;">Your local bulk market refresh successfully completed.</p>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 10px 0; font-weight: bold; color: #4b5563; font-size: 14px;">Successful Updates:</td>
+                    <td style="padding: 10px 0; text-align: right; color: #16a34a; font-weight: bold; font-size: 14px;">${processedCount}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 10px 0; font-weight: bold; color: #4b5563; font-size: 14px;">Failures:</td>
+                    <td style="padding: 10px 0; text-align: right; color: #dc2626; font-weight: bold; font-size: 14px;">${errorCount}</td>
+                </tr>
+            </table>
+            <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+            <p style="font-size: 11px; color: #9ca3af; text-align: center;">
+                TradeValue Local Hermes Worker.<br/>
+            </p>
+        </div>
+        `
+    );
 }
 
 // Execution

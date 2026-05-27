@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ingestBatchResults = exports.globalBatchSync = exports.scheduledArbitrageScan = exports.marketReportV2 = exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.dailyPriceSnapshot = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
+exports.ingestBatchResults = exports.marketReportV2 = exports.refreshMarketCardTask = exports.scheduledMarketRefresh = exports.geminiProcessingQueue = exports.enqueueGeminiTask = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const tasks_1 = require("firebase-functions/v2/tasks");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
@@ -66,8 +66,33 @@ const EBAY_CLIENT_ID = (0, params_1.defineSecret)("EBAY_CLIENT_ID");
 const EBAY_CLIENT_SECRET = (0, params_1.defineSecret)("EBAY_CLIENT_SECRET");
 const EBAY_ENV = (0, params_1.defineSecret)("EBAY_ENV");
 const AGENT_SERVICE_URL = (0, params_1.defineSecret)("AGENT_SERVICE_URL");
+const RESEND_API_KEY = (0, params_1.defineSecret)("RESEND_API_KEY");
 admin.initializeApp();
 admin.firestore().settings({ ignoreUndefinedProperties: true });
+async function sendHermesNotification(subject, htmlContent) {
+    const apiKey = RESEND_API_KEY.value().trim();
+    if (!apiKey) {
+        console.warn("[Hermes] Resend API key not configured. Skipping email notification.");
+        return;
+    }
+    try {
+        const response = await axios_1.default.post("https://api.resend.com/emails", {
+            from: "TradeValue Hermes <onboarding@resend.dev>",
+            to: "mscott614@gmail.com",
+            subject: subject,
+            html: htmlContent,
+        }, {
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+            },
+        });
+        console.log("[Hermes] Email dispatched successfully:", response.data);
+    }
+    catch (error) {
+        console.error("[Hermes] Failed to send email via Resend:", error?.response?.data || error.message);
+    }
+}
 // Producer: Triggered when a new job is created in 'scanJobs'
 exports.enqueueGeminiTask = (0, firestore_1.onDocumentCreated)({
     document: "scanJobs/{jobId}",
@@ -325,13 +350,17 @@ exports.geminiProcessingQueue = (0, tasks_1.onTaskDispatched)({
         });
     }
 });
-exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
+// Offloaded to local hermesSnapshot.js to save compute costs
+// @ts-ignore
+const _dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
     schedule: "0 0 * * *", // Midnight Eastern daily
     timeZone: "America/New_York",
     region: "us-east4",
     timeoutSeconds: 300,
     memory: "256MiB",
+    secrets: [RESEND_API_KEY],
 }, async () => {
+    const startTime = Date.now();
     const db = admin.firestore();
     // Determine precise YYYY-MM-DD dates in New York timezone to prevent UTC-shift shifts
     const today = new Intl.DateTimeFormat("en-CA", {
@@ -415,6 +444,33 @@ exports.dailyPriceSnapshot = (0, scheduler_1.onSchedule)({
         }
     }
     console.log(`[PriceSnapshot] Done. Snapshotted ${totalCards} cards for ${today}.`);
+    // Dispatch Hermes completion notification
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    await sendHermesNotification(`📸 Daily Price Snapshot Complete — ${today}`, `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff;">
+        <h2 style="color: #16a34a; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+          📸 Daily Price Snapshot Completed
+        </h2>
+        <p style="font-size: 14px; color: #6b7280; margin-top: -8px;">Date: ${today}</p>
+        <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+        <p style="font-size: 15px; color: #374151;">The daily snapshot run finished successfully.</p>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; font-weight: bold; color: #4b5563; font-size: 14px;">Total Cards Snapshotted:</td>
+            <td style="padding: 10px 0; text-align: right; color: #111827; font-weight: bold; font-size: 14px;">${totalCards}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Execution Duration:</td>
+            <td style="padding: 10px 0; text-align: right; color: #111827; font-size: 14px;">${duration} seconds</td>
+          </tr>
+        </table>
+        <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #9ca3af; text-align: center;">
+          TradeValue Automated Notifications.<br/>
+          This is an automated Hermes notification dispatched from your Firebase v2 Scheduled Function.
+        </p>
+      </div>
+      `);
 });
 /**
  * Triggered at 8:00 AM EST (12:00/13:00 UTC)
@@ -426,7 +482,9 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
     region: "us-east4",
     memory: "512MiB",
     timeoutSeconds: 540,
+    secrets: [RESEND_API_KEY],
 }, async () => {
+    const startTime = Date.now();
     try {
         const db = admin.firestore();
         const queue = (0, functions_1.getFunctions)().taskQueue("locations/us-east4/functions/refreshMarketCardTask");
@@ -490,9 +548,77 @@ exports.scheduledMarketRefresh = (0, scheduler_1.onSchedule)({
         const results = await Promise.all(enqueuePromises);
         totalEnqueued = results.filter(r => r).length;
         console.log(`[MarketRefresh] Scheduled trigger complete. Enqueued ${totalEnqueued} total cards.`);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        const today = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/New_York",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        }).format(new Date());
+        await sendHermesNotification(`⚡ Morning Market Refresh Queued — ${today}`, `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff;">
+          <h2 style="color: #1e3a8a; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+            ⚡ Morning Market Refresh Initiated
+          </h2>
+          <p style="font-size: 14px; color: #6b7280; margin-top: -8px;">Date: ${today}</p>
+          <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+          <p style="font-size: 15px; color: #374151;">The morning market refresh prioritized queue is successfully initialized.</p>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Pass A (Missing Price Priority):</td>
+              <td style="padding: 10px 0; text-align: right; color: #111827; font-weight: bold; font-size: 14px;">${passATasks.length} cards</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Pass B Eligible (Stale Cooldown):</td>
+              <td style="padding: 10px 0; text-align: right; color: #111827; font-size: 14px;">${passBTasks.length} cards</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Pass B Enqueued (Capped):</td>
+              <td style="padding: 10px 0; text-align: right; color: #111827; font-size: 14px;">${passBCapped.length} cards (max ${MAX_DAILY_REFRESH}/day)</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 10px 0; font-weight: bold; color: #16a34a; font-size: 14px;">Total Tasks Enqueued:</td>
+              <td style="padding: 10px 0; text-align: right; color: #16a34a; font-weight: bold; font-size: 14px;">${totalEnqueued} total cards</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Execution Duration:</td>
+              <td style="padding: 10px 0; text-align: right; color: #111827; font-size: 14px;">${duration} seconds</td>
+            </tr>
+          </table>
+          <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+          <p style="font-size: 11px; color: #9ca3af; text-align: center;">
+            TradeValue Automated Notifications.<br/>
+            This is an automated Hermes notification dispatched from your Firebase v2 Scheduled Function.
+          </p>
+        </div>
+        `);
     }
     catch (globalErr) {
         console.error("[MarketRefresh] Critical failure during scheduled refresh:", globalErr);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        const today = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/New_York",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        }).format(new Date());
+        await sendHermesNotification(`❌ Morning Market Refresh Failed — ${today}`, `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #fecaca; border-radius: 8px; background: #fef2f2;">
+          <h2 style="color: #dc2626; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+            ❌ Morning Market Refresh Critical Failure
+          </h2>
+          <p style="font-size: 14px; color: #ef4444; margin-top: -8px;">Date: ${today}</p>
+          <hr style="border: none; border-top: 1px solid #fecaca; margin: 20px 0;" />
+          <p style="font-size: 15px; color: #991b1b; font-weight: bold;">Error Detail:</p>
+          <pre style="background: #ffffff; border: 1px solid #fca5a5; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #7f1d1d; white-space: pre-wrap;">${globalErr.message || String(globalErr)}</pre>
+          <p style="font-size: 13px; color: #7f1d1d; margin-top: 10px;">Execution Duration: ${duration} seconds</p>
+          <hr style="border: none; border-top: 1px solid #fecaca; margin: 20px 0;" />
+          <p style="font-size: 11px; color: #9ca3af; text-align: center;">
+            TradeValue Automated Notifications.<br/>
+            This is an automated Hermes notification dispatched from your Firebase v2 Scheduled Function.
+          </p>
+        </div>
+        `);
     }
 });
 /**
@@ -543,7 +669,8 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
                 cardNumber: cardData.cardNumber || "",
                 parallel: cardData.parallel || "",
                 grade: cardData.grade || cardData.estimatedGrade || "",
-                gradingCompany: cardData.gradingCompany || cardData.grader || ""
+                gradingCompany: cardData.gradingCompany || cardData.grader || "",
+                currentMarketValue: cardData.currentMarketValue || 0
             }
         }, {
             headers: { "Content-Type": "application/json" },
@@ -624,9 +751,9 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
         const existingPrice = cardData.currentMarketValue || 0;
         const existingStatus = cardData.status || 'unverified';
         // 1. Sticky Valuation: If no new data found (0.01) but we have a verified anchor, do NOT overwrite.
-        if (newPrice <= 0.01 && existingPrice > 0.01 && existingStatus === 'verified') {
+        if (newPrice <= 0.01 && existingPrice > 0.01 && (existingStatus === 'verified' || existingStatus === 'market_verified')) {
             finalUpdatePrice = existingPrice;
-            finalStatus = 'verified';
+            finalStatus = existingStatus;
             console.log(`[RefreshTask] Sticky Valuation: Keeping verified anchor $${existingPrice} for ${cardId}`);
         }
         // 2. Product Line Guard: If box set (CM/M) vs flagship jump is > 500%, block and flag.
@@ -670,28 +797,119 @@ exports.refreshMarketCardTask = (0, tasks_1.onTaskDispatched)({
 // Export new Shadow Engine v2
 var marketReportV2_1 = require("./marketReportV2");
 Object.defineProperty(exports, "marketReportV2", { enumerable: true, get: function () { return marketReportV2_1.marketReportV2; } });
-// Slab-to-raw arbitrage scanner (eBay raw vs PSA 10 comps)
-exports.scheduledArbitrageScan = (0, scheduler_1.onSchedule)({
+// Offloaded to local hermesArbitrage.js to save compute costs
+// @ts-ignore
+const _scheduledArbitrageScan = (0, scheduler_1.onSchedule)({
     // Once daily (evening) — set ARBITRAGE_SCAN_CRON=30 8,20 * * * for twice daily
     schedule: process.env.ARBITRAGE_SCAN_CRON || "30 20 * * *",
     timeZone: "America/New_York",
     region: "us-east4",
     memory: "512MiB",
     timeoutSeconds: 300,
-    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV],
+    secrets: [EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENV, RESEND_API_KEY],
 }, async () => {
+    const startTime = Date.now();
     const { EbayService } = await Promise.resolve().then(() => __importStar(require("./ebay")));
     const { runArbitrageScan } = await Promise.resolve().then(() => __importStar(require("./arbitrage-scanner")));
     const ebay = new EbayService(EBAY_CLIENT_ID.value(), EBAY_CLIENT_SECRET.value(), EBAY_ENV.value() || "production");
     const result = await runArbitrageScan(admin.firestore(), ebay);
     console.log("[ArbitrageScan] Scheduled run complete:", result);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date());
+    // Fetch top qualifying signals detected in the system recently
+    const db = admin.firestore();
+    const signalsSnap = await db.collection("arbitrage_signals")
+        .where("qualifies", "==", true)
+        .orderBy("detectedAt", "desc")
+        .limit(15)
+        .get();
+    const deals = [];
+    signalsSnap.docs.forEach((doc) => {
+        const data = doc.data();
+        deals.push({
+            player: data.player,
+            year: data.year,
+            brand: data.brand,
+            rawPrice: data.rawMedianUsd,
+            psa10Price: data.slabMedianUsd,
+            spread: data.spreadUsd,
+        });
+    });
+    let dealsHtml = "<p style='font-size: 14px; color: #64748b; font-style: italic;'>No significant raw-vs-graded arbitrage spreads detected in today's scan.</p>";
+    if (deals.length > 0) {
+        dealsHtml = `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #e5e7eb; text-align: left;">
+              <th style="padding: 10px 8px; color: #475569; font-size: 13px; font-weight: bold;">Card Description</th>
+              <th style="padding: 10px 8px; text-align: right; color: #475569; font-size: 13px; font-weight: bold;">Raw Est.</th>
+              <th style="padding: 10px 8px; text-align: right; color: #475569; font-size: 13px; font-weight: bold;">PSA 10 Comps</th>
+              <th style="padding: 10px 8px; text-align: right; color: #475569; font-size: 13px; font-weight: bold;">Est. Spread</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${deals.map((d) => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 8px; font-size: 13px; color: #0f172a;">${d.player || 'Unknown'} (${d.year} ${d.brand || ''})</td>
+                <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #334155;">$${d.rawPrice}</td>
+                <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #334155;">$${d.psa10Price}</td>
+                <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #16a34a; font-weight: bold;">+$${d.spread}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+    await sendHermesNotification(`⚖️ Arbitrage Scan Complete — ${today}`, `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff;">
+        <h2 style="color: #7c3aed; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+          ⚖️ Arbitrage Scan Results
+        </h2>
+        <p style="font-size: 14px; color: #6b7280; margin-top: -8px;">Date: ${today}</p>
+        <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+        <p style="font-size: 15px; color: #374151;">The daily arbitrage scan completed successfully.</p>
+        
+        <div style="background: #f8fafc; border-radius: 6px; padding: 15px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+          <table style="width: 100%;">
+            <tr>
+              <td style="color: #4b5563; font-size: 14px;">Total Items Scanned:</td>
+              <td style="text-align: right; color: #111827; font-weight: bold; font-size: 14px;">${result?.scanned || 0}</td>
+            </tr>
+            <tr>
+              <td style="color: #4b5563; font-size: 14px; padding-top: 8px;">Arbitrage Spreads Detected:</td>
+              <td style="text-align: right; color: #7c3aed; font-weight: bold; font-size: 14px; padding-top: 8px;">${result?.signals || 0}</td>
+            </tr>
+            <tr>
+              <td style="color: #4b5563; font-size: 14px; padding-top: 8px;">Scan Duration:</td>
+              <td style="text-align: right; color: #111827; font-size: 14px; padding-top: 8px;">${duration} seconds</td>
+            </tr>
+          </table>
+        </div>
+
+        <h3 style="color: #1e293b; font-size: 15px; margin-bottom: 10px;">Top Opportunities Discovered</h3>
+        ${dealsHtml}
+
+        <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 25px 0;" />
+        <p style="font-size: 11px; color: #9ca3af; text-align: center;">
+          TradeValue Automated Notifications.<br/>
+          This is an automated Hermes notification dispatched from your Firebase v2 Scheduled Function.
+        </p>
+      </div>
+      `);
 });
 // Global Batch Sync Scheduler (6:00 AM ET) — warm caches first, then batch (token-efficient order)
-exports.globalBatchSync = (0, scheduler_1.onSchedule)({
+// Offloaded to local hermesGlobal.js to save compute costs
+// @ts-ignore
+const _globalBatchSync = (0, scheduler_1.onSchedule)({
     schedule: "0 6 * * *",
     timeZone: "America/New_York",
     region: "us-east4",
-    secrets: [AGENT_SERVICE_URL],
+    secrets: [AGENT_SERVICE_URL, RESEND_API_KEY],
 }, async () => {
     const agentBase = AGENT_SERVICE_URL.value().trim();
     try {
@@ -707,6 +925,33 @@ exports.globalBatchSync = (0, scheduler_1.onSchedule)({
     }
     catch (error) {
         console.error("[GlobalSync] Failed to trigger batch job:", error);
+        // Dispatch alert if trigger endpoint itself fails
+        const today = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "America/New_York",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        }).format(new Date());
+        await sendHermesNotification(`❌ Global Batch Sync Trigger Failed — ${today}`, `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 25px; border: 1px solid #fecaca; border-radius: 8px; background: #fef2f2;">
+        <h2 style="color: #dc2626; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+          ❌ Global Batch Sync Request Failed
+        </h2>
+        <p style="font-size: 14px; color: #ef4444; margin-top: -8px;">Date: ${today}</p>
+        <hr style="border: none; border-top: 1px solid #fecaca; margin: 20px 0;" />
+        <p style="font-size: 15px; color: #991b1b;">The automated scheduler failed to connect to the backend agent server at:</p>
+        <code style="display: block; background: #ffffff; border: 1px solid #fca5a5; padding: 10px; border-radius: 4px; font-family: monospace; color: #7f1d1d; font-size: 13px; margin: 10px 0;">
+          ${agentBase}/batch-sync
+        </code>
+        <p style="font-size: 14px; color: #991b1b; font-weight: bold; margin-top: 15px;">Error Detail:</p>
+        <pre style="background: #ffffff; border: 1px solid #fca5a5; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #7f1d1d; white-space: pre-wrap;">${error.message || String(error)}</pre>
+        <hr style="border: none; border-top: 1px solid #fecaca; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #9ca3af; text-align: center;">
+          TradeValue Automated Notifications.<br/>
+          This is an automated Hermes notification dispatched from your Firebase v2 Scheduled Function.
+        </p>
+      </div>
+      `);
     }
 });
 // Batch Ingestion: region must match GCS bucket location (batch-sync bucket is us-central1).

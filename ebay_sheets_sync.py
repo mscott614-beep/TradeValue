@@ -11,8 +11,13 @@ from google.oauth2.service_account import Credentials
 from google.cloud import firestore
 from dotenv import load_dotenv
 
-# Load local environment variables from .env
-load_dotenv()
+# Load local environment variables from .env.local or fallback to .env
+if os.path.exists(".env.local"):
+    print("[Pipeline] Loading environment from .env.local")
+    load_dotenv(".env.local")
+else:
+    load_dotenv()
+
 
 # Configuration
 EBAY_CLIENT_ID = os.getenv("EBAY_CLIENT_ID")
@@ -183,10 +188,11 @@ def get_saved_searches_from_firestore():
             # Clean label for Google Sheet Tab
             card_label = f"{year} {brand} {player} #{card_num}".strip()
             
+            import json
             queries.append({
                 "query": query_str,
                 "label": card_label,
-                "details": details
+                "details": json.loads(json.dumps(details, default=str))
             })
             
         print(f"[Firestore] Successfully compiled {len(queries)} dynamic search queries from user portfolio.", flush=True)
@@ -194,6 +200,24 @@ def get_saved_searches_from_firestore():
         print(f"[Firestore] WARNING: Fetch failed (using fallback searches): {str(e)}", flush=True)
         
     return queries
+
+def robust_sheet_call(func, *args, **kwargs):
+    """Executes a gspread operation with exponential backoff for 429 rate limit exceptions."""
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            err_msg = str(e)
+            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "Quota exceeded" in err_msg:
+                # Exponential backoff: 5s, 10s, 20s, 40s, 80s
+                wait_time = (2 ** attempt) * 5
+                print(f"[Google Sheets] Rate limit hit (429). Retrying operation in {wait_time}s... Error: {err_msg}", flush=True)
+                time.sleep(wait_time)
+            else:
+                raise e
+    # Final attempt
+    return func(*args, **kwargs)
 
 def sync_to_google_sheets(data_by_query):
     """Programmatically writes parsed eBay data to Google Sheets, creating a formatted tab per search with hyperlinked clickable rows."""
@@ -231,13 +255,13 @@ def sync_to_google_sheets(data_by_query):
         # Open spreadsheet
         try:
             print(f"[Google Sheets] Attempting to open '{TARGET_SHEET_NAME}'...", flush=True)
-            sh = gc.open(TARGET_SHEET_NAME)
+            sh = robust_sheet_call(gc.open, TARGET_SHEET_NAME)
         except gspread.SpreadsheetNotFound:
             print(f"[Google Sheets] Spreadsheet '{TARGET_SHEET_NAME}' not found. Creating a new one...", flush=True)
-            sh = gc.create(TARGET_SHEET_NAME)
+            sh = robust_sheet_call(gc.create, TARGET_SHEET_NAME)
             
             try:
-                sh.share(SHARE_EMAIL, perm_type="user", role="writer")
+                robust_sheet_call(sh.share, SHARE_EMAIL, perm_type="user", role="writer")
                 print(f"[Google Sheets] Spreadsheet shared with {SHARE_EMAIL}.", flush=True)
             except Exception as se:
                 print(f"[Google Sheets] WARNING: Could not share spreadsheet: {str(se)}", flush=True)
@@ -257,30 +281,39 @@ def sync_to_google_sheets(data_by_query):
             worksheet = None
             if index == 0:
                 try:
-                    first_ws = sh.get_worksheet(0)
+                    first_ws = robust_sheet_call(sh.get_worksheet, 0)
                     if first_ws.title in ['Sheet1', 'Worksheet', '']:
-                        first_ws.update_title(tab_title)
+                        robust_sheet_call(first_ws.update_title, tab_title)
                         worksheet = first_ws
-                        worksheet.clear()
+                        robust_sheet_call(worksheet.clear)
                         print(f"[Google Sheets] Renamed default first tab to: '{tab_title}'", flush=True)
                 except Exception:
                     pass
             
             if not worksheet:
                 try:
-                    worksheet = sh.worksheet(tab_title)
-                    worksheet.clear()
+                    worksheet = robust_sheet_call(sh.worksheet, tab_title)
+                    robust_sheet_call(worksheet.clear)
                     print(f"[Google Sheets] Cleared existing tab '{tab_title}'.", flush=True)
                 except gspread.WorksheetNotFound:
                     print(f"[Google Sheets] Creating tab '{tab_title}'...", flush=True)
-                    worksheet = sh.add_worksheet(title=tab_title, rows=100, cols=5)
+                    worksheet = robust_sheet_call(sh.add_worksheet, title=tab_title, rows=100, cols=5)
 
-            # Set headers with Clickable Column
-            worksheet.append_row(["Title (Clickable)", "Price", "Date", "Raw eBay URL"])
+            # Build rows using Google Sheets HYPERLINK formula
+            new_rows = [["Title (Clickable)", "Price", "Date", "Raw eBay URL"]]
+            for row in listings:
+                # Escape double quotes inside the title so it does not break the Google Sheet formula string
+                escaped_title = row["title"].replace('"', "'")
+                clickable_formula = f'=HYPERLINK("{row["url"]}", "{escaped_title}")'
+                new_rows.append([clickable_formula, row["price"], row["date"], row["url"]])
+            
+            # Write all rows (headers + data rows) in a single update call to save write quotas
+            robust_sheet_call(worksheet.update, range_name='A1', values=new_rows, value_input_option="USER_ENTERED")
+            print(f"[Google Sheets] Successfully synced {len(new_rows)-1} clickable listings to tab '{tab_title}' in a single batch write.", flush=True)
             
             # Format header row to look professional
             try:
-                worksheet.format("A1:D1", {
+                robust_sheet_call(worksheet.format, "A1:D1", {
                     "backgroundColor": {
                         "red": 0.1,
                         "green": 0.3,
@@ -299,23 +332,8 @@ def sync_to_google_sheets(data_by_query):
             except Exception as fe:
                 print(f"[Google Sheets] Skipping style formatting on '{tab_title}' due to compatibility: {str(fe)}", flush=True)
 
-            # Build rows using Google Sheets HYPERLINK formula
-            new_rows = []
-            for row in listings:
-                # Escape double quotes inside the title so it does not break the Google Sheet formula string
-                escaped_title = row["title"].replace('"', "'")
-                clickable_formula = f'=HYPERLINK("{row["url"]}", "{escaped_title}")'
-                
-                new_rows.append([clickable_formula, row["price"], row["date"], row["url"]])
-            
-            if new_rows:
-                worksheet.append_rows(new_rows, value_input_option="USER_ENTERED")
-                print(f"[Google Sheets] Successfully synced {len(new_rows)} clickable listings to tab '{tab_title}'.", flush=True)
-            else:
-                print(f"[Google Sheets] No listings available for tab '{tab_title}'.", flush=True)
-                
-            # Rate limit mitigation: sleep 2.5 seconds between sheet operations to prevent Google Sheets API 429 rate limit exceptions
-            time.sleep(2.5)
+            # Rate limit mitigation: sleep 1.5 seconds between sheet operations (much safer now with batched writes)
+            time.sleep(1.5)
 
         return True
 
@@ -352,6 +370,73 @@ def sync_to_local_csv(data_by_query):
         return True
     except Exception as e:
         print(f"[CSV Fallback] ERROR writing local CSV: {str(e)}")
+        return False
+
+def send_completion_email(data, sheets_success, csv_success):
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    if not resend_api_key:
+        print("[Pipeline] WARNING: RESEND_API_KEY is not configured in .env.local. Skipping email report.")
+        return False
+        
+    try:
+        import resend
+        resend.api_key = resend_api_key
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        status_icon = "✅" if sheets_success else "⚠️"
+        status_text = "Portfolio Cards Synced Successfully to Google Sheets!" if sheets_success else "Portfolio Cards Synced via local CSV Fallback"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 25px; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+            <h2 style="color: { '#16a34a' if sheets_success else '#dc2626' }; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+                <span style="font-size: 24px;">{status_icon}</span> TradeValue Local Portfolio Sync Complete
+            </h2>
+            <p style="font-size: 14px; color: #6b7280; margin-top: -8px; margin-bottom: 20px;">Date: {today}</p>
+            <div style="font-size: 15px; font-weight: 600; color: #374151; margin-bottom: 20px;">{status_text}</div>
+            <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 10px 0; font-weight: bold; color: #4b5563; font-size: 14px;">Total Portfolio Cards Synced:</td>
+                    <td style="padding: 10px 0; text-align: right; color: #111827; font-weight: bold; font-size: 14px;">{len(data)}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #f3f4f6;">
+                    <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Sync Destination:</td>
+                    <td style="padding: 10px 0; text-align: right; color: #111827; font-size: 14px;">{ 'Google Sheets (TradeValue_Daily_Report)' if sheets_success else 'Local CSV Backup' }</td>
+                </tr>
+            </table>
+
+            <h3 style="color: #1f2937; font-size: 14px; margin-bottom: 10px;">Synced Cards:</h3>
+            <ul style="padding-left: 20px; font-size: 13px; color: #4b5563;">
+        """
+        
+        for item in data[:20]:
+            html_content += f"<li><strong>{item['label']}</strong> — Synced {len(item['listings'])} recent listings</li>"
+            
+        if len(data) > 20:
+            html_content += f"<li>...and {len(data) - 20} more cards.</li>"
+            
+        html_content += f"""
+            </ul>
+            <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 25px 0;" />
+            <p style="font-size: 11px; color: #9ca3af; text-align: center; margin-top: 20px; line-height: 1.4;">
+                TradeValue Automated Local Sync Agent.<br/>
+                This is a locally triggered report sent from your host PC.
+            </p>
+        </div>
+        """
+        
+        print(f"[Pipeline] Dispatching portfolio sync completion email to mscott614@gmail.com...")
+        resend.Emails.send({
+            "from": "TradeValue Sync Agent <onboarding@resend.dev>",
+            "to": "mscott614@gmail.com",
+            "subject": f"{status_icon} Local Portfolio Sync Completed — {today}",
+            "html": html_content
+        })
+        print("[Pipeline] Completion email dispatched successfully!")
+        return True
+    except Exception as e:
+        print(f"[Pipeline] ERROR sending completion email via Resend: {str(e)}")
         return False
 
 def main():
@@ -399,6 +484,9 @@ def main():
     csv_success = False
     if not sheets_success:
         csv_success = sync_to_local_csv(all_query_data)
+        
+    # 6. Dispatch compiled Resend email report
+    send_completion_email(all_query_data, sheets_success, csv_success)
     
     print("====================================================================")
     if sheets_success:

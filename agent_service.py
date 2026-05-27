@@ -387,6 +387,10 @@ async def execute_batch_sync_worker(userId: str):
             return
 
         skipped_recent = 0
+        skipped_incomplete = 0
+        success_count = 0
+        failed_count = 0
+        
         # Chunk into groups of 20
         chunk_size = 20
         for i in range(0, len(cards), chunk_size):
@@ -402,6 +406,7 @@ async def execute_batch_sync_worker(userId: str):
                 # --- METADATA VALIDATION (SKIP INCOMPLETE) ---
                 if not player or not brand or not year:
                     print(f"[BatchSync] SKIP: Incomplete metadata for {card_doc.id}")
+                    skipped_incomplete += 1
                     continue
 
                 skip, reason = batch_sync_should_skip_card(data)
@@ -411,12 +416,7 @@ async def execute_batch_sync_worker(userId: str):
                     continue
 
                 # Trigger valuation using the grounded value_card logic for precision
-                # Instead of BatchPredictionJob (which lacks tools), we call the local logic
-                # We use a wrapper that mimics the API request
                 try:
-                    # Construct a mock request object or just call a shared logic function
-                    # For safety in this environment, we'll use the existing value_card logic
-                    # via a background task simulation to avoid rate limits
                     print(f"[BatchSync] Processing: {year} {brand} {player}")
                     
                     # Extract userId from path: users/{userId}/portfolios/{cardId}
@@ -424,12 +424,17 @@ async def execute_batch_sync_worker(userId: str):
                     if len(path_parts) >= 2 and path_parts[0] == 'users':
                         u_id = path_parts[1]
                         # We use the live value_card logic to ensure google_search tool is used
-                        # We run it synchronously here since we are already in a worker
-                        await value_card(ValuationRequest(userId=u_id, cardId=card_doc.id, cardDetails=data))
+                        res = await value_card(ValuationRequest(userId=u_id, cardId=card_doc.id, cardDetails=data))
+                        if res and res.get("currentMarketValue", 0) > 0.01:
+                            success_count += 1
+                        else:
+                            failed_count += 1
                     else:
                         print(f"[BatchSync] ERROR: Could not resolve userId from path: {card_doc.reference.path}")
+                        failed_count += 1
                 except Exception as ve:
                     print(f"[BatchSync] Error processing card {card_doc.id}: {str(ve)}")
+                    failed_count += 1
                 
                 # Small sleep to prevent rate limits on the search tool
                 await asyncio.sleep(1.0)
@@ -438,8 +443,70 @@ async def execute_batch_sync_worker(userId: str):
 
         print(
             f"[BatchSync] Done. max={BATCH_SYNC_MAX_CARDS} retry_cooldown={BATCH_SYNC_RETRY_HOURS}h "
-            f"skipped_recent={skipped_recent}"
+            f"skipped_recent={skipped_recent} success={success_count} failed={failed_count}"
         )
+        
+        # --- SEND COMPLETION EMAIL REPORT ---
+        api_key = os.getenv("RESEND_API_KEY")
+        email_to = "mscott614@gmail.com"
+        if api_key:
+            try:
+                print(f"[BatchSync] Dispatching batch sync completion email to {email_to}...")
+                status_icon = "✅" if failed_count == 0 else "⚠️"
+                today = datetime.now().strftime("%Y-%m-%d")
+                
+                html_content = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 8px; padding: 25px; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <h2 style="color: #1e3a8a; margin-top: 0; display: flex; align-items: center; gap: 8px; font-size: 20px;">
+                        <span style="font-size: 24px;">{status_icon}</span> TradeValue Global Batch Sync Complete
+                    </h2>
+                    <p style="font-size: 14px; color: #6b7280; margin-top: -8px; margin-bottom: 20px;">Date: {today}</p>
+                    <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+                    
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                            <td style="padding: 10px 0; font-weight: bold; color: #4b5563; font-size: 14px;">Total Cards Streamed:</td>
+                            <td style="padding: 10px 0; text-align: right; color: #111827; font-weight: bold; font-size: 14px;">{len(cards)}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                            <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Successfully Valued:</td>
+                            <td style="padding: 10px 0; text-align: right; color: #16a34a; font-weight: bold; font-size: 14px;">{success_count}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                            <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Valuation Failed / Unpriced:</td>
+                            <td style="padding: 10px 0; text-align: right; color: { '#dc2626' if failed_count > 0 else '#4b5563' }; font-weight: bold; font-size: 14px;">{failed_count}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                            <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Skipped (Recent):</td>
+                            <td style="padding: 10px 0; text-align: right; color: #6b7280; font-size: 14px;">{skipped_recent}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                            <td style="padding: 10px 0; color: #4b5563; font-size: 14px;">Skipped (Incomplete Metadata):</td>
+                            <td style="padding: 10px 0; text-align: right; color: #6b7280; font-size: 14px;">{skipped_incomplete}</td>
+                        </tr>
+                    </table>
+                    
+                    <p style="font-size: 13px; color: #4b5563; line-height: 1.5; margin-top: 15px;">
+                        This sync has updated the Root collections cache and your users' portfolios in real-time. Unpriced/manual review cards have been logged.
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 25px 0;" />
+                    <p style="font-size: 11px; color: #9ca3af; text-align: center;">
+                        TradeValue Automated Cloud Agent.<br/>
+                        This is an automated completion email triggered by Vertex / FastAPI.
+                    </p>
+                </div>
+                """
+                
+                resend.api_key = api_key
+                resend.Emails.send({
+                    "from": "TradeValue Sync Agent <onboarding@resend.dev>",
+                    "to": email_to,
+                    "subject": f"{status_icon} Daily Global Batch Sync Report — {today}",
+                    "html": html_content
+                })
+                print("[BatchSync] Completion email dispatched successfully!")
+            except Exception as se:
+                print(f"[BatchSync] ERROR sending completion email: {str(se)}")
             
     except Exception as e:
         print(f"[BatchSync] Worker ERROR: {str(e)}")

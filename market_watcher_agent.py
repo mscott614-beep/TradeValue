@@ -67,14 +67,14 @@ class AgentClass:
     agent_instance = self.model_name
     root_agent = llm_agent.LlmAgent(
       name='MarketSyncAgent',
-      agent=agent_instance,
+      model=agent_instance,
       tools=[search_market_data]
     )
 
     self.root_agent = root_agent
     self.app = AdkApp(
-        agent=root_agent,
-        session_service_builder=self.session_service_builder,
+        name='MarketWatcherApp',
+        root_agent=root_agent,
     )
 
   def generate_market_report(self):
@@ -407,25 +407,27 @@ async def run_cli():
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                app_instance = AgentClass(model_name=model_name)
-                app_instance.set_up()
-                full_response = ""
-                async for chunk in app_instance.app.async_stream_query(message=query, user_id=args.userId):
-                    if isinstance(chunk, dict):
-                        if 'content' in chunk and isinstance(chunk['content'], dict):
-                            parts = chunk['content'].get('parts', [])
-                            for part in parts:
-                                if 'text' in part:
-                                    full_response += part['text']
-                        elif 'text' in chunk:
-                            full_response += chunk['text']
-                        elif 'actions' in chunk and chunk['actions'].get('content'):
-                            full_response += chunk['actions']['content']
-                    else:
-                        text = getattr(chunk, 'text', str(chunk))
-                        full_response += text
-                if full_response:
-                    return full_response
+                api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+                if api_key:
+                    client = genai.Client(api_key=api_key)
+                else:
+                    client = get_vertex_client()
+
+                config = types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.0
+                )
+                
+                print(f"[Python] Using Model: {model_name}")
+                response = await client.aio.models.generate_content(
+                    model=model_name,
+                    contents=query,
+                    config=config
+                )
+                
+                if response and response.text:
+                    return response.text
+                return ""
             except Exception as e:
                 error_msg = str(e)
                 if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:

@@ -1,3 +1,8 @@
-2026/05/18-22:19:27.769 4bec Reusing MANIFEST C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\Local Storage\leveldb/MANIFEST-000001
-2026/05/18-22:19:27.780 4bec Recovering log #3
-2026/05/18-22:19:27.783 4bec Reusing old log C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\Local Storage\leveldb/000003.log 
+2026/05/26-19:17:00.698 3210 Reusing MANIFEST C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\Local Storage\leveldb/MANIFEST-000001
+2026/05/26-19:17:00.738 3210 Recovering log #3
+2026/05/26-19:17:00.741 3210 Level-0 table #3: started
+2026/05/26-19:17:00.845 3210 Level-0 table #3: 21867 bytes OK
+2026/05/26-19:17:00.853 3210 Recovering log #4
+2026/05/26-19:17:00.875 3210 Reusing old log C:\Users\doggy\Downloads\tradevalue\.ebay_browser_context\Default\Local Storage\leveldb/000004.log 
+2026/05/26-19:17:00.890 3210 Delete type=0 #3
+2026/05/26-19:17:00.890 3210 Delete type=2 #5

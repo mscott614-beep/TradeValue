@@ -24,7 +24,7 @@ export const marketReportV2 = onRequest({
 
   try {
     const { genkit } = await import("genkit");
-    const { googleAI } = await import("@genkit-ai/google-genai");
+    const { googleAI } = await import("@genkit-ai/googleai");
 
     const ai = genkit({
       plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],

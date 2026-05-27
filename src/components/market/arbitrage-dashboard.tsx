@@ -128,25 +128,43 @@ export function ArbitrageDashboard() {
               key={alert.id}
               className="overflow-hidden border-slate-800/80 hover:border-slate-700/80 bg-slate-900/60 backdrop-blur-md shadow-xl transition-all flex flex-col group"
             >
+              {/* Premium Card Image Header */}
+              <div className="relative h-44 w-full overflow-hidden bg-slate-950/60 border-b border-slate-800/50 flex items-center justify-center group-hover:bg-slate-950/40 transition-all duration-300">
+                {alert.listingImageUrl ? (
+                  <img
+                    src={alert.listingImageUrl}
+                    alt={alert.listingTitle}
+                    className="h-full w-full object-contain p-2 transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = "/placeholder-card.png";
+                    }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-slate-600 gap-2">
+                    <Sparkles className="w-8 h-8 opacity-25" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-40">No Image Available</span>
+                  </div>
+                )}
+                {/* Glassmorphic discount percentage pill */}
+                <div className="absolute top-3 left-3 bg-emerald-500/90 text-white backdrop-blur-md px-2.5 py-0.5 rounded-full border border-emerald-400/30 shadow-lg text-[10px] font-bold uppercase tracking-wider">
+                  {discountPercent.toFixed(0)}% Off
+                </div>
+                {/* Match confidence overlay */}
+                <div className="absolute bottom-3 right-3 bg-slate-950/80 text-slate-300 backdrop-blur-md px-2 py-0.5 rounded-md border border-slate-800 text-[9px] font-mono">
+                  {alert.confidenceScore}% Match
+                </div>
+              </div>
+
               <CardHeader className="pb-3 border-b border-slate-800/50 bg-slate-900/40">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <Badge variant="outline" className="mb-2 bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[9px] uppercase tracking-wider font-bold">
-                      {discountPercent.toFixed(0)}% Discount
-                    </Badge>
-                    <CardTitle className="text-lg leading-tight truncate text-slate-100">
+                    <CardTitle className="text-base leading-tight truncate text-slate-100 font-bold group-hover:text-emerald-400 transition-colors">
                       {alert.player}
                     </CardTitle>
-                    <CardDescription className="text-xs mt-1 text-slate-400 truncate">
+                    <CardDescription className="text-xs mt-1 text-slate-400 truncate font-mono">
                       {alert.title}
                     </CardDescription>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={cn("shrink-0 font-bold", confidenceBadgeClass(alert.confidenceScore))}
-                  >
-                    {alert.confidenceScore}% Match
-                  </Badge>
                 </div>
               </CardHeader>
               
@@ -172,7 +190,7 @@ export function ArbitrageDashboard() {
 
                 <div className="flex-1 bg-slate-950/40 rounded-lg p-3 border border-slate-800/50">
                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3 text-primary" /> 
+                    <Sparkles className="w-3 h-3 text-emerald-400 animate-pulse" /> 
                     AI Deal Analysis
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed italic line-clamp-3">

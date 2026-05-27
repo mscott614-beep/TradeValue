@@ -9,8 +9,13 @@ from datetime import datetime
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
-# Load local environment variables from .env
-load_dotenv()
+# Load local environment variables from .env.local or fallback to .env
+if os.path.exists(".env.local"):
+    print("[Pipeline] Loading environment from .env.local")
+    load_dotenv(".env.local")
+else:
+    load_dotenv()
+
 
 # Google Sheets Configuration
 SERVICE_ACCOUNT_FILE = "service-account.json"
@@ -20,6 +25,24 @@ SHARE_EMAIL = "mscott614@gmail.com"  # Shared from agent_service.py
 
 # Directory to store user browser cookies/session persistently
 USER_DATA_DIR = os.path.join(os.getcwd(), ".ebay_browser_context")
+
+def robust_sheet_call(func, *args, **kwargs):
+    """Executes a gspread operation with exponential backoff for 429 rate limit exceptions."""
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            err_msg = str(e)
+            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "Quota exceeded" in err_msg:
+                # Exponential backoff: 5s, 10s, 20s, 40s, 80s
+                wait_time = (2 ** attempt) * 5
+                print(f"[Google Sheets] Rate limit hit (429). Retrying operation in {wait_time}s... Error: {err_msg}", flush=True)
+                time.sleep(wait_time)
+            else:
+                raise e
+    # Final attempt
+    return func(*args, **kwargs)
 
 def sync_to_google_sheets(data_by_query):
     """Programmatically writes parsed eBay data straight to Google Sheets."""
@@ -58,19 +81,19 @@ def sync_to_google_sheets(data_by_query):
         # Open or create spreadsheet
         try:
             print(f"[Google Sheets] Attempting to open '{TARGET_SHEET_NAME}'...", flush=True)
-            sh = gc.open(TARGET_SHEET_NAME)
+            sh = robust_sheet_call(gc.open, TARGET_SHEET_NAME)
         except gspread.SpreadsheetNotFound:
             print(f"[Google Sheets] Spreadsheet '{TARGET_SHEET_NAME}' not found. Creating a new one...", flush=True)
-            sh = gc.create(TARGET_SHEET_NAME)
+            sh = robust_sheet_call(gc.create, TARGET_SHEET_NAME)
             
             try:
-                sh.share(SHARE_EMAIL, perm_type="user", role="writer")
+                robust_sheet_call(sh.share, SHARE_EMAIL, perm_type="user", role="writer")
                 print(f"[Google Sheets] Spreadsheet shared with {SHARE_EMAIL}.", flush=True)
             except Exception as se:
                 print(f"[Google Sheets] WARNING: Could not share spreadsheet: {str(se)}", flush=True)
 
         # Get all existing worksheets
-        existing_worksheets = sh.worksheets()
+        existing_worksheets = robust_sheet_call(sh.worksheets)
         
         # Determine the first active tab name
         first_query = data_by_query[0]["query"]
@@ -80,21 +103,21 @@ def sync_to_google_sheets(data_by_query):
             
         # Rename the first worksheet to a temporary dummy name to avoid naming collisions
         first_ws = existing_worksheets[0]
-        first_ws.update_title("__temp_overwrite__")
-        first_ws.clear()
+        robust_sheet_call(first_ws.update_title, "__temp_overwrite__")
+        robust_sheet_call(first_ws.clear)
         print(f"[Google Sheets] Initialized first tab with temporary name", flush=True)
         
         # Delete all other worksheets in the spreadsheet to guarantee a complete overwrite
         for old_ws in existing_worksheets[1:]:
             try:
-                sh.del_worksheet(old_ws)
+                robust_sheet_call(sh.del_worksheet, old_ws)
                 print(f"[Google Sheets] Removed old tab: '{old_ws.title}'", flush=True)
                 time.sleep(1.5)  # Rate limit mitigation for old tab deletions
             except Exception as de:
                 print(f"[Google Sheets] Skipping deletion of tab '{old_ws.title}': {str(de)}", flush=True)
                 
         # Now rename the temporary sheet to the first tab's title (no collision possible)
-        first_ws.update_title(first_tab_title)
+        robust_sheet_call(first_ws.update_title, first_tab_title)
         print(f"[Google Sheets] Renamed first tab to: '{first_tab_title}'", flush=True)
 
         # Process each saved search
@@ -112,14 +135,22 @@ def sync_to_google_sheets(data_by_query):
                 worksheet = first_ws
             else:
                 print(f"[Google Sheets] Creating tab '{tab_title}'...", flush=True)
-                worksheet = sh.add_worksheet(title=tab_title, rows=100, cols=5)
+                worksheet = robust_sheet_call(sh.add_worksheet, title=tab_title, rows=100, cols=5)
 
-            # Set headers with Clickable Column
-            worksheet.append_row(["Title (Clickable)", "Price", "Date", "Raw eBay URL"])
+            # Build rows using Google Sheets HYPERLINK formula
+            new_rows = [["Title (Clickable)", "Price", "Date", "Raw eBay URL"]]
+            for row in listings:
+                escaped_title = row["title"].replace('"', "'")
+                clickable_formula = f'=HYPERLINK("{row["url"]}", "{escaped_title}")'
+                new_rows.append([clickable_formula, row["price"], row["date"], row["url"]])
             
+            # Batch update all rows (headers + listings) in a single update call
+            robust_sheet_call(worksheet.update, range_name='A1', values=new_rows, value_input_option="USER_ENTERED")
+            print(f"[Google Sheets] Successfully synced {len(new_rows)-1} clickable listings to tab '{tab_title}' in a single batch write.", flush=True)
+
             # Format header row to look professional (Premium Navy Steel Blue)
             try:
-                worksheet.format("A1:D1", {
+                robust_sheet_call(worksheet.format, "A1:D1", {
                     "backgroundColor": {
                         "red": 0.1,
                         "green": 0.3,
@@ -138,21 +169,8 @@ def sync_to_google_sheets(data_by_query):
             except Exception as fe:
                 print(f"[Google Sheets] Skipping style formatting on '{tab_title}': {str(fe)}", flush=True)
 
-            # Build rows using Google Sheets HYPERLINK formula
-            new_rows = []
-            for row in listings:
-                escaped_title = row["title"].replace('"', "'")
-                clickable_formula = f'=HYPERLINK("{row["url"]}", "{escaped_title}")'
-                new_rows.append([clickable_formula, row["price"], row["date"], row["url"]])
-            
-            if new_rows:
-                worksheet.append_rows(new_rows, value_input_option="USER_ENTERED")
-                print(f"[Google Sheets] Successfully synced {len(new_rows)} clickable listings to tab '{tab_title}'.", flush=True)
-            else:
-                print(f"[Google Sheets] No listings available for tab '{tab_title}'.", flush=True)
-
-            # Rate limit mitigation: sleep 2.5 seconds between sheet operations to prevent Google Sheets API 429 rate limit exceptions
-            time.sleep(2.5)
+            # Rate limit mitigation: sleep 1.5 seconds between sheet operations (much safer now with batched writes)
+            time.sleep(1.5)
 
         return True
 

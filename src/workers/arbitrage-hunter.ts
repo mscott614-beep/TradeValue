@@ -19,7 +19,7 @@ async function runArbitrageHunter() {
     
     // Dynamically import modules that depend on environment variables
     const { ebayService } = await import('../lib/ebay');
-    const { ai, PRIMARY_MODEL } = await import('../ai/genkit');
+    const { generateWithFallback, PRIMARY_MODEL } = await import('../ai/genkit');
     
     const db = getAdminDb();
     
@@ -99,7 +99,7 @@ async function runArbitrageHunter() {
                     `;
 
                     try {
-                        const aiResponse = await ai.generate({
+                        const aiResponse = await generateWithFallback({
                             model: PRIMARY_MODEL,
                             prompt,
                             output: { schema: DealValidatorSchema }
