@@ -203,15 +203,15 @@ async function runArbitrageHunter() {
                     // ==========================================
                     // TIER 1.5: Duplicate Listing Check
                     // ==========================================
-                    const listingId = listing.itemId;
-                    if (listingId) {
+                    const listingUrl = listing.itemWebUrl;
+                    if (listingUrl) {
                         const duplicateQuery = await db.collection('arbitrage_alerts')
-                            .where('listingId', '==', listingId)
+                            .where('listingUrl', '==', listingUrl)
                             .limit(1)
                             .get();
                         
                         if (!duplicateQuery.empty) {
-                            console.log(`   ⏭️ DUPLICATE IGNORED: Listing ${listingId} ("${listing.title}") was already alerted in a previous run.`);
+                            console.log(`   ⏭️ DUPLICATE IGNORED: Listing "${listing.title}" was already alerted in a previous run.`);
                             continue;
                         }
                     }
