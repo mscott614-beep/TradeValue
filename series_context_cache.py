@@ -33,7 +33,7 @@ RETURN FORMAT: Return ONLY a JSON object (no markdown fences) with this structur
 
 SERIES_BASE_INSTRUCTION = """You are the TradeValue Series Valuation Engine.
 You have access to a cached institutional reference corpus for this card series (baselines, population tiers, liquidity notes).
-ALWAYS use the Google Search tool for live eBay active and sold listings for the specific card in the user message.
+ALWAYS use the provided `firecrawl_scrape` tool to find live and sold listings by searching for URLs.
 Use the cached corpus to interpret comps, reject reprints, and anchor outliers — never skip live search.
 VALUATION PROTOCOL:
 1. STRICTLY EXCLUDE reprints, copies, custom cards, and lots unless the user query asks for lots.
@@ -317,6 +317,7 @@ def get_or_create_series_cache(
     client: genai.Client,
     series_id: str,
     db=None,
+    tools: list = None,
     log_prefix: str = "ContextCache",
 ) -> Optional[str]:
     """
@@ -347,7 +348,7 @@ def get_or_create_series_cache(
             config=types.CreateCachedContentConfig(
                 display_name=profile["display_name"],
                 system_instruction=profile["system_instruction"],
-                tools=[types.Tool(google_search=types.GoogleSearch())],
+                tools=tools,
                 contents=[profile["static_context"]],
                 ttl=ttl,
             ),

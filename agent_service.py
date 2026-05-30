@@ -13,6 +13,99 @@ from datetime import datetime, timezone
 from google import genai
 from google.genai import types
 import resend
+import base64
+import requests
+import time
+from datetime import datetime, timezone, timedelta
+
+_last_scrape_time = 0.0
+
+def firecrawl_scrape(url: str) -> str:
+    """
+    Scrape the full Markdown content of any web page.
+    Use this tool to extract data from target URLs.
+    """
+    global _last_scrape_time
+    
+    api_key = os.environ.get("FIRECRAWL_API_KEY")
+    if not api_key:
+        return '{"error": "FIRECRAWL_API_KEY not configured."}'
+        
+    db = get_db()
+    if not db:
+        return '{"error": "Database not available for caching."}'
+        
+    # Check Daily Global Limit (max 30 per day)
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    limit_ref = db.collection('system_metadata').document(f'firecrawl_usage_{today_str}')
+    limit_doc = limit_ref.get()
+    
+    usage_count = limit_doc.to_dict().get('count', 0) if limit_doc.exists else 0
+        
+    if usage_count >= 30:
+        return '{"error": "Firecrawl daily limit of 30 scrapes exceeded."}'
+        
+    # Check cache in market_reports
+    safe_url_id = base64.urlsafe_b64encode(url.encode('utf-8')).decode('utf-8').rstrip("=")
+    cache_ref = db.collection('market_reports').document(f"scrape_cache_{safe_url_id}")
+    cache_doc = cache_ref.get()
+    
+    if cache_doc.exists:
+        data = cache_doc.to_dict()
+        last_scraped_str = data.get('last_scraped')
+        if last_scraped_str:
+            try:
+                last_scraped = datetime.fromisoformat(last_scraped_str)
+                if datetime.now(timezone.utc) - last_scraped < timedelta(days=7):
+                    print(f"[Firecrawl] CACHE HIT for {url}")
+                    return data.get('content', '')
+            except Exception:
+                pass
+                
+    # Enforce 2-second delay
+    elapsed = time.time() - _last_scrape_time
+    if elapsed < 2.0:
+        time.sleep(2.0 - elapsed)
+        
+    _last_scrape_time = time.time()
+    
+    # Perform Scrape
+    print(f"[Firecrawl] Scraping {url}...")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "url": url,
+        "formats": ["markdown"]
+    }
+    try:
+        res = requests.post("https://api.firecrawl.dev/v1/scrape", headers=headers, json=payload, timeout=30)
+        if res.status_code == 200:
+            res_data = res.json()
+            if res_data.get('success'):
+                content = res_data.get('data', {}).get('markdown', '')
+                
+                # Update usage limit safely using set/update
+                if limit_doc.exists:
+                    limit_ref.update({'count': firestore.Increment(1)})
+                else:
+                    limit_ref.set({'count': 1, 'date': today_str})
+                    
+                # Update cache
+                cache_ref.set({
+                    'url': url,
+                    'content': content,
+                    'last_scraped': datetime.now(timezone.utc).isoformat()
+                })
+                return content
+            else:
+                return f'{{"error": "Firecrawl API returned failure: {res_data}"}}'
+        else:
+            return f'{{"error": "Firecrawl API HTTP {res.status_code}: {res.text}"}}'
+    except Exception as e:
+        return f'{{"error": "{str(e)}"}}'
+
 from series_context_cache import (
     build_card_valuation_instruction,
     get_or_create_series_cache,
@@ -1157,7 +1250,7 @@ async def value_card(req: ValuationRequest):
                 try:
                     cache_client = genai.Client(api_key=os.environ.get("GOOGLE_GENAI_API_KEY"))
                     cached_content_name = get_or_create_series_cache(
-                        cache_client, series_id, db=get_db()
+                        cache_client, series_id, db=get_db(), tools=[firecrawl_scrape]
                     )
                     if cached_content_name:
                         method_used = "Gemini-3.5-Flash-Context-Cache"
@@ -1173,26 +1266,29 @@ async def value_card(req: ValuationRequest):
                 sys_inst = build_card_valuation_instruction(
                     player, cleaned_num, card_desc, series_id=series_id
                 )
-                # Cannot set system_instruction or tools when using cached_content
+                # Cannot set system_instruction when using cached_content, but tools are supported/required at runtime
                 q = f"{sys_inst}\n\nUSER REQUEST: {q}"
                 gen_config = types.GenerateContentConfig(
                     cached_content=cached_content_name,
+                    tools=[firecrawl_scrape],
                 )
             else:
                 sys_inst = (
                     f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
-                    "CRITICAL INSTRUCTION: You MUST use the provided search tool to find live and sold listings on eBay for this exact card. "
+                    "CRITICAL INSTRUCTION: You MUST use the provided `firecrawl_scrape` tool to find live and sold listings by searching for URLs. "
+                    "DO NOT USE GOOGLE SEARCH GROUNDING. "
                     "VALUATION PROTOCOL: "
                     "1. STRICTLY EXCLUDE reprints, copies, or custom cards. "
-                    "2. Find at least 5 active listings and 5 sold listings. "
+                    "2. Find at least 5 active listings and 5 sold listings if possible using the tool. "
                     "3. If no exact title matches are found, allow minor variations (e.g., 'Series 1' vs 'S1') as long as the Year, Brand, Player, and Card Number match. "
-                    "4. Calculate the median sold price after removing outliers. "
+                    "4. Calculate the median price after removing outliers. "
                     "5. RETURN FORMAT: You MUST return ONLY a JSON block with this structure: "
                     "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}"
                 )
                 gen_config = types.GenerateContentConfig(
                     system_instruction=sys_inst,
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    # tools=[types.Tool(google_search=types.GoogleSearch())],
+                    tools=[firecrawl_scrape],
                 )
 
             # Implementation of exponential backoff for 429 errors
@@ -1239,14 +1335,15 @@ async def value_card(req: ValuationRequest):
         res_json = robust_json_parse(raw_res)
         
         # Cascading fallback: second google_search only when primary parse fails or returns 0 (cost guard)
-        if not req.deepSearch and (
-            not res_json or res_json.get('currentMarketValue', 0) == 0 or "no results" in (raw_res or "").lower()
-        ):
-            print(f"[AgentService] Triggering Fallback Search for {player}...")
-            method_used = "fallback_broad_search"
-            raw_res = await attempt_run(f"VALUE: {card_desc}. JSON.")
-            print(f"[AgentService] Fallback Response Preview: {raw_res[:200] if raw_res else 'EMPTY'}")
-            res_json = robust_json_parse(raw_res)
+        # DISABLED: This was causing $0.07 per card double-billing on hard to find cards
+        # if not req.deepSearch and (
+        #     not res_json or res_json.get('currentMarketValue', 0) == 0 or "no results" in (raw_res or "").lower()
+        # ):
+        #     print(f"[AgentService] Triggering Fallback Search for {player}...")
+        #     method_used = "fallback_broad_search"
+        #     raw_res = await attempt_run(f"VALUE: {card_desc}. JSON.")
+        #     print(f"[AgentService] Fallback Response Preview: {raw_res[:200] if raw_res else 'EMPTY'}")
+        #     res_json = robust_json_parse(raw_res)
             
         if not res_json: 
             print(f"[AgentService] WARNING: JSON parse failed. Raw: {(raw_res or '')[:500]}")

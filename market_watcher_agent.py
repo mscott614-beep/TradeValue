@@ -61,9 +61,6 @@ class AgentClass:
     """Sets up the ADK application."""
     print(f"[Python] Using Model: {self.model_name}")
     
-    # Modern Tooling for Sync Agent
-    search_tool = types.Tool(google_search=types.GoogleSearch())
-    
     agent_instance = self.model_name
     root_agent = llm_agent.LlmAgent(
       name='MarketSyncAgent',
@@ -120,13 +117,14 @@ class AgentClass:
 
     try:
         # Modern Tooling
-        search_tool = types.Tool(google_search=types.GoogleSearch())
+        # Google Search Grounding disabled due to high cost. Use custom tools instead.
+        # search_tool = types.Tool(google_search=types.GoogleSearch())
 
         system_instruction = f"""You are the TradeValue Institutional Research Desk (Gemini 3.5 Flash).
 Author an institutional-grade ALTERNATIVE-ASSET market report for high-net-worth collectors and allocators.
 
 DO NOT write a broad, generic macro blog post. DO NOT open with vague market commentary.
-Use Google Search to ground all pricing in recent eBay sold/active comps and auction house baselines.
+Use provided data and tools to ground all pricing in recent eBay sold/active comps and auction house baselines.
 
 Reporting period: {current_month} (report date: {report_date}).
 
@@ -159,7 +157,7 @@ FORMATTING RULES:
 
         prompt = f"""Generate this week's institutional alternative-asset market report for TradeValue subscribers.
 
-Research using Google Search. Prioritize:
+Research using provided tools or context. Prioritize:
 - High-velocity modern rookies and breakout performers with measurable weekly price deltas
 - Blue-chip registry assets with population and auction baseline references
 - Recent eBay sold BIN data to build raw vs PSA 10 multiplier math (show your medians)
@@ -172,7 +170,7 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
 
         print(f"[MarketAnalyst] Starting institutional report for {current_month}...")
         
-        # Use API key client — proven path with gemini-3.5-flash + google_search.
+        # Use API key client — proven path with gemini-3.5-flash.
         # The Vertex AI client has region/grounding compatibility issues with 3.5 Flash.
         api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
         if api_key:
@@ -182,7 +180,6 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
 
 
         config = types.GenerateContentConfig(
-            tools=[search_tool],
             temperature=0.25,
             system_instruction=system_instruction,
         )
@@ -414,7 +411,7 @@ async def run_cli():
                     client = get_vertex_client()
 
                 config = types.GenerateContentConfig(
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    # google_search tool removed to comply with cost and grounding policies
                     temperature=0.0
                 )
                 

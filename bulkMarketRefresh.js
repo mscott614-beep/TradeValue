@@ -97,38 +97,26 @@ function runAgent(userId, cardId, cardDetails, searchQuery) {
 
             try {
                 // Extract JSON from output
-                const cleanedData = dataString.split('\n')
-                    .map(line => line.trim())
-                    .filter(line => {
-                        return line.startsWith('{') || 
-                               line.startsWith('}') || 
-                               line.startsWith('"') || 
-                               line.startsWith(':') || 
-                               line.startsWith('[') || 
-                               line.startsWith(']') ||
-                               line.startsWith('[Python]');
-                    });
+                const lines = dataString.split('\n').map(l => l.trim()).filter(l => l);
+                let result = null;
                 
-                // Print Python model logs and other diagnostic info to terminal
-                cleanedData.forEach(line => {
-                    if (line.startsWith('[Python]')) {
-                        console.log(line);
+                for (let i = lines.length - 1; i >= 0; i--) {
+                    const line = lines[i];
+                    if (line.startsWith('{') && line.endsWith('}')) {
+                        try {
+                            result = JSON.parse(line);
+                            break;
+                        } catch (e) {
+                            // ignore and continue
+                        }
                     }
-                });
+                }
 
-                const jsonStr = cleanedData.filter(line => !line.startsWith('[Python]')).join('\n');
-                const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) {
+                if (!result) {
                     return reject(new Error(`No JSON output found. Raw: ${dataString}`));
                 }
 
-                try {
-                    const result = JSON.parse(jsonMatch[0]);
-                    resolve(result);
-                } catch (parseErr) {
-                    console.error(`[Refresh] JSON Parse Failed for Card ${cardId}! Raw string: "${jsonMatch[0]}"`);
-                    reject(parseErr);
-                }
+                resolve(result);
             } catch (err) {
                 reject(err);
             }

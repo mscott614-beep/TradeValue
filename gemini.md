@@ -3,7 +3,7 @@
 ## 🏗️ System Architecture
 
 - **Core AI:** **Gemini 3.5 Flash** (Model ID: `gemini-3.5-flash`; standardized for high-speed tool calling, advanced parallel agentic reasoning, 1M input context, and up to 64K output token generation).
-- **Tool Protocol:** Native **Google Search Grounding** (`Google Search`).
+- **Tool Protocol:** Native **Firecrawl API Function Calling** (`firecrawl_scrape` Python function).
 - **Backend:** Python (Flask) on **Google Cloud Run** (`market-agent`, region `us-east4`).
 - **Frontend:** Next.js 14+ (App Router) on Firebase App Hosting (`tradevalue-app`, region `us-east4`).
 - **Database:** Firestore (Production-ready).
@@ -30,7 +30,7 @@ To maintain UI stability and prevent "Application Error" crashes, follow these c
 2. **Payload Keys:** The backend must return:
    - **`final_price`**: Primary valuation result (synchronized with `currentMarketValue`).
    - **`query`**: The exact search string used for eBay.
-   - **`method`**: The logic applied (e.g., "Trimmed Mean" or "Search Grounding").
+   - **`method`**: The logic applied (e.g., "Trimmed Mean" or "firecrawl_scrape").
    - **`active_listings` / `sold_listings`**: Must be an `[]` (empty array), never `null`.
 
 ## 🛡️ Security & Environment
@@ -66,7 +66,7 @@ High-volume series (1999 Pokémon Base, late-80s OPC Hockey, modern Prizm basket
 
 - Static corpora (baselines, pop tiers, comp rules) are stored in `client.caches.create()` with TTL (`CONTEXT_CACHE_TTL`, default 6h).
 - Registry persisted in Firestore `gemini_series_context_caches/{series_id}`.
-- `/value-card` attaches `cached_content` when `resolve_series_profile_id()` matches; live **Google Search** still runs per card.
+- `/value-card` attaches `cached_content` when `resolve_series_profile_id()` matches; live **Firecrawl Tool** still runs per card.
 - Warm caches: `POST /warm-series-context-caches` (scheduler-friendly).
 - Disable: `ENABLE_CONTEXT_CACHING=false`.
 
@@ -83,7 +83,7 @@ High-volume series (1999 Pokémon Base, late-80s OPC Hockey, modern Prizm basket
 ## ⚙️ Operational Cleanup
 
 - **Pointer Events:** All async save/sync functions must include a `finally` block restoring `document.body.style.pointerEvents = 'auto'`.
-- **Search Protocol:** With Gemini 3.5, **do not** use `response_mime_type="application/json"` if using the search tool. Use the native `Google Search` configuration to avoid "Controlled Generation" conflicts.
+- **Search Protocol:** Only use Firecrawl for data extraction. Never use Google Search Grounding.
 
 ## 🛑 Compute Guardrails & Execution Limits
 
