@@ -34,3 +34,19 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  - variable: USE_LOCAL_LLM
+    value: "true"
+    availability:
+      - RUNTIME
+
+  - variable: LOCAL_LLM_URL
+    value: "https://primary-villain-parking.ngrok-free.dev"
+    availability:
+      - RUNTIME
+
+  - variable: LOCAL_LLM_MODEL
+    value: "qwen"
+    availability:
+      - RUNTIME
+

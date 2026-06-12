@@ -170,36 +170,59 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
 
         print(f"[MarketAnalyst] Starting institutional report for {current_month}...")
         
-        # Use API key client — proven path with gemini-3.5-flash.
-        # The Vertex AI client has region/grounding compatibility issues with 3.5 Flash.
-        api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
-        if api_key:
-            report_client = genai.Client(api_key=api_key)
-        else:
-            report_client = get_vertex_client()  # Fall back to module-level Vertex AI client
+        use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
+        local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
 
-
-        config = types.GenerateContentConfig(
-            temperature=0.25,
-            system_instruction=system_instruction,
-        )
+        if use_local_llm:
+            try:
+                from openai import OpenAI
+            except ImportError:
+                raise Exception("openai package not installed but USE_LOCAL_LLM is true")
             
-        response = report_client.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-            config=config
-        )
-        
-        # Gemini 3.5 Flash + google_search returns multi-part responses.
-        # The JSON answer is often in a later part, after grounding chunks.
-        # We must concatenate ALL text parts to find the actual report JSON.
-        res_text = ""
-        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, 'text') and part.text:
-                    res_text += part.text + "\n"
-        if not res_text:
-            res_text = response.text or ""
+            openai_client = OpenAI(base_url=local_llm_url, api_key="ollama")
+            print(f"[MarketAnalyst] Using Local Model for report: {local_llm_model}")
+            
+            resp = openai_client.chat.completions.create(
+                model=local_llm_model,
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            res_text = resp.choices[0].message.content or ""
+        else:
+            # Use API key client — proven path with gemini-3.5-flash.
+            # The Vertex AI client has region/grounding compatibility issues with 3.5 Flash.
+            api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+            if api_key:
+                report_client = genai.Client(api_key=api_key)
+            else:
+                report_client = get_vertex_client()  # Fall back to module-level Vertex AI client
+
+            config = types.GenerateContentConfig(
+                temperature=0.25,
+                system_instruction=system_instruction,
+            )
+                
+            response = report_client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=config
+            )
+            
+            # Gemini 3.5 Flash + google_search returns multi-part responses.
+            # The JSON answer is often in a later part, after grounding chunks.
+            # We must concatenate ALL text parts to find the actual report JSON.
+            res_text = ""
+            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'text') and part.text:
+                        res_text += part.text + "\n"
+            if not res_text:
+                res_text = response.text or ""
+
             
         if not res_text:
             raise ValueError("Empty response from model")
