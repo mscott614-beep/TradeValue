@@ -56,7 +56,7 @@
     "firebase": "^11.9.1",
     "firebase-admin": "^13.8.0",
     "genkit": "^1.33.0",
-    "genkitx-ollama": "^1.37.0",
+    "genkitx-ollama": "^1.33.0",
     "lucide-react": "^0.475.0",
     "next": "15.5.9",
     "papaparse": "^5.5.3",
