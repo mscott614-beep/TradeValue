@@ -402,18 +402,40 @@ async def run_cli():
 
     async def attempt_run(model_name):
         max_retries = 3
+        
+        use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
+        local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+
         for attempt in range(max_retries):
             try:
-                api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
-                if api_key:
-                    client = genai.Client(api_key=api_key)
+                if use_local_llm:
+                    try:
+                        from openai import AsyncOpenAI
+                    except ImportError:
+                        raise Exception("openai package not installed but USE_LOCAL_LLM is true")
+                    
+                    openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama")
+                    print(f"[Python] Using Local Model: {local_llm_model}")
+                    resp = await openai_client.chat.completions.create(
+                        model=local_llm_model,
+                        messages=[{"role": "user", "content": query}],
+                        response_format={"type": "json_object"}
+                    )
+                    if resp and resp.choices and resp.choices[0].message.content:
+                        return resp.choices[0].message.content
+                    return ""
                 else:
-                    client = get_vertex_client()
+                    api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+                    if api_key:
+                        client = genai.Client(api_key=api_key)
+                    else:
+                        client = get_vertex_client()
 
-                config = types.GenerateContentConfig(
-                    # google_search tool removed to comply with cost and grounding policies
-                    temperature=0.0
-                )
+                    config = types.GenerateContentConfig(
+                        # google_search tool removed to comply with cost and grounding policies
+                        temperature=0.0
+                    )
                 
                 print(f"[Python] Using Model: {model_name}")
                 response = await client.aio.models.generate_content(

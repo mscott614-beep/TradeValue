@@ -8,6 +8,14 @@
         { "fieldPath": "batchId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "arbitrage_signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "qualifies", "order": "ASCENDING" },
+        { "fieldPath": "detectedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

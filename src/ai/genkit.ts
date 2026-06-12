@@ -1,20 +1,35 @@
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
+import { ollama } from 'genkitx-ollama';
 import { z } from 'zod';
 
-export const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
-export const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+const localUrl = process.env.LOCAL_LLM_URL || 'http://localhost:11434';
+
+export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
+export const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 
-if (!apiKey) {
+if (!apiKey && !useLocalLlm) {
   throw new Error(
     "Missing API Key: set GOOGLE_GENAI_API_KEY (Functions/Cloud Run) or GEMINI_API_KEY (App Hosting) in environment variables."
   );
 }
 
+const plugins: any[] = [googleAI({ apiKey: apiKey || 'dummy-key' })];
+if (useLocalLlm) {
+  plugins.push(
+    ollama({
+      models: [{ name: localModel }],
+      serverAddress: localUrl,
+    })
+  );
+}
+
 export const ai = genkit({
-  plugins: [googleAI({ apiKey })],
+  plugins,
   model: PRIMARY_MODEL,
 });
 

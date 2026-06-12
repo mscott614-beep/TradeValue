@@ -4,8 +4,11 @@ import { buildInstitutionalReportPrompt } from "./institutional-report-prompt";
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 
-const PRIMARY_MODEL = "googleai/gemini-3.5-flash";
-const FALLBACK_MODEL = "googleai/gemini-2.5-flash";
+const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+
+const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : "googleai/gemini-3.5-flash";
+const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : "googleai/gemini-2.5-flash";
 
 /**
  * Streaming institutional market report (aligned with weekly newsletter architecture).
@@ -25,9 +28,24 @@ export const marketReportV2 = onRequest({
   try {
     const { genkit } = await import("genkit");
     const { googleAI } = await import("@genkit-ai/googleai");
+    
+    const plugins: any[] = [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })];
+    if (useLocalLlm) {
+      try {
+        const { ollama } = await import("genkitx-ollama");
+        plugins.push(
+          ollama({
+            models: [{ name: localModel }],
+            serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
+          })
+        );
+      } catch(e) {
+        console.warn("genkitx-ollama not found, skipping local LLM plugin load");
+      }
+    }
 
     const ai = genkit({
-      plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
+      plugins,
     });
 
     const models = [PRIMARY_MODEL, FALLBACK_MODEL];

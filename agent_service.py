@@ -18,6 +18,14 @@ import requests
 import time
 from datetime import datetime, timezone, timedelta
 
+# --- Local LLM Config ---
+USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM") == "true"
+LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 _last_scrape_time = 0.0
 
 def firecrawl_scrape(url: str) -> str:
@@ -726,15 +734,24 @@ JSON schema:
 }}"""
 
     try:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=os.getenv("ANALYSIS_MODEL", "gemini-3.5-flash"),
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-            ),
-        )
-        res_text = response.text or ""
+        if USE_LOCAL_LLM and OpenAI:
+            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama")
+            resp = openai_client.chat.completions.create(
+                model=LOCAL_LLM_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            res_text = resp.choices[0].message.content or ""
+        else:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=os.getenv("ANALYSIS_MODEL", "gemini-3.5-flash"),
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                ),
+            )
+            res_text = response.text or ""
         parsed = robust_json_parse(res_text) if res_text else None
         if not parsed:
             raise HTTPException(status_code=502, detail="Analysis model returned unparseable JSON")
@@ -1279,11 +1296,12 @@ async def value_card(req: ValuationRequest):
                     "DO NOT USE GOOGLE SEARCH GROUNDING. "
                     "VALUATION PROTOCOL: "
                     "1. STRICTLY EXCLUDE reprints, copies, or custom cards. "
-                    "2. Find at least 5 active listings and 5 sold listings if possible using the tool. "
+                    "2. Find at least 5 active listings and 5 sold listings if possible using the tool. If no real active or sold listings are found, return an empty array [] for that field. Do NOT generate placeholder/fake listings or URLs under any circumstances. "
                     "3. If no exact title matches are found, allow minor variations (e.g., 'Series 1' vs 'S1') as long as the Year, Brand, Player, and Card Number match. "
                     "4. Calculate the median price after removing outliers. "
                     "5. RETURN FORMAT: You MUST return ONLY a JSON block with this structure: "
-                    "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}"
+                    "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}. "
+                    "CRITICAL FORMAT RULE: If no active_listings or sold_listings are found in the search results, you MUST return an empty array [] for that field. Under no circumstances should you generate dummy, placeholder, or fake listings or URLs (such as \"https://www.ebay.com/itm/123456789011\" or using \"...\" strings as values)."
                 )
                 gen_config = types.GenerateContentConfig(
                     system_instruction=sys_inst,
@@ -1296,12 +1314,27 @@ async def value_card(req: ValuationRequest):
             for attempt in range(max_retries):
                 try:
                     print(f"[AgentService] AI Sync Attempt {attempt+1}/{max_retries} for query: {q}")
-                    response = client.models.generate_content(
-                        model='gemini-3.5-flash',
-                        contents=q,
-                        config=gen_config,
-                    )
-                    log_cache_usage(response, series_id)
+                    
+                    if USE_LOCAL_LLM and OpenAI:
+                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama")
+                        resp = openai_client.chat.completions.create(
+                            model=LOCAL_LLM_MODEL,
+                            messages=[
+                                {"role": "system", "content": sys_inst},
+                                {"role": "user", "content": q}
+                            ],
+                            response_format={"type": "json_object"}
+                        )
+                        res_text = resp.choices[0].message.content or ""
+                        print(f"[AgentService] Success after {attempt+1} attempts.")
+                        return res_text
+                    else:
+                        response = client.models.generate_content(
+                            model='gemini-3.5-flash',
+                            contents=q,
+                            config=gen_config,
+                        )
+                        log_cache_usage(response, series_id)
                     # Gemini 3.5 Flash + google_search returns multi-part responses.
                     # The JSON answer is often in a later part, after grounding chunks.
                     # We must concatenate ALL text parts to find the actual valuation JSON.

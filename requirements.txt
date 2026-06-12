@@ -11,4 +11,7 @@ google-cloud-storage
 beautifulsoup4
 resend
 gspread
-
+google-auth
+python-dotenv
+openai
+playwright

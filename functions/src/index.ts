@@ -10,6 +10,7 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 
 let genkit: any;
 let vertexAI: any;
+let ollamaAI: any;
 let z: any;
 
 
@@ -18,15 +19,27 @@ async function loadGenkit() {
   if (!genkit) {
     const genkitMod = await import("genkit");
     const aiMod = await import("@genkit-ai/googleai");
+    const useLocalLlm = process.env.USE_LOCAL_LLM === "true";
+    if (useLocalLlm) {
+        try {
+            const ollamaMod = await import("genkitx-ollama");
+            ollamaAI = ollamaMod.ollama;
+        } catch(e) {
+            console.warn("genkitx-ollama not found, skipping local LLM plugin load");
+        }
+    }
     genkit = genkitMod.genkit;
     z = genkitMod.z;
     vertexAI = aiMod.googleAI;
   }
-  return { genkit, z, googleAI: vertexAI };
+  return { genkit, z, googleAI: vertexAI, ollama: ollamaAI };
 }
 
-const PRIMARY_MODEL = 'googleai/gemini-3.5-flash';
-const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+
+const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
+const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");
@@ -146,10 +159,20 @@ export const geminiProcessingQueue = onTaskDispatched(
         updatedAt: new Date().toISOString(),
       });
 
-      const { genkit, googleAI } = await loadGenkit();
+      const { genkit, googleAI, ollama } = await loadGenkit();
+
+      const plugins: any[] = [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })];
+      if (process.env.USE_LOCAL_LLM === 'true' && ollama) {
+        plugins.push(
+          ollama({
+            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:26b' }],
+            serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
+          })
+        );
+      }
 
       const ai = genkit({
-        plugins: [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })],
+        plugins,
       });
 
       const { identifyCardFromImages, ScanOutputSchema } = await import("./scan-identify");

@@ -29,6 +29,7 @@ RETURN FORMAT: Return ONLY a JSON object (no markdown fences) with this structur
   "active_listings": [{"title": "...", "price": 123, "url": "...", "image_url": "..."}],
   "sold_listings": [{"title": "...", "price": 123, "url": "...", "image_url": "...", "end_date": "YYYY-MM-DD"}]
 }
+CRITICAL FORMAT RULE: If no active_listings or sold_listings are found in the search results, you MUST return an empty array [] for that field. Under no circumstances should you generate dummy, placeholder, or fake listings or URLs (such as "https://www.ebay.com/itm/123456789011" or using "..." strings as values).
 """
 
 SERIES_BASE_INSTRUCTION = """You are the TradeValue Series Valuation Engine.
@@ -37,7 +38,7 @@ ALWAYS use the provided `firecrawl_scrape` tool to find live and sold listings b
 Use the cached corpus to interpret comps, reject reprints, and anchor outliers — never skip live search.
 VALUATION PROTOCOL:
 1. STRICTLY EXCLUDE reprints, copies, custom cards, and lots unless the user query asks for lots.
-2. Find at least 5 active and 5 sold listings when available.
+2. Find at least 5 active and 5 sold listings when available. If no real active or sold listings are found, return an empty array [] for that field. Do NOT generate placeholder/fake listings or URLs under any circumstances.
 3. Allow minor title variants (S1 vs Series 1) when year, brand, player, and card number match.
 4. Prefer trimmed-median sold pricing after removing top/bottom outliers.
 5. Apply series-specific baseline tables from the cached reference when judging if a comp is an outlier.
@@ -287,6 +288,8 @@ def _match_modern_prizm_basketball(details: dict) -> bool:
 
 
 def is_context_caching_enabled() -> bool:
+    if os.getenv("USE_LOCAL_LLM") == "true":
+        return False
     return os.getenv("ENABLE_CONTEXT_CACHING", "true").lower() in ("1", "true", "yes")
 
 

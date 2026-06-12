@@ -26,7 +26,7 @@ EBAY_ENV = os.getenv("EBAY_ENV", "production")
 AGENT_SERVICE_URL = os.getenv("AGENT_SERVICE_URL")
 
 # Google Sheets Configuration
-SERVICE_ACCOUNT_FILE = "service-account.json"
+SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "service-account.json")
 TARGET_SHEET_NAME = "TradeValue_Daily_Report"
 FALLBACK_CSV_NAME = "TradeValue_Daily_Report.csv"
 SHARE_EMAIL = "mscott614@gmail.com"  # Shared from agent_service.py
