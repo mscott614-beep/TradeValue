@@ -36,7 +36,7 @@ async function loadGenkit() {
 }
 
 const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
-const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
 
 const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
 const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
@@ -165,7 +165,7 @@ export const geminiProcessingQueue = onTaskDispatched(
       if (process.env.USE_LOCAL_LLM === 'true' && ollama) {
         plugins.push(
           ollama({
-            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:26b' }],
+            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:12b' }],
             serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
           })
         );
@@ -555,7 +555,9 @@ const _dailyPriceSnapshot = onSchedule(
  * Triggered at 8:00 AM EST (12:00/13:00 UTC)
  * Iterates through all cards and enqueues them for price refreshing.
  */
-export const scheduledMarketRefresh = onSchedule(
+// Offloaded to local hermesRefresh.js to save compute costs
+// @ts-ignore
+const _scheduledMarketRefresh = onSchedule(
   {
     schedule: "0 8 * * *",
     timeZone: "America/New_York",
@@ -731,7 +733,9 @@ export const scheduledMarketRefresh = onSchedule(
 /**
  * Worker: Refreshes a single card's value using the Python Market Watcher Agent.
  */
-export const refreshMarketCardTask = onTaskDispatched(
+// Offloaded to local hermesRefresh.js to save compute costs
+// @ts-ignore
+const _refreshMarketCardTask = onTaskDispatched(
   {
     retryConfig: {
       maxAttempts: 3,

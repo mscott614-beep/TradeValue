@@ -21,7 +21,7 @@ from datetime import datetime, timezone, timedelta
 # --- Local LLM Config ---
 USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM") == "true"
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
-LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
 try:
     from openai import OpenAI
 except ImportError:
@@ -113,6 +113,98 @@ def firecrawl_scrape(url: str) -> str:
             return f'{{"error": "Firecrawl API HTTP {res.status_code}: {res.text}"}}'
     except Exception as e:
         return f'{{"error": "{str(e)}"}}'
+
+def parse_ebay_markdown(content: str, is_sold: bool = False) -> list:
+    """Parses raw Firecrawl markdown content from eBay search results to extract structured items."""
+    if not content:
+        return []
+        
+    itm_ids = []
+    seen = set()
+    for m in re.finditer(r"https://(?:www\.)?ebay\.com/itm/(\d+)", content):
+        itm_id = m.group(1)
+        if itm_id != "123456" and itm_id not in seen:
+            itm_ids.append(itm_id)
+            seen.add(itm_id)
+            
+    listings = []
+    
+    for itm_id in itm_ids:
+        occurrences = [m.start() for m in re.finditer(itm_id, content)]
+        
+        title = None
+        price = None
+        url = f"https://www.ebay.com/itm/{itm_id}"
+        image_url = ""
+        end_date = None
+        
+        for occ in occurrences:
+            sub = content[max(0, occ - 400):occ]
+            
+            # Match 1: [![Title](img_url)](https://www.ebay.com/itm/
+            img_match = re.search(r"\[\!\[([^\]]+)\]\(([^)]+)\)\]\((?:https?://(?:www\.)?ebay\.com)?/itm/$", sub)
+            if img_match:
+                title = img_match.group(1).strip()
+                image_url = img_match.group(2).strip()
+                title = title.replace("Opens in a new window or tab", "").strip()
+                break
+                
+            # Match 2: [TitleOpens in a new window or tab](https://www.ebay.com/itm/
+            link_match = re.search(r"\[([^\]]+)\]\((?:https?://(?:www\.)?ebay\.com)?/itm/$", sub)
+            if link_match:
+                candidate_title = link_match.group(1).strip()
+                candidate_title = candidate_title.replace("Opens in a new window or tab", "").strip()
+                if candidate_title and not candidate_title.startswith("!["):
+                    title = candidate_title
+                    break
+        
+        if not image_url:
+            for occ in occurrences:
+                sub = content[max(0, occ - 400):occ]
+                img_match = re.search(r"\!\[([^\]]*)\]\(([^)]+)\)", sub)
+                if img_match:
+                    image_url = img_match.group(2).strip()
+                    break
+
+        for occ in occurrences:
+            sub = content[occ:min(len(content), occ + 1200)]
+            price_match = re.search(r"\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)", sub)
+            if price_match:
+                price_str = price_match.group(1).replace(",", "")
+                try:
+                    price = float(price_str)
+                    break
+                except ValueError:
+                    pass
+                    
+        if is_sold:
+            for occ in occurrences:
+                sub = content[max(0, occ - 400):occ]
+                date_match = re.search(r"Sold\s+([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{4})", sub)
+                if date_match:
+                    month_str = date_match.group(1)
+                    day_str = date_match.group(2)
+                    year_str = date_match.group(3)
+                    
+                    months = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+                              "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
+                    month_num = months.get(month_str[:3].capitalize(), "01")
+                    day_num = f"{int(day_str):02d}"
+                    end_date = f"{year_str}-{month_num}-{day_num}"
+                    break
+
+        if title and price:
+            item = {
+                "title": title,
+                "price": price,
+                "url": url,
+                "image_url": image_url
+            }
+            if is_sold:
+                item["end_date"] = end_date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            listings.append(item)
+            
+    return listings
 
 from series_context_cache import (
     build_card_valuation_instruction,
@@ -1316,18 +1408,113 @@ async def value_card(req: ValuationRequest):
                     print(f"[AgentService] AI Sync Attempt {attempt+1}/{max_retries} for query: {q}")
                     
                     if USE_LOCAL_LLM and OpenAI:
-                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama")
-                        resp = openai_client.chat.completions.create(
-                            model=LOCAL_LLM_MODEL,
-                            messages=[
-                                {"role": "system", "content": sys_inst},
-                                {"role": "user", "content": q}
-                            ],
-                            response_format={"type": "json_object"}
+                        import urllib.parse
+                        active_query_url = f"https://www.ebay.com/sch/i.html?_nkw={urllib.parse.quote(card_desc)}&_ipg=240"
+                        sold_query_url = f"https://www.ebay.com/sch/i.html?_nkw={urllib.parse.quote(card_desc)}&LH_Sold=1&LH_Complete=1&_ipg=240"
+                        
+                        active_content = ""
+                        sold_content = ""
+                        
+                        try:
+                            print(f"[AgentService] Local LLM mode. Scraping active listings from: {active_query_url}")
+                            active_content = firecrawl_scrape(active_query_url)
+                        except Exception as se:
+                            print(f"[AgentService] Active listings scrape failed: {se}")
+                            
+                        try:
+                            print(f"[AgentService] Local LLM mode. Scraping sold listings from: {sold_query_url}")
+                            sold_content = firecrawl_scrape(sold_query_url)
+                        except Exception as se:
+                            print(f"[AgentService] Sold listings scrape failed: {se}")
+                        
+                        parsed_active = parse_ebay_markdown(active_content, is_sold=False)
+                        parsed_sold = parse_ebay_markdown(sold_content, is_sold=True)
+                        
+                        print(f"[AgentService] Parsed {len(parsed_active)} active and {len(parsed_sold)} sold candidates.")
+                        
+                        local_prompt = (
+                            f"You are a Senior Trading Card Valuation Analyst.\n"
+                            f"Target Card: {player}, Card Number: #{cleaned_num}.\n\n"
+                            f"Below are candidate listings scraped from eBay for this card.\n"
+                            f"Verify them and filter out any items that are reprints, copies, custom cards, different parallel versions, or do not match the target card.\n\n"
+                            f"Candidate Active Listings:\n"
+                            f"{json.dumps(parsed_active[:15], indent=2)}\n\n"
+                            f"Candidate Sold Listings:\n"
+                            f"{json.dumps(parsed_sold[:15], indent=2)}\n\n"
+                            f"VALUATION PROTOCOL:\n"
+                            f"1. Filter candidate listings to ensure they are exact matches for the target card.\n"
+                            f"2. Keep up to 10 matching active listings and up to 10 matching sold listings.\n"
+                            f"3. Calculate the median price of the matching sold listings (or active listings if no sold are found).\n"
+                            f"4. RETURN FORMAT: You MUST return ONLY a JSON block with this structure:\n"
+                            f"{{\n"
+                            f"  \"currentMarketValue\": 123.45,\n"
+                            f"  \"active_listings\": [{{\"title\": \"...\", \"price\": 123.45, \"url\": \"...\", \"image_url\": \"...\"}}],\n"
+                            f"  \"sold_listings\": [{{\"title\": \"...\", \"price\": 123.45, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}}]\n"
+                            f"}}\n"
+                            f"Format instructions: Do not output markdown code blocks (like ```json) or explanation. Return ONLY the raw JSON string."
                         )
-                        res_text = resp.choices[0].message.content or ""
-                        print(f"[AgentService] Success after {attempt+1} attempts.")
-                        return res_text
+                        
+                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama")
+                        try:
+                            resp = openai_client.chat.completions.create(
+                                model=LOCAL_LLM_MODEL,
+                                messages=[
+                                    {"role": "system", "content": "You are a valuation assistant that outputs raw JSON."},
+                                    {"role": "user", "content": local_prompt}
+                                ],
+                                response_format={"type": "json_object"},
+                                timeout=15.0
+                            )
+                            res_text = resp.choices[0].message.content or ""
+                            print(f"[AgentService] Success after {attempt+1} attempts.")
+                            return res_text
+                        except Exception as e:
+                            print(f"[AgentService] Local LLM call timed out or failed ({e}). Falling back to pure Python local valuation.")
+                            filtered_active = []
+                            player_words = set(player.lower().split())
+                            for item in parsed_active:
+                                title_lower = item['title'].lower()
+                                if not any(w in title_lower for w in player_words):
+                                    continue
+                                if cleaned_num and cleaned_num.lower() not in title_lower:
+                                    continue
+                                filtered_active.append(item)
+                                
+                            filtered_sold = []
+                            for item in parsed_sold:
+                                title_lower = item['title'].lower()
+                                if not any(w in title_lower for w in player_words):
+                                    continue
+                                if cleaned_num and cleaned_num.lower() not in title_lower:
+                                    continue
+                                filtered_sold.append(item)
+                                
+                            sold_prices = [item['price'] for item in filtered_sold if item.get('price')]
+                            if sold_prices:
+                                sold_prices.sort()
+                                n = len(sold_prices)
+                                if n % 2 == 1:
+                                    current_value = sold_prices[n // 2]
+                                else:
+                                    current_value = (sold_prices[n // 2 - 1] + sold_prices[n // 2]) / 2.0
+                            else:
+                                active_prices = [item['price'] for item in filtered_active if item.get('price')]
+                                if active_prices:
+                                    active_prices.sort()
+                                    n = len(active_prices)
+                                    if n % 2 == 1:
+                                        current_value = active_prices[n // 2]
+                                    else:
+                                        current_value = (active_prices[n // 2 - 1] + active_prices[n // 2]) / 2.0
+                                else:
+                                    current_value = 0.99
+                                    
+                            res_payload = {
+                                "currentMarketValue": current_value,
+                                "active_listings": filtered_active[:10],
+                                "sold_listings": filtered_sold[:10]
+                            }
+                            return json.dumps(res_payload)
                     else:
                         response = client.models.generate_content(
                             model='gemini-3.5-flash',

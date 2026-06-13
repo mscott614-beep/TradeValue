@@ -12,3 +12,10 @@ src/
 *.tsx
 *.json
 *.md
+.venv/
+.venv*
+*.html
+*.csv
+*.jsonl
+*.log
+.ebay_browser_context/
