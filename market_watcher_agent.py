@@ -172,7 +172,7 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
         
         use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
-        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
 
         if use_local_llm:
             try:
@@ -428,7 +428,7 @@ async def run_cli():
         
         use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
-        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
 
         for attempt in range(max_retries):
             try:

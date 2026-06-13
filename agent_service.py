@@ -21,7 +21,7 @@ from datetime import datetime, timezone, timedelta
 # --- Local LLM Config ---
 USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM") == "true"
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
-LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
 try:
     from openai import OpenAI
 except ImportError:

@@ -36,7 +36,7 @@ async function loadGenkit() {
 }
 
 const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
-const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
 
 const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
 const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
@@ -165,7 +165,7 @@ export const geminiProcessingQueue = onTaskDispatched(
       if (process.env.USE_LOCAL_LLM === 'true' && ollama) {
         plugins.push(
           ollama({
-            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:12b' }],
+            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:26b' }],
             serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
           })
         );
