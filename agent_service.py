@@ -435,6 +435,24 @@ def sanitize_firestore_payload(payload: dict) -> dict:
         except:
             sanitized["currentMarketValue"] = 0.00
             
+    # 4. Strictly enforce list type for listing arrays
+    for key in ["active_listings", "sold_listings"]:
+        if not isinstance(sanitized.get(key), list):
+            sanitized[key] = []
+            
+    # 5. Sanitize marketPrices nested lists if present
+    if "marketPrices" in sanitized and isinstance(sanitized["marketPrices"], dict):
+        mp = sanitized["marketPrices"]
+        if "activeItems" not in mp or not isinstance(mp["activeItems"], list):
+            mp["activeItems"] = sanitized["active_listings"]
+        if "soldItems" not in mp or not isinstance(mp["soldItems"], list):
+            mp["soldItems"] = sanitized["sold_listings"]
+        # Ensure activeItems and soldItems are lists
+        if not isinstance(mp.get("activeItems"), list):
+            mp["activeItems"] = []
+        if not isinstance(mp.get("soldItems"), list):
+            mp["soldItems"] = []
+            
     return sanitized
 
 app = FastAPI()
@@ -855,14 +873,18 @@ JSON schema:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/trigger-newsletter", status_code=202)
-async def trigger_newsletter(background_tasks: BackgroundTasks):
+@app.post("/trigger-newsletter")
+async def trigger_newsletter():
     """
-    Triggers the Market Analyst research loop in the background.
-    Cloud Scheduler should hit this endpoint on Mondays at 3:00 PM.
+    Triggers the Market Analyst research loop synchronously to prevent Cloud Run scale-down.
     """
-    background_tasks.add_task(run_newsletter_job)
-    return {"status": "accepted", "message": "Newsletter generation started"}
+    print("[AgentService] Starting newsletter job synchronously...", flush=True)
+    try:
+        await asyncio.to_thread(run_newsletter_job)
+        return {"status": "success", "message": "Newsletter generated and sent successfully"}
+    except Exception as e:
+        print(f"[AgentService] ERROR: Synchronous newsletter trigger failed: {str(e)}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/sync-ebay-sheets", status_code=200)
 def sync_ebay_sheets():
@@ -911,7 +933,8 @@ def run_newsletter_job():
                 # --- EMAIL DISPATCH ---
                 compile_and_send_newsletter(res_json)
         else:
-            print("[AgentService] ERROR: Background newsletter job failed to parse JSON.")
+            print(f"[AgentService] ERROR: Background newsletter job failed validation. Parsed JSON: {res_json}", flush=True)
+            print(f"[AgentService] Raw report output: {report_raw[:2000]}...", flush=True)
     except Exception as e:
         print(f"[AgentService] CRITICAL: Background newsletter job failed: {str(e)}")
 
@@ -1570,8 +1593,13 @@ async def value_card(req: ValuationRequest):
             return error_fallback
 
         # Prepare listings for UI (Fix: Align with marketPrices structure)
-        active_results = res_json.get("active_listings") or []
-        sold_results = res_json.get("sold_listings") or []
+        active_results = res_json.get("active_listings")
+        if not isinstance(active_results, list):
+            active_results = []
+            
+        sold_results = res_json.get("sold_listings")
+        if not isinstance(sold_results, list):
+            sold_results = []
 
         header_val = res_json.get('currentMarketValue') or res_json.get('final_price') or 0.00
         final_price, pricing_method = resolve_valuation_from_listings(

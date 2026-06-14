@@ -44,7 +44,7 @@ import datetime
 
 class AgentClass:
 
-  def __init__(self, model_name='gemini-3.5-flash'):
+  def __init__(self, model_name='gemma4:26b'):
     self.app = None
     self.model_name = model_name
 
@@ -168,6 +168,13 @@ Return JSON ONLY matching this schema (no extra keys, no markdown fences outside
 Set report_date to "{report_date}".
 Ensure multiplier_x values are computed from stated raw_median_usd and psa10_median_usd when possible."""
 
+        # Initialize Google Gen AI client for the self-healing / repair pipeline
+        api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+        if api_key:
+            report_client = genai.Client(api_key=api_key)
+        else:
+            report_client = get_vertex_client()  # Fall back to module-level Vertex AI client
+
         print(f"[MarketAnalyst] Starting institutional report for {current_month}...")
         
         use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
@@ -189,25 +196,23 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": prompt}
                 ],
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                max_tokens=4096
             )
             res_text = resp.choices[0].message.content or ""
         else:
-            # Use API key client — proven path with gemini-3.5-flash.
-            # The Vertex AI client has region/grounding compatibility issues with 3.5 Flash.
-            api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
-            if api_key:
-                report_client = genai.Client(api_key=api_key)
-            else:
-                report_client = get_vertex_client()  # Fall back to module-level Vertex AI client
-
             config = types.GenerateContentConfig(
                 temperature=0.25,
                 system_instruction=system_instruction,
             )
+            
+            # Override local model name to a valid Gemini model if executing in the cloud path
+            model_to_use = self.model_name
+            if not model_to_use or ":" in model_to_use or "gemma" in model_to_use or "qwen" in model_to_use:
+                model_to_use = "gemini-3.5-flash"
                 
             response = report_client.models.generate_content(
-                model=self.model_name,
+                model=model_to_use,
                 contents=prompt,
                 config=config
             )
@@ -228,9 +233,7 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
             raise ValueError("Empty response from model")
             
         # Self-Healing JSON Pipeline: Verify and repair JSON output if corrupted
-        import re
-        import json
-        
+        # (Global json and re imports used to avoid local name shadowing/UnboundLocalError)
         json_match = re.search(r'(\{[\s\S]*\})', res_text)
         is_valid = False
         if json_match:
@@ -241,7 +244,8 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
                 pass
                 
         if not is_valid:
-            print("[MarketAnalyst] JSON was invalid or corrupted. Running repair model...")
+            print(f"[MarketAnalyst] JSON was invalid or corrupted. Preview of raw response: {res_text[:500]}...", flush=True)
+            print("[MarketAnalyst] Running repair model (gemini-3.5-flash)...", flush=True)
             repair_prompt = f"""You are a JSON repair tool. Repair the corrupted string into valid JSON matching this institutional report schema exactly.
 
 SCHEMA:
@@ -251,7 +255,7 @@ CORRUPTED JSON STRING TO REPAIR:
 {res_text}"""
             
             repair_response = report_client.models.generate_content(
-                model=self.model_name,
+                model="gemini-3.5-flash",
                 contents=repair_prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -519,16 +523,44 @@ async def run_cli():
             res_json = json.loads(json_str)
             # Use the descriptive string (including grade) for the audit trail
             res_json['last_search_query'] = card_desc
+            
+            # Guarantee lists for active_listings and sold_listings to avoid null pointer crashes
+            if 'active_listings' not in res_json or not isinstance(res_json['active_listings'], list):
+                res_json['active_listings'] = []
+            if 'sold_listings' not in res_json or not isinstance(res_json['sold_listings'], list):
+                res_json['sold_listings'] = []
+            if 'final_price' not in res_json:
+                res_json['final_price'] = res_json.get('currentMarketValue', 0.0)
+            if 'query' not in res_json:
+                res_json['query'] = card_desc
+            if 'method' not in res_json:
+                res_json['method'] = "local_llm" if os.getenv("USE_LOCAL_LLM") == "true" else "direct_search"
+                
             print(json.dumps(res_json))
-        except:
-            print(json_str) # Fallback if JSON is weird
+        except Exception as pe:
+            # Fallback if JSON is weird but we still try to return valid lists
+            print(json.dumps({
+                "final_price": 0.0,
+                "currentMarketValue": 0.0,
+                "active_listings": [],
+                "sold_listings": [],
+                "query": card_desc,
+                "method": "local_llm" if os.getenv("USE_LOCAL_LLM") == "true" else "direct_search",
+                "error": f"Failed to parse JSON string: {str(pe)}",
+                "debug_output": json_str[:500]
+            }))
     else:
         print(json.dumps({
             "final_price": 0.0,
+            "currentMarketValue": 0.0,
             "alert_status": "No data found",
             "is_10_percent_diff": False,
             "error": "Agent failed to produce JSON",
-            "debug_output": full_response[:1000]
+            "debug_output": full_response[:1000],
+            "active_listings": [],
+            "sold_listings": [],
+            "query": card_desc,
+            "method": "failed_agent"
         }))
 
 if __name__ == "__main__":
