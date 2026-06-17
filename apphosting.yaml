@@ -36,7 +36,7 @@ env:
       - RUNTIME
 
   - variable: USE_LOCAL_LLM
-    value: "true"
+    value: "false"
     availability:
       - RUNTIME
 
