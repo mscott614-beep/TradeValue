@@ -84,7 +84,7 @@ export default function MarketHubPage() {
   const [topic, setTopic] = useState("");
   const [auctionTopic, setAuctionTopic] = useState("");
   // Shadow Engine V2 is always enabled
-  const isV2Enabled = false; // Use local Genkit flow (V1) for local LLM support
+  const isV2Enabled = true;
   const [isFocusMode, setIsFocusMode] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("market-focus-mode") === "true";
