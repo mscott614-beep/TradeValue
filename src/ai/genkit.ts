@@ -24,6 +24,9 @@ if (useLocalLlm) {
     ollama({
       models: [{ name: localModel }],
       serverAddress: localUrl,
+      requestHeaders: {
+        'ngrok-skip-browser-warning': 'true',
+      },
     })
   );
 }
@@ -41,13 +44,54 @@ export const ai = genkit({
 export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny>(
   options: Parameters<typeof ai.generate>[0]
 ) {
+  const genOptions = await options;
+  const model = (genOptions as any).model || PRIMARY_MODEL;
+  const hasSchema = !!genOptions.output?.schema;
+
+  const finalOptions: any = {
+    ...genOptions,
+    model
+  };
+
+  if (useLocalLlm && model.startsWith('ollama/')) {
+    delete finalOptions.output;
+  }
+
+  const runGen = async (opts: any) => {
+    const response = await ai.generate(opts);
+    if (useLocalLlm && opts.model.startsWith('ollama/') && hasSchema && !response.output && response.text) {
+      try {
+        const text = response.text;
+        const firstBracket = text.indexOf('[');
+        const lastBracket = text.lastIndexOf(']');
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        
+        let jsonStr = '';
+        if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+          jsonStr = text.substring(firstBracket, lastBracket + 1);
+        } else if (firstBrace !== -1) {
+          jsonStr = text.substring(firstBrace, lastBrace + 1);
+        }
+        
+        if (jsonStr) {
+          Object.defineProperty(response, 'output', {
+            value: JSON.parse(jsonStr),
+            writable: true,
+            configurable: true,
+            enumerable: true
+          });
+        }
+      } catch (e) {
+        console.error("[Genkit] Failed to parse Ollama text response as structured output:", e);
+      }
+    }
+    return response;
+  };
+
   try {
     // Attempt 1: Use the primary model (or the model specified in options)
-    const genOptions = await options;
-    return await ai.generate({
-      ...genOptions,
-      model: (genOptions as any).model || PRIMARY_MODEL
-    });
+    return await runGen(finalOptions);
   } catch (error: any) {
     const errorMsg = error?.message || String(error);
     const isBillingOrQuotaExhausted =
@@ -70,11 +114,16 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
     if (isRetryable) {
       console.warn(`[Genkit] Primary model failed (${errorMsg}). Retrying with fallback: ${FALLBACK_MODEL}`);
       
-      // Attempt 2: Use the designated fallback model
-      return await ai.generate({
-        ...options,
+      const fallbackOptions: any = {
+        ...genOptions,
         model: FALLBACK_MODEL
-      });
+      };
+      if (useLocalLlm && FALLBACK_MODEL.startsWith('ollama/')) {
+        delete fallbackOptions.output;
+      }
+      
+      // Attempt 2: Use the designated fallback model
+      return await runGen(fallbackOptions);
     }
 
     // If it's not a retryable error, rethrow

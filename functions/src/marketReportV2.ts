@@ -27,7 +27,7 @@ export const marketReportV2 = onRequest({
 
   try {
     const { genkit } = await import("genkit");
-    const { googleAI } = await import("@genkit-ai/googleai");
+    const { googleAI } = await import("@genkit-ai/google-genai");
     
     const plugins: any[] = [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })];
     if (useLocalLlm) {
@@ -37,6 +37,9 @@ export const marketReportV2 = onRequest({
           ollama({
             models: [{ name: localModel }],
             serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
+            requestHeaders: {
+              'ngrok-skip-browser-warning': 'true',
+            },
           })
         );
       } catch(e) {

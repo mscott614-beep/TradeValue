@@ -168,65 +168,100 @@ Return JSON ONLY matching this schema (no extra keys, no markdown fences outside
 Set report_date to "{report_date}".
 Ensure multiplier_x values are computed from stated raw_median_usd and psa10_median_usd when possible."""
 
-        # Initialize Google Gen AI client for the self-healing / repair pipeline
-        api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
-        if api_key:
-            report_client = genai.Client(api_key=api_key)
-        else:
-            report_client = get_vertex_client()  # Fall back to module-level Vertex AI client
+        # Define a helper to call Gemini with Google Gen AI -> Vertex AI fallback
+        def call_gemini_helper(prompt_content, system_instruction_text=None, response_mime_type=None, temperature=0.25):
+            config_params = {"temperature": temperature}
+            if system_instruction_text:
+                config_params["system_instruction"] = system_instruction_text
+            if response_mime_type:
+                config_params["response_mime_type"] = response_mime_type
+                
+            gen_config = types.GenerateContentConfig(**config_params)
+            
+            # Try Google Gen AI client with gemini-3.5-flash
+            api_key_val = os.environ.get("GOOGLE_GENAI_API_KEY")
+            if api_key_val:
+                primary_client = genai.Client(api_key=api_key_val)
+                model_name = self.model_name
+                if not model_name or ":" in model_name or "gemma" in model_name or "qwen" in model_name:
+                    model_name = "gemini-3.5-flash"
+                try:
+                    print(f"[MarketAnalyst] Generating with Google Gen AI ({model_name})...")
+                    res = primary_client.models.generate_content(
+                        model=model_name,
+                        contents=prompt_content,
+                        config=gen_config
+                    )
+                    res_txt = ""
+                    if res.candidates and res.candidates[0].content and res.candidates[0].content.parts:
+                        for part in res.candidates[0].content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                res_txt += part.text + "\n"
+                    if not res_txt:
+                        res_txt = res.text or ""
+                    return res_txt
+                except Exception as ex:
+                    print(f"[MarketAnalyst] Google Gen AI failed: {str(ex)}. Trying Vertex AI fallback...")
+            
+            # Fall back to Vertex AI with gemini-2.5-flash
+            vertex_client = get_vertex_client()
+            if vertex_client:
+                fallback_model = "gemini-2.5-flash"
+                print(f"[MarketAnalyst] Generating with Vertex AI ({fallback_model})...")
+                res = vertex_client.models.generate_content(
+                    model=fallback_model,
+                    contents=prompt_content,
+                    config=gen_config
+                )
+                res_txt = ""
+                if res.candidates and res.candidates[0].content and res.candidates[0].content.parts:
+                    for part in res.candidates[0].content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            res_txt += part.text + "\n"
+                if not res_txt:
+                    res_txt = res.text or ""
+                return res_txt
+            else:
+                raise Exception("Neither Google Gen AI nor Vertex AI client is available/successful.")
 
         print(f"[MarketAnalyst] Starting institutional report for {current_month}...")
         
         use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
+        if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
+            local_llm_url = local_llm_url.rstrip("/") + "/v1"
         local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
 
         if use_local_llm:
             try:
                 from openai import OpenAI
-            except ImportError:
-                raise Exception("openai package not installed but USE_LOCAL_LLM is true")
-            
-            openai_client = OpenAI(base_url=local_llm_url, api_key="ollama")
-            print(f"[MarketAnalyst] Using Local Model for report: {local_llm_model}")
-            
-            resp = openai_client.chat.completions.create(
-                model=local_llm_model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"},
-                max_tokens=4096
-            )
-            res_text = resp.choices[0].message.content or ""
-        else:
-            config = types.GenerateContentConfig(
-                temperature=0.25,
-                system_instruction=system_instruction,
-            )
-            
-            # Override local model name to a valid Gemini model if executing in the cloud path
-            model_to_use = self.model_name
-            if not model_to_use or ":" in model_to_use or "gemma" in model_to_use or "qwen" in model_to_use:
-                model_to_use = "gemini-3.5-flash"
+                openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+                print(f"[MarketAnalyst] Using Local Model for report: {local_llm_model}")
                 
-            response = report_client.models.generate_content(
-                model=model_to_use,
-                contents=prompt,
-                config=config
+                resp = openai_client.chat.completions.create(
+                    model=local_llm_model,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    max_tokens=4096,
+                    timeout=180
+                )
+                res_text = resp.choices[0].message.content or ""
+            except Exception as local_ex:
+                print(f"[MarketAnalyst] Local LLM failed: {str(local_ex)}. Falling back to Cloud Gemini...")
+                res_text = call_gemini_helper(
+                    prompt_content=prompt,
+                    system_instruction_text=system_instruction,
+                    temperature=0.25
+                )
+        else:
+            res_text = call_gemini_helper(
+                prompt_content=prompt,
+                system_instruction_text=system_instruction,
+                temperature=0.25
             )
-            
-            # Gemini 3.5 Flash + google_search returns multi-part responses.
-            # The JSON answer is often in a later part, after grounding chunks.
-            # We must concatenate ALL text parts to find the actual report JSON.
-            res_text = ""
-            if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    if hasattr(part, 'text') and part.text:
-                        res_text += part.text + "\n"
-            if not res_text:
-                res_text = response.text or ""
 
             
         if not res_text:
@@ -245,7 +280,7 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
                 
         if not is_valid:
             print(f"[MarketAnalyst] JSON was invalid or corrupted. Preview of raw response: {res_text[:500]}...", flush=True)
-            print("[MarketAnalyst] Running repair model (gemini-3.5-flash)...", flush=True)
+            print("[MarketAnalyst] Running repair model...", flush=True)
             repair_prompt = f"""You are a JSON repair tool. Repair the corrupted string into valid JSON matching this institutional report schema exactly.
 
 SCHEMA:
@@ -254,15 +289,11 @@ SCHEMA:
 CORRUPTED JSON STRING TO REPAIR:
 {res_text}"""
             
-            repair_response = report_client.models.generate_content(
-                model="gemini-3.5-flash",
-                contents=repair_prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.0
-                )
+            res_text = call_gemini_helper(
+                prompt_content=repair_prompt,
+                response_mime_type="application/json",
+                temperature=0.0
             )
-            res_text = repair_response.text
             
         return res_text
         
@@ -432,6 +463,8 @@ async def run_cli():
         
         use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
+        if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
+            local_llm_url = local_llm_url.rstrip("/") + "/v1"
         local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
 
         for attempt in range(max_retries):
@@ -442,7 +475,7 @@ async def run_cli():
                     except ImportError:
                         raise Exception("openai package not installed but USE_LOCAL_LLM is true")
                     
-                    openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama")
+                    openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
                     print(f"[Python] Using Local Model: {local_llm_model}")
                     resp = await openai_client.chat.completions.create(
                         model=local_llm_model,

@@ -18,7 +18,7 @@ let z: any;
 async function loadGenkit() {
   if (!genkit) {
     const genkitMod = await import("genkit");
-    const aiMod = await import("@genkit-ai/googleai");
+    const aiMod = await import("@genkit-ai/google-genai");
     const useLocalLlm = process.env.USE_LOCAL_LLM === "true";
     if (useLocalLlm) {
         try {
@@ -167,6 +167,9 @@ export const geminiProcessingQueue = onTaskDispatched(
           ollama({
             models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:26b' }],
             serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
+            requestHeaders: {
+              'ngrok-skip-browser-warning': 'true',
+            },
           })
         );
       }

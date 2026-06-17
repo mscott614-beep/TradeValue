@@ -5,7 +5,7 @@ import asyncio
 import json
 import re
 import os
-from market_watcher_agent import AgentClass, PROJECT_ID, LOCATION
+from market_watcher_agent import AgentClass, PROJECT_ID, LOCATION, get_vertex_client
 from google.cloud import firestore
 from google.cloud import aiplatform
 from google.cloud import storage
@@ -21,6 +21,8 @@ from datetime import datetime, timezone, timedelta
 # --- Local LLM Config ---
 USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM") == "true"
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
+if not LOCAL_LLM_URL.endswith("/v1") and not LOCAL_LLM_URL.endswith("/api"):
+    LOCAL_LLM_URL = LOCAL_LLM_URL.rstrip("/") + "/v1"
 LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
 try:
     from openai import OpenAI
@@ -845,7 +847,7 @@ JSON schema:
 
     try:
         if USE_LOCAL_LLM and OpenAI:
-            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama")
+            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
             resp = openai_client.chat.completions.create(
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
@@ -853,15 +855,30 @@ JSON schema:
             )
             res_text = resp.choices[0].message.content or ""
         else:
-            client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model=os.getenv("ANALYSIS_MODEL", "gemini-3.5-flash"),
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                ),
-            )
-            res_text = response.text or ""
+            try:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=os.getenv("ANALYSIS_MODEL", "gemini-3.5-flash"),
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                    ),
+                )
+                res_text = response.text or ""
+            except Exception as primary_err:
+                print(f"[AgentService] analyze_card primary generation failed: {str(primary_err)}. Falling back to Vertex AI...", flush=True)
+                vertex_client = get_vertex_client()
+                if vertex_client:
+                    response = vertex_client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                        ),
+                    )
+                    res_text = response.text or ""
+                else:
+                    raise primary_err
         parsed = robust_json_parse(res_text) if res_text else None
         if not parsed:
             raise HTTPException(status_code=502, detail="Analysis model returned unparseable JSON")
@@ -932,6 +949,8 @@ def run_newsletter_job():
                 
                 # --- EMAIL DISPATCH ---
                 compile_and_send_newsletter(res_json)
+                
+
         else:
             print(f"[AgentService] ERROR: Background newsletter job failed validation. Parsed JSON: {res_json}", flush=True)
             print(f"[AgentService] Raw report output: {report_raw[:2000]}...", flush=True)
@@ -974,6 +993,9 @@ def _markdown_to_email_html(markdown_text: str) -> str:
     html = html.replace('\n---\n', '<hr style="border:none;border-top:1px solid #ccc;margin:24px 0;" />')
     html = html.replace('\n', '<br/>')
     return html
+
+
+
 
 
 def compile_and_send_newsletter(data):
@@ -1147,7 +1169,6 @@ DESCRIPTION SNIPPET: {description_text[:300] if description_text else 'N/A'}
 """
         print(f"[ExtractEbay] Structured context: {structured_text[:500]}")
         
-        client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
         prompt = f"""You are an expert sports card appraiser. Extract the card metadata from this eBay listing.
 
 {structured_text}
@@ -1176,14 +1197,39 @@ Return ONLY a JSON object with these exact fields:
   "currentMarketValue": 123.45
 }}"""
         
-        res = client.models.generate_content(
-            model='gemini-3.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type='application/json'
-            )
-        )
-        res_json = robust_json_parse(res.text)
+        api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+        res_text = ""
+        if api_key:
+            try:
+                print("[ExtractEbay] Attempting Google Gen AI with gemini-3.5-flash...", flush=True)
+                client = genai.Client(api_key=api_key)
+                res = client.models.generate_content(
+                    model='gemini-3.5-flash',
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type='application/json'
+                    )
+                )
+                res_text = res.text or ""
+            except Exception as ex:
+                print(f"[ExtractEbay] Google Gen AI failed: {str(ex)}. Trying Vertex AI fallback...", flush=True)
+        
+        if not res_text:
+            vertex_client = get_vertex_client()
+            if vertex_client:
+                print("[ExtractEbay] Using Vertex AI with gemini-2.5-flash...", flush=True)
+                res = vertex_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type='application/json'
+                    )
+                )
+                res_text = res.text or ""
+            else:
+                raise Exception("Neither Google Gen AI nor Vertex AI client is available/successful for extraction.")
+        
+        res_json = robust_json_parse(res_text)
         if res_json:
             # Ensure price is a number
             res_json['currentMarketValue'] = clean_numeric(res_json.get('currentMarketValue'))
@@ -1477,7 +1523,7 @@ async def value_card(req: ValuationRequest):
                             f"Format instructions: Do not output markdown code blocks (like ```json) or explanation. Return ONLY the raw JSON string."
                         )
                         
-                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama")
+                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
                         try:
                             resp = openai_client.chat.completions.create(
                                 model=LOCAL_LLM_MODEL,
@@ -1539,11 +1585,29 @@ async def value_card(req: ValuationRequest):
                             }
                             return json.dumps(res_payload)
                     else:
-                        response = client.models.generate_content(
-                            model='gemini-3.5-flash',
-                            contents=q,
-                            config=gen_config,
-                        )
+                        try:
+                            response = client.models.generate_content(
+                                model='gemini-3.5-flash',
+                                contents=q,
+                                config=gen_config,
+                            )
+                        except Exception as val_ex:
+                            print(f"[AgentService] Google Gen AI ValueCard failed: {str(val_ex)}. Trying Vertex AI fallback...", flush=True)
+                            vertex_client = get_vertex_client()
+                            if vertex_client:
+                                print("[AgentService] ValueCard calling Vertex AI with gemini-2.5-flash...", flush=True)
+                                vertex_config = types.GenerateContentConfig(
+                                    system_instruction=gen_config.system_instruction if not cached_content_name else None,
+                                    tools=gen_config.tools,
+                                    temperature=gen_config.temperature
+                                )
+                                response = vertex_client.models.generate_content(
+                                    model='gemini-2.5-flash',
+                                    contents=q,
+                                    config=vertex_config,
+                                )
+                            else:
+                                raise val_ex
                         log_cache_usage(response, series_id)
                     # Gemini 3.5 Flash + google_search returns multi-part responses.
                     # The JSON answer is often in a later part, after grounding chunks.
