@@ -46,7 +46,7 @@ env:
       - RUNTIME
 
   - variable: LOCAL_LLM_MODEL
-    value: "qwen"
+    value: "gemma4:12b"
     availability:
       - RUNTIME
 
