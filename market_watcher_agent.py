@@ -216,7 +216,7 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
         if use_local_llm:
             try:
                 from openai import OpenAI
-                openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+                openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
                 print(f"[MarketAnalyst] Using Local Model for report: {local_llm_model}")
                 
                 resp = openai_client.chat.completions.create(
@@ -267,7 +267,7 @@ CORRUPTED JSON STRING TO REPAIR:
             if use_local_llm:
                 try:
                     from openai import OpenAI
-                    openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+                    openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
                     resp = openai_client.chat.completions.create(
                         model=local_llm_model,
                         messages=[
@@ -478,7 +478,7 @@ async def run_cli():
                     except ImportError:
                         raise Exception("openai package not installed but USE_LOCAL_LLM is true")
                     
-                    openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+                    openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
                     print(f"[Python] Using Local Model: {local_llm_model}")
                     resp = await openai_client.chat.completions.create(
                         model=local_llm_model,

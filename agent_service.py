@@ -848,7 +848,7 @@ JSON schema:
 
     try:
         if USE_LOCAL_LLM and OpenAI:
-            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
             resp = openai_client.chat.completions.create(
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
@@ -1176,7 +1176,7 @@ Return ONLY a JSON object with these exact fields:
 }}"""
         
         if USE_LOCAL_LLM and OpenAI:
-            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
             resp = openai_client.chat.completions.create(
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
@@ -1480,7 +1480,7 @@ async def value_card(req: ValuationRequest):
                             f"Format instructions: Do not output markdown code blocks (like ```json) or explanation. Return ONLY the raw JSON string."
                         )
                         
-                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
                         try:
                             resp = openai_client.chat.completions.create(
                                 model=LOCAL_LLM_MODEL,

@@ -26,6 +26,7 @@ if (useLocalLlm) {
       serverAddress: localUrl,
       requestHeaders: {
         'ngrok-skip-browser-warning': 'true',
+        'Bypass-Tunnel-Reminder': 'true',
       },
     })
   );

@@ -169,6 +169,7 @@ export const geminiProcessingQueue = onTaskDispatched(
             serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
             requestHeaders: {
               'ngrok-skip-browser-warning': 'true',
+              'Bypass-Tunnel-Reminder': 'true',
             },
           })
         );
