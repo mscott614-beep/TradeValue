@@ -70,7 +70,8 @@ export const generateLiveAuctions = ai.defineFlow(
                         output: {
                             schema: z.array(AuctionListingSchema),
                         },
-                    });
+                        timeout: 25000,
+                    } as any);
 
                     return (response.output || []).map((item: AuctionListing, idx: number) => {
                         const raw = rawItems[idx] || {};
@@ -125,7 +126,8 @@ export const generateLiveAuctions = ai.defineFlow(
                 output: {
                     schema: z.array(AuctionListingSchema),
                 },
-            });
+                timeout: 25000,
+            } as any);
 
             return (response.output ?? []).map((item: any) => ({
                 ...item,

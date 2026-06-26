@@ -42,7 +42,7 @@ export const ai = genkit({
  * it retries exactly once using the fallback model.
  */
 export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny>(
-  options: Parameters<typeof ai.generate>[0]
+  options: Parameters<typeof ai.generate>[0] & { timeout?: number }
 ) {
   const genOptions = await options;
   const model = (genOptions as any).model || PRIMARY_MODEL;
@@ -107,7 +107,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
     }
   };
 
-  const timeoutMs = useLocalLlm ? 25000 : 60000;
+  const timeoutMs = (genOptions as any).timeout || (useLocalLlm ? 120000 : 60000);
 
   try {
     // Attempt 1: Use the primary model (or the model specified in options)

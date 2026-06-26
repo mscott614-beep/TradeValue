@@ -81,7 +81,8 @@ export const generateTrendingCards = ai.defineFlow(
                 output: {
                     schema: z.array(TrendingCardSchema),
                 },
-            });
+                timeout: 25000,
+            } as any);
 
             let rawOutput = response.output || response.text;
             
