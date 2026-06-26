@@ -89,9 +89,29 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
     return response;
   };
 
+  const runWithTimeout = async (opts: any, timeoutMs: number) => {
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`Model generation timed out after ${timeoutMs / 1000}s`));
+      }, timeoutMs);
+    });
+
+    try {
+      const result = await Promise.race([runGen(opts), timeoutPromise]);
+      clearTimeout(timeoutId!);
+      return result;
+    } catch (err) {
+      clearTimeout(timeoutId!);
+      throw err;
+    }
+  };
+
+  const timeoutMs = useLocalLlm ? 25000 : 60000;
+
   try {
     // Attempt 1: Use the primary model (or the model specified in options)
-    return await runGen(finalOptions);
+    return await runWithTimeout(finalOptions, timeoutMs);
   } catch (error: any) {
     const errorMsg = error?.message || String(error);
     const isBillingOrQuotaExhausted =
@@ -109,9 +129,10 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
                         errorMsg.includes('validation') ||
                         errorMsg.includes('schema') ||
                         errorMsg.includes('blocked') ||
-                        errorMsg.includes('safety');
+                        errorMsg.includes('safety') ||
+                        errorMsg.includes('timed out');
 
-    if (isRetryable) {
+    if (isRetryable && PRIMARY_MODEL !== FALLBACK_MODEL) {
       console.warn(`[Genkit] Primary model failed (${errorMsg}). Retrying with fallback: ${FALLBACK_MODEL}`);
       
       const fallbackOptions: any = {
@@ -123,7 +144,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
       }
       
       // Attempt 2: Use the designated fallback model
-      return await runGen(fallbackOptions);
+      return await runWithTimeout(fallbackOptions, timeoutMs);
     }
 
     // If it's not a retryable error, rethrow
