@@ -36,7 +36,7 @@ async function loadGenkit() {
 }
 
 const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
-const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
 
 const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
 const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
@@ -165,7 +165,7 @@ export const geminiProcessingQueue = onTaskDispatched(
       if (process.env.USE_LOCAL_LLM === 'true' && ollama) {
         plugins.push(
           ollama({
-            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:26b' }],
+            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:12b' }],
             serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
             requestHeaders: {
               'ngrok-skip-browser-warning': 'true',
@@ -337,7 +337,7 @@ export const geminiProcessingQueue = onTaskDispatched(
           };
         } catch (ebayErr: any) {
           console.error(`[Scanner] eBay fallback failed: ${ebayErr.message}`);
-          (result as any).estimatedMarketValue = 0.99;
+          (result as any).estimatedMarketValue = 0.00;
           (result as any).valuationMethod = "fallback_unpriced";
         }
         (result as any).estimatedGrade = result.grade || result.conditionAssessment?.estimatedGradeTarget || "Raw";
@@ -347,7 +347,7 @@ export const geminiProcessingQueue = onTaskDispatched(
         (result as any).grader = "None";
       }
       if (!(result as any).estimatedMarketValue) {
-        (result as any).estimatedMarketValue = 0.99;
+        (result as any).estimatedMarketValue = 0.00;
       }
 
       await jobRef.update({
@@ -813,7 +813,7 @@ const _refreshMarketCardTask = onTaskDispatched(
       }
 
       if (isNaN(newPrice) || typeof newPrice !== "number") {
-        newPrice = cardData.currentMarketValue || 0.99; // Default floor
+        newPrice = cardData.currentMarketValue || 0.00; // Default floor
       }
 
       // Finalize Update: Calculate 24h changes

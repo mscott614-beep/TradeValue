@@ -114,7 +114,7 @@ async function runAgentForCard(userId, cardId, cardData, cardRef) {
                 }
 
                 if (isNaN(newPrice) || typeof newPrice !== 'number') {
-                    newPrice = 0.99; // Default floor
+                    newPrice = 0.00; // Default floor
                 }
 
                 const updateData = {

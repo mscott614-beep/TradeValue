@@ -5,7 +5,7 @@ import { buildInstitutionalReportPrompt } from "./institutional-report-prompt";
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 
 const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
-const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
 
 const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : "googleai/gemini-3.5-flash";
 const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : "googleai/gemini-2.5-flash";
@@ -17,7 +17,7 @@ export const marketReportV2 = onRequest({
   region: "us-east4",
   secrets: [GOOGLE_GENAI_API_KEY],
   memory: "1GiB",
-  timeoutSeconds: 120,
+  timeoutSeconds: 300,
   maxInstances: 2,
   concurrency: 1,
   cors: true,

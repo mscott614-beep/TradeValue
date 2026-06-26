@@ -200,7 +200,7 @@ async function bulkRefresh(targetUserId) {
                     newPrice = parseFloat(newPrice.replace(/[^0-9.]/g, ''));
                 }
                 if (isNaN(newPrice) || typeof newPrice !== 'number') {
-                    newPrice = 0.99;
+                    newPrice = 0.00;
                 }
 
                 // Sticky Valuation Guard: Don't let a failed agent overwrite a valid price with $0.00

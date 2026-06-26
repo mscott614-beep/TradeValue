@@ -369,7 +369,7 @@ export function BatchProcessor() {
             }),
             condition: result.estimatedGrade || "Raw",
             purchasePrice: 0,
-            currentMarketValue: result.estimatedMarketValue || 0.99,
+            currentMarketValue: result.estimatedMarketValue || 0.00,
             dateAdded: new Date().toISOString(),
             year,
             brand,
@@ -738,7 +738,7 @@ export function BatchProcessor() {
 
                           <span className="text-primary font-bold text-[12px]">Est. Value:</span>
                           <span className="text-primary font-bold text-[12px] font-mono">
-                            {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(slot.result.estimatedMarketValue || 0.99)}
+                            {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(slot.result.estimatedMarketValue || 0.00)}
                           </span>
                         </div>
 

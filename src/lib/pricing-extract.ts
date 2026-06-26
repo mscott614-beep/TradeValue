@@ -147,7 +147,7 @@ export function resolveValuationFromListings(opts: {
   }
 
   console.warn(`[${prefix}] No parseable prices — fallback_unpriced`);
-  return { price: 0.99, method: "fallback_unpriced" };
+  return { price: 0.00, method: "fallback_unpriced" };
 }
 
 /** Map eBay Browse API items into listing-shaped rows for shared parsing */

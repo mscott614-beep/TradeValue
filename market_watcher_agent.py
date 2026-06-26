@@ -44,7 +44,7 @@ import datetime
 
 class AgentClass:
 
-  def __init__(self, model_name='gemma4:26b'):
+  def __init__(self, model_name='gemma4:12b'):
     self.app = None
     self.model_name = model_name
 
@@ -86,7 +86,7 @@ class AgentClass:
 {
   "report_title": "TradeValue Institutional Alternative-Asset Market Report",
   "report_date": "YYYY-MM-DD",
-  "full_report_markdown": "Complete Markdown report with --- between major sections",
+  "full_report_markdown": "A 1-2 sentence executive summary of the report.",
   "macro_market_sentiment": {
     "market_velocity_alert": "High-frequency transactional velocity summary",
     "liquidity_metrics_table": [
@@ -128,44 +128,25 @@ Use provided data and tools to ground all pricing in recent eBay sold/active com
 
 Reporting period: {current_month} (report date: {report_date}).
 
-MANDATORY REPORT ARCHITECTURE — produce ALL four sections in `full_report_markdown` using clean Markdown,
-with explicit horizontal rules (`---`) between each major section, and Markdown tables for all pricing arrays.
-
-## 1. Macro Market Sentiment & Liquidity
-- Institutional tone: liquidity regimes, bid-ask behavior, capital flows in sports cards/TCG as alternative assets.
-- REQUIRED subsection: **Market Velocity Alert** — summarize high-frequency transactional data, sell-through speed,
-  and whether velocity is accelerating or decelerating week-over-week.
-
-## 2. High-Velocity Modern & Prospect Tracker
-- Group highly liquid, volatile performers (active rookie hype, playoff breakout stars e.g. Wembanyama, Skenes, elite modern prospects).
-- Emphasize game-to-game value swings and short holding-period liquidity.
-
-## 3. Blue-Chip & Registry Asset Analysis
-- Segment low-volatility, long-term portfolio anchors (e.g. Mickey Mantle, Wayne Gretzky, LeBron James).
-- Focus on population caps (PSA/BGS/SGC), registry scarcity, and auction-house baseline tracking (Goldin, PWCC, Heritage).
-
-## 4. Slab-to-Raw Premium Multipliers Matrix
-- Explicitly compare raw listings vs PSA 10 (or top grade) for the same card using recent market data.
-- Express each relationship as a clear numerical multiplier (e.g. "PSA 10 copies command a 20x premium over raw equivalents").
-- Populate `multiplier_table` with numeric multipliers derived from cited medians.
+MANDATORY REPORT ARCHITECTURE:
+- For `full_report_markdown`, write a brief 1-2 sentence executive summary of the overall market.
+- Populate all specific section keys (`macro_market_sentiment`, `high_velocity_tracker`, `blue_chip_registry`, `slab_raw_multiplier_matrix`) with precise, data-dense content.
+- Keep prose sections brief (at most 1-2 sentences per section).
+- Limit all tables (e.g. `liquidity_metrics_table`, `velocity_table`, `registry_table`, `multiplier_table`) to exactly 3 high-quality rows each. This is a critical speed optimization constraint.
 
 FORMATTING RULES:
-- `full_report_markdown` must include all four section headings exactly as numbered above.
-- Place `---` on its own line between sections 1-2, 2-3, and 3-4.
-- Every pricing array field in JSON must also appear as a Markdown table in the relevant section.
-- Use concise, data-dense prose suitable for a weekly institutional newsletter."""
+- Write a brief 1-2 sentence executive summary in `full_report_markdown`.
+- Use concise, data-dense prose suitable for a weekly institutional newsletter.
+- Ensure every table array is populated with exactly 3 rows of data."""
 
         prompt = f"""Generate this week's institutional alternative-asset market report for TradeValue subscribers.
-
-Research using provided tools or context. Prioritize:
-- High-velocity modern rookies and breakout performers with measurable weekly price deltas
-- Blue-chip registry assets with population and auction baseline references
-- Recent eBay sold BIN data to build raw vs PSA 10 multiplier math (show your medians)
+Keep the overall output extremely concise to optimize generation speed.
 
 Return JSON ONLY matching this schema (no extra keys, no markdown fences outside JSON values):
 {INSTITUTIONAL_REPORT_SCHEMA}
 
 Set report_date to "{report_date}".
+Limit every table to exactly 3 rows. Ensure `full_report_markdown` is a brief 1-2 sentence summary, not a full document.
 Ensure multiplier_x values are computed from stated raw_median_usd and psa10_median_usd when possible."""
 
         # Define a helper to call Gemini with Google Gen AI -> Vertex AI fallback
@@ -230,7 +211,7 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
         if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
             local_llm_url = local_llm_url.rstrip("/") + "/v1"
-        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
 
         if use_local_llm:
             try:
@@ -244,24 +225,15 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
                         {"role": "system", "content": system_instruction},
                         {"role": "user", "content": prompt}
                     ],
-                    response_format={"type": "json_object"},
                     max_tokens=4096,
-                    timeout=180
+                    timeout=600
                 )
                 res_text = resp.choices[0].message.content or ""
             except Exception as local_ex:
-                print(f"[MarketAnalyst] Local LLM failed: {str(local_ex)}. Falling back to Cloud Gemini...")
-                res_text = call_gemini_helper(
-                    prompt_content=prompt,
-                    system_instruction_text=system_instruction,
-                    temperature=0.25
-                )
+                print(f"[MarketAnalyst] Local LLM failed: {str(local_ex)}")
+                raise local_ex
         else:
-            res_text = call_gemini_helper(
-                prompt_content=prompt,
-                system_instruction_text=system_instruction,
-                temperature=0.25
-            )
+            raise Exception("Gemini API calls are disabled. This application is configured to only use the local LLM.")
 
             
         if not res_text:
@@ -273,8 +245,11 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
         is_valid = False
         if json_match:
             try:
-                json.loads(json_match.group(1).replace('```json', '').replace('```', '').strip())
-                is_valid = True
+                parsed_val = json.loads(json_match.group(1).replace('```json', '').replace('```', '').strip())
+                if parsed_val and "full_report_markdown" in parsed_val:
+                    is_valid = True
+                    # Extract pure JSON to avoid thinking/markdown noise downstream
+                    res_text = json.dumps(parsed_val)
             except:
                 pass
                 
@@ -289,11 +264,39 @@ SCHEMA:
 CORRUPTED JSON STRING TO REPAIR:
 {res_text}"""
             
-            res_text = call_gemini_helper(
-                prompt_content=repair_prompt,
-                response_mime_type="application/json",
-                temperature=0.0
-            )
+            if use_local_llm:
+                try:
+                    from openai import OpenAI
+                    openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true"})
+                    resp = openai_client.chat.completions.create(
+                        model=local_llm_model,
+                        messages=[
+                            {"role": "system", "content": "You are a JSON repair tool. Output ONLY valid JSON matching the schema."},
+                            {"role": "user", "content": repair_prompt}
+                        ],
+                        max_tokens=4096,
+                        timeout=300
+                    )
+                    raw_repair = resp.choices[0].message.content or ""
+                    # Validate and extract repaired JSON
+                    repair_match = re.search(r'(\{[\s\S]*\})', raw_repair)
+                    if repair_match:
+                        parsed_repair = json.loads(repair_match.group(1).replace('```json', '').replace('```', '').strip())
+                        if parsed_repair and "full_report_markdown" in parsed_repair:
+                            res_text = json.dumps(parsed_repair)
+                        else:
+                            raise ValueError("Repaired JSON missing required keys")
+                    else:
+                        raise ValueError("No JSON found in repaired output")
+                except Exception as repair_ex:
+                    print(f"[MarketAnalyst] Local repair failed: {repair_ex}")
+                    raise repair_ex
+            else:
+                res_text = call_gemini_helper(
+                    prompt_content=repair_prompt,
+                    response_mime_type="application/json",
+                    temperature=0.0
+                )
             
         return res_text
         
@@ -486,23 +489,7 @@ async def run_cli():
                         return resp.choices[0].message.content
                     return ""
                 else:
-                    api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
-                    if api_key:
-                        client = genai.Client(api_key=api_key)
-                    else:
-                        client = get_vertex_client()
-
-                    config = types.GenerateContentConfig(
-                        # google_search tool removed to comply with cost and grounding policies
-                        temperature=0.0
-                    )
-                
-                print(f"[Python] Using Model: {model_name}")
-                response = await client.aio.models.generate_content(
-                    model=model_name,
-                    contents=query,
-                    config=config
-                )
+                    raise Exception("Gemini API calls are disabled. This application is configured to only use the local LLM.")
                 
                 if response and response.text:
                     return response.text

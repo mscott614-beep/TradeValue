@@ -31,7 +31,7 @@ export function valuationFromAgent(
   const price =
     parsed && parsed > 0.01
       ? parseFloat(parsed.toFixed(2))
-      : 0.99;
+      : 0.00;
 
   const method = String(
     agentData.method || agentData.valuation_method || "agent_valuation"
