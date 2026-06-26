@@ -41,7 +41,7 @@ env:
       - RUNTIME
 
   - variable: LOCAL_LLM_URL
-    value: "https://open-bats-sell.loca.lt"
+    value: "https://sour-geckos-visit.loca.lt"
     availability:
       - RUNTIME
 
