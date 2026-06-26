@@ -23,7 +23,7 @@ USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM") == "true"
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
 if not LOCAL_LLM_URL.endswith("/v1") and not LOCAL_LLM_URL.endswith("/api"):
     LOCAL_LLM_URL = LOCAL_LLM_URL.rstrip("/") + "/v1"
-LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
 try:
     from openai import OpenAI
 except ImportError:

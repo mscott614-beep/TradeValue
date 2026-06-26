@@ -468,7 +468,7 @@ async def run_cli():
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
         if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
             local_llm_url = local_llm_url.rstrip("/") + "/v1"
-        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
 
         for attempt in range(max_retries):
             try:

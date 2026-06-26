@@ -59,7 +59,7 @@ async function sendHermesNotification(subject, htmlContent) {
 
 async function generateInsightsWithFallback(prompt) {
     const localLlmUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
-    const localLlmModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+    const localLlmModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
 
     console.log(`[Hermes] Synthesizing portfolio data using LOCAL OLLAMA (${localLlmModel})...`);
     try {
