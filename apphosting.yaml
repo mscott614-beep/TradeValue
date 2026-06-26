@@ -41,7 +41,7 @@ env:
       - RUNTIME
 
   - variable: LOCAL_LLM_URL
-    value: "https://primary-villain-parking.ngrok-free.dev"
+    value: "https://learned-lamp-oxide-dozens.trycloudflare.com"
     availability:
       - RUNTIME
 
