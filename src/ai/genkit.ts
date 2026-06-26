@@ -107,7 +107,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
     }
   };
 
-  const timeoutMs = (genOptions as any).timeout || (useLocalLlm ? 120000 : 60000);
+  const timeoutMs = (genOptions as any).timeout || (useLocalLlm ? 240000 : 60000);
 
   try {
     // Attempt 1: Use the primary model (or the model specified in options)
