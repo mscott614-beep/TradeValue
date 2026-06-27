@@ -209,6 +209,121 @@ def parse_ebay_markdown(content: str, is_sold: bool = False) -> list:
             
     return listings
 
+def get_ebay_access_token():
+    client_id = os.environ.get("EBAY_CLIENT_ID")
+    client_secret = os.environ.get("EBAY_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        print("[eBay API] Credentials missing in environment.")
+        return None
+        
+    auth_str = f"{client_id}:{client_secret}"
+    b64_auth = base64.b64encode(auth_str.encode()).decode()
+    
+    url = "https://api.ebay.com/identity/v1/oauth2/token"
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": f"Basic {b64_auth}"
+    }
+    data = {
+        "grant_type": "client_credentials",
+        "scope": "https://api.ebay.com/oauth/api_scope"
+    }
+    try:
+        res = requests.post(url, headers=headers, data=data, timeout=10)
+        if res.status_code == 200:
+            return res.json().get("access_token")
+        else:
+            print(f"[eBay API] Auth failed: {res.status_code} - {res.text}")
+    except Exception as e:
+        print(f"[eBay API] Auth error: {e}")
+    return None
+
+def clean_query_for_ebay_api(query: str) -> str:
+    words = query.split()
+    cleaned_words = [w for w in words if not w.startswith("-")]
+    return " ".join(cleaned_words)
+
+def search_ebay_active_items(query: str, limit: int = 10):
+    query = clean_query_for_ebay_api(query)
+    token = get_ebay_access_token()
+    if not token:
+        return []
+        
+    url = "https://api.ebay.com/buy/browse/v1/item_summary/search"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"
+    }
+    params = {
+        "q": query,
+        "limit": str(limit),
+        "category_ids": "261328",
+        "filter": "buyingOptions:{FIXED_PRICE}",
+        "sort": "price",
+        "fieldGroups": "EXTENDED"
+    }
+    try:
+        res = requests.get(url, headers=headers, params=params, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            items = []
+            for item in data.get("itemSummaries", []):
+                price_val = float(item.get("price", {}).get("value", 0.0))
+                items.append({
+                    "title": item.get("title", ""),
+                    "price": price_val,
+                    "url": item.get("itemWebUrl", ""),
+                    "image_url": item.get("image", {}).get("imageUrl", "") if item.get("image") else ""
+                })
+            return items
+        else:
+            print(f"[eBay API] Search failed: {res.status_code} - {res.text}")
+    except Exception as e:
+        print(f"[eBay API] Search error: {e}")
+    return []
+
+def search_ebay_sold_items(query: str, limit: int = 10):
+    query = clean_query_for_ebay_api(query)
+    token = get_ebay_access_token()
+    if not token:
+        return []
+        
+    url = "https://api.ebay.com/buy/browse/v1/item_summary/search"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US"
+    }
+    params = {
+        "q": query,
+        "limit": str(limit),
+        "category_ids": "261328",
+        "filter": "buyingOptions:{FIXED_PRICE|AUCTION}",
+        "sort": "-endTime",
+        "fieldGroups": "EXTENDED"
+    }
+    try:
+        res = requests.get(url, headers=headers, params=params, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            items = []
+            for item in data.get("itemSummaries", []):
+                price_val = float(item.get("price", {}).get("value", 0.0))
+                items.append({
+                    "title": item.get("title", ""),
+                    "price": price_val,
+                    "url": item.get("itemWebUrl", ""),
+                    "image_url": item.get("image", {}).get("imageUrl", "") if item.get("image") else "",
+                    "end_date": item.get("itemEndDate", "")[:10] if item.get("itemEndDate") else ""
+                })
+            return items
+        else:
+            print(f"[eBay API] Sold search failed: {res.status_code} - {res.text}")
+    except Exception as e:
+        print(f"[eBay API] Sold search error: {e}")
+    return []
+
 from series_context_cache import (
     build_card_valuation_instruction,
     get_or_create_series_cache,
@@ -848,7 +963,7 @@ JSON schema:
 
     try:
         if USE_LOCAL_LLM and OpenAI:
-            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
+            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", max_retries=0, default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
             resp = openai_client.chat.completions.create(
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
@@ -1176,7 +1291,7 @@ Return ONLY a JSON object with these exact fields:
 }}"""
         
         if USE_LOCAL_LLM and OpenAI:
-            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
+            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", max_retries=0, default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
             resp = openai_client.chat.completions.create(
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
@@ -1374,7 +1489,7 @@ async def value_card(req: ValuationRequest):
             print(f"[AgentService] Cache lookup failed (proceeding to live search): {str(e)}")
 
         # Method tracking
-        method_used = "Gemini-3.5-Flash-Trimmed-Mean"
+        method_used = "local_llm_valuation" if USE_LOCAL_LLM else "Gemini-3.5-Flash-Trimmed-Mean"
 
         # --- Gemini explicit context cache (series-level baselines) ---
         series_id = None
@@ -1434,27 +1549,11 @@ async def value_card(req: ValuationRequest):
                     print(f"[AgentService] AI Sync Attempt {attempt+1}/{max_retries} for query: {q}")
                     
                     if USE_LOCAL_LLM and OpenAI:
-                        import urllib.parse
-                        active_query_url = f"https://www.ebay.com/sch/i.html?_nkw={urllib.parse.quote(card_desc)}&_ipg=240"
-                        sold_query_url = f"https://www.ebay.com/sch/i.html?_nkw={urllib.parse.quote(card_desc)}&LH_Sold=1&LH_Complete=1&_ipg=240"
+                        print(f"[AgentService] Local LLM mode. Fetching active listings from eBay Browse API...")
+                        parsed_active = search_ebay_active_items(card_desc, 15)
                         
-                        active_content = ""
-                        sold_content = ""
-                        
-                        try:
-                            print(f"[AgentService] Local LLM mode. Scraping active listings from: {active_query_url}")
-                            active_content = firecrawl_scrape(active_query_url)
-                        except Exception as se:
-                            print(f"[AgentService] Active listings scrape failed: {se}")
-                            
-                        try:
-                            print(f"[AgentService] Local LLM mode. Scraping sold listings from: {sold_query_url}")
-                            sold_content = firecrawl_scrape(sold_query_url)
-                        except Exception as se:
-                            print(f"[AgentService] Sold listings scrape failed: {se}")
-                        
-                        parsed_active = parse_ebay_markdown(active_content, is_sold=False)
-                        parsed_sold = parse_ebay_markdown(sold_content, is_sold=True)
+                        print(f"[AgentService] Local LLM mode. Fetching ended/sold listings from eBay Browse API...")
+                        parsed_sold = search_ebay_sold_items(card_desc, 15)
                         
                         print(f"[AgentService] Parsed {len(parsed_active)} active and {len(parsed_sold)} sold candidates.")
                         
@@ -1480,7 +1579,7 @@ async def value_card(req: ValuationRequest):
                             f"Format instructions: Do not output markdown code blocks (like ```json) or explanation. Return ONLY the raw JSON string."
                         )
                         
-                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
+                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", max_retries=0, default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
                         try:
                             resp = openai_client.chat.completions.create(
                                 model=LOCAL_LLM_MODEL,
@@ -1489,7 +1588,7 @@ async def value_card(req: ValuationRequest):
                                     {"role": "user", "content": local_prompt}
                                 ],
                                 response_format={"type": "json_object"},
-                                timeout=90.0
+                                timeout=25.0
                             )
                             res_text = resp.choices[0].message.content or ""
                             print(f"[AgentService] Success after {attempt+1} attempts.")
