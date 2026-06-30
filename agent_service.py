@@ -967,11 +967,39 @@ JSON schema:
             resp = openai_client.chat.completions.create(
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                stream=True
             )
-            res_text = resp.choices[0].message.content or ""
+            content_parts = []
+            for chunk in resp:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content_parts.append(chunk.choices[0].delta.content)
+            res_text = "".join(content_parts)
         else:
-            raise Exception("Gemini API calls are disabled. This application is configured to only use the local LLM.")
+            try:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=os.getenv("ANALYSIS_MODEL", "gemini-3.5-flash"),
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                    ),
+                )
+                res_text = response.text or ""
+            except Exception as primary_err:
+                print(f"[AgentService] analyze_card primary generation failed: {str(primary_err)}. Falling back to Vertex AI...", flush=True)
+                vertex_client = get_vertex_client()
+                if vertex_client:
+                    response = vertex_client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                        ),
+                    )
+                    res_text = response.text or ""
+                else:
+                    raise primary_err
         parsed = robust_json_parse(res_text) if res_text else None
         if not parsed:
             raise HTTPException(status_code=502, detail="Analysis model returned unparseable JSON")
@@ -1295,11 +1323,46 @@ Return ONLY a JSON object with these exact fields:
             resp = openai_client.chat.completions.create(
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                stream=True
             )
-            res_text = resp.choices[0].message.content or ""
+            content_parts = []
+            for chunk in resp:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content_parts.append(chunk.choices[0].delta.content)
+            res_text = "".join(content_parts)
         else:
-            raise Exception("Gemini API calls are disabled. This application is configured to only use the local LLM.")
+            api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+            res_text = ""
+            if api_key:
+                try:
+                    print("[ExtractEbay] Attempting Google Gen AI with gemini-3.5-flash...", flush=True)
+                    client = genai.Client(api_key=api_key)
+                    res = client.models.generate_content(
+                        model='gemini-3.5-flash',
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type='application/json'
+                        )
+                    )
+                    res_text = res.text or ""
+                except Exception as ex:
+                    print(f"[ExtractEbay] Google Gen AI failed: {str(ex)}. Trying Vertex AI fallback...", flush=True)
+            
+            if not res_text:
+                vertex_client = get_vertex_client()
+                if vertex_client:
+                    print("[ExtractEbay] Using Vertex AI with gemini-2.5-flash...", flush=True)
+                    res = vertex_client.models.generate_content(
+                        model='gemini-2.5-flash',
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type='application/json'
+                        )
+                    )
+                    res_text = res.text or ""
+                else:
+                    raise Exception("Neither Google Gen AI nor Vertex AI client is available/successful for extraction.")
         
         res_json = robust_json_parse(res_text)
         if res_json:
@@ -1588,9 +1651,14 @@ async def value_card(req: ValuationRequest):
                                     {"role": "user", "content": local_prompt}
                                 ],
                                 response_format={"type": "json_object"},
-                                timeout=25.0
+                                timeout=90.0,
+                                stream=True
                             )
-                            res_text = resp.choices[0].message.content or ""
+                            content_parts = []
+                            for chunk in resp:
+                                if chunk.choices and chunk.choices[0].delta.content:
+                                    content_parts.append(chunk.choices[0].delta.content)
+                            res_text = "".join(content_parts)
                             print(f"[AgentService] Success after {attempt+1} attempts.")
                             return res_text
                         except Exception as e:
@@ -1641,7 +1709,29 @@ async def value_card(req: ValuationRequest):
                             }
                             return json.dumps(res_payload)
                     else:
-                        raise Exception("Gemini API calls are disabled. This application is configured to only use the local LLM.")
+                        try:
+                            response = client.models.generate_content(
+                                model='gemini-3.5-flash',
+                                contents=q,
+                                config=gen_config,
+                            )
+                        except Exception as val_ex:
+                            print(f"[AgentService] Google Gen AI ValueCard failed: {str(val_ex)}. Trying Vertex AI fallback...", flush=True)
+                            vertex_client = get_vertex_client()
+                            if vertex_client:
+                                print("[AgentService] ValueCard calling Vertex AI with gemini-2.5-flash...", flush=True)
+                                vertex_config = types.GenerateContentConfig(
+                                    system_instruction=gen_config.system_instruction if not cached_content_name else None,
+                                    tools=gen_config.tools,
+                                    temperature=gen_config.temperature
+                                )
+                                response = vertex_client.models.generate_content(
+                                    model='gemini-2.5-flash',
+                                    contents=q,
+                                    config=vertex_config,
+                                )
+                            else:
+                                raise val_ex
                         log_cache_usage(response, series_id)
                     # Gemini 3.5 Flash + google_search returns multi-part responses.
                     # The JSON answer is often in a later part, after grounding chunks.

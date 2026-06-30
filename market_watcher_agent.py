@@ -217,7 +217,7 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
             try:
                 from openai import OpenAI
                 openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
-                print(f"[MarketAnalyst] Using Local Model for report: {local_llm_model}")
+                print(f"[MarketAnalyst] Using Local Model for report (streaming): {local_llm_model}")
                 
                 resp = openai_client.chat.completions.create(
                     model=local_llm_model,
@@ -226,14 +226,23 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=4096,
-                    timeout=600
+                    timeout=600,
+                    stream=True
                 )
-                res_text = resp.choices[0].message.content or ""
+                content_parts = []
+                for chunk in resp:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        content_parts.append(chunk.choices[0].delta.content)
+                res_text = "".join(content_parts)
             except Exception as local_ex:
                 print(f"[MarketAnalyst] Local LLM failed: {str(local_ex)}")
                 raise local_ex
         else:
-            raise Exception("Gemini API calls are disabled. This application is configured to only use the local LLM.")
+            res_text = call_gemini_helper(
+                prompt_content=prompt,
+                system_instruction_text=system_instruction,
+                temperature=0.25
+            )
 
             
         if not res_text:
@@ -275,9 +284,14 @@ CORRUPTED JSON STRING TO REPAIR:
                             {"role": "user", "content": repair_prompt}
                         ],
                         max_tokens=4096,
-                        timeout=300
+                        timeout=300,
+                        stream=True
                     )
-                    raw_repair = resp.choices[0].message.content or ""
+                    content_parts = []
+                    for chunk in resp:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            content_parts.append(chunk.choices[0].delta.content)
+                    raw_repair = "".join(content_parts)
                     # Validate and extract repaired JSON
                     repair_match = re.search(r'(\{[\s\S]*\})', raw_repair)
                     if repair_match:
@@ -479,17 +493,36 @@ async def run_cli():
                         raise Exception("openai package not installed but USE_LOCAL_LLM is true")
                     
                     openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
-                    print(f"[Python] Using Local Model: {local_llm_model}")
+                    print(f"[Python] Using Local Model (streaming): {local_llm_model}")
                     resp = await openai_client.chat.completions.create(
                         model=local_llm_model,
                         messages=[{"role": "user", "content": query}],
-                        response_format={"type": "json_object"}
+                        response_format={"type": "json_object"},
+                        stream=True
                     )
-                    if resp and resp.choices and resp.choices[0].message.content:
-                        return resp.choices[0].message.content
-                    return ""
+                    content_parts = []
+                    async for chunk in resp:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            content_parts.append(chunk.choices[0].delta.content)
+                    return "".join(content_parts)
                 else:
-                    raise Exception("Gemini API calls are disabled. This application is configured to only use the local LLM.")
+                    api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
+                    if api_key:
+                        client = genai.Client(api_key=api_key)
+                    else:
+                        client = get_vertex_client()
+
+                    config = types.GenerateContentConfig(
+                        # google_search tool removed to comply with cost and grounding policies
+                        temperature=0.0
+                    )
+                
+                    print(f"[Python] Using Model: {model_name}")
+                    response = await client.aio.models.generate_content(
+                        model=model_name,
+                        contents=query,
+                        config=config
+                    )
                 
                 if response and response.text:
                     return response.text
