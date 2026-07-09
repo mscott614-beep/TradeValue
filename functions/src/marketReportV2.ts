@@ -22,6 +22,16 @@ export const marketReportV2 = onRequest({
   concurrency: 1,
   cors: true,
 }, async (req, res) => {
+  // Enable CORS manually to prevent any issues on errors/preflights
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
   const { topic, trendingData } = req.body ?? {};
   const systemPrompt = buildInstitutionalReportPrompt({ topic, trendingData });
 
@@ -65,8 +75,13 @@ export const marketReportV2 = onRequest({
           config: { temperature: 0.25 },
         });
 
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        res.setHeader("Transfer-Encoding", "chunked");
+        if (!res.headersSent) {
+          res.writeHead(200, {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Transfer-Encoding": "chunked",
+          });
+        }
+        res.write(" "); // Flush headers immediately with an initial padding space
 
         for await (const chunk of response.stream) {
           if (chunk.text) {
