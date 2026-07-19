@@ -2,7 +2,6 @@
 
 ## 🏗️ System Architecture
 
-- **Core AI:** **Gemini 3.5 Flash** (Model ID: `gemini-3.5-flash`; standardized for high-speed tool calling, advanced parallel agentic reasoning, 1M input context, and up to 64K output token generation).
 - **Tool Protocol:** Native **Firecrawl API Function Calling** (`firecrawl_scrape` Python function).
 - **Backend:** Python (Flask) on **Google Cloud Run** (`market-agent`, region `us-east4`).
 - **Frontend:** Next.js 14+ (App Router) on Firebase App Hosting (`tradevalue-app`, region `us-east4`).
