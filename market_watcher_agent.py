@@ -226,14 +226,10 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
                         {"role": "user", "content": prompt}
                     ],
                     max_tokens=4096,
-                    timeout=600,
-                    stream=True
+                    timeout=60.0,
+                    stream=False
                 )
-                content_parts = []
-                for chunk in resp:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        content_parts.append(chunk.choices[0].delta.content)
-                res_text = "".join(content_parts)
+                res_text = resp.choices[0].message.content or ""
             except Exception as local_ex:
                 print(f"[MarketAnalyst] Local LLM failed: {str(local_ex)}")
                 raise local_ex
@@ -284,14 +280,10 @@ CORRUPTED JSON STRING TO REPAIR:
                             {"role": "user", "content": repair_prompt}
                         ],
                         max_tokens=4096,
-                        timeout=300,
-                        stream=True
+                        timeout=30.0,
+                        stream=False
                     )
-                    content_parts = []
-                    for chunk in resp:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            content_parts.append(chunk.choices[0].delta.content)
-                    raw_repair = "".join(content_parts)
+                    raw_repair = resp.choices[0].message.content or ""
                     # Validate and extract repaired JSON
                     repair_match = re.search(r'(\{[\s\S]*\})', raw_repair)
                     if repair_match:
@@ -493,18 +485,14 @@ async def run_cli():
                         raise Exception("openai package not installed but USE_LOCAL_LLM is true")
                     
                     openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
-                    print(f"[Python] Using Local Model (streaming): {local_llm_model}")
                     resp = await openai_client.chat.completions.create(
                         model=local_llm_model,
                         messages=[{"role": "user", "content": query}],
                         response_format={"type": "json_object"},
-                        stream=True
+                        timeout=30.0,
+                        stream=False
                     )
-                    content_parts = []
-                    async for chunk in resp:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            content_parts.append(chunk.choices[0].delta.content)
-                    return "".join(content_parts)
+                    return resp.choices[0].message.content or ""
                 else:
                     api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
                     if api_key:

@@ -76,7 +76,7 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         const lowVolumeData = result.low_volume || false;
         const timestamp = new Date().toISOString();
 
-        console.log(`[Refresh] Agent Result: $${newPrice} via ${result.valuation_method}`);
+        console.log(`[Refresh] Agent Result: $${newPrice} via ${result.method || result.valuation_method || "AGENT_MANUAL"}`);
 
         // Update Firestore
         const db = getAdminDb();
@@ -94,8 +94,8 @@ export async function refreshCardValueAction(userId: string, card: Portfolio) {
         await cardRef.update({
             currentMarketValue: newPrice,
             lastMarketValueUpdate: timestamp,
-            valuationMethod: result.valuation_method || "AGENT_MANUAL",
-            lastSearchQuery: result.last_search_query || null,
+            valuationMethod: result.method || result.valuation_method || "AGENT_MANUAL",
+            lastSearchQuery: result.query || result.last_search_query || null,
             marketPrices
         });
 

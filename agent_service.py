@@ -968,13 +968,10 @@ JSON schema:
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                stream=True
+                timeout=30.0,
+                stream=False
             )
-            content_parts = []
-            for chunk in resp:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    content_parts.append(chunk.choices[0].delta.content)
-            res_text = "".join(content_parts)
+            res_text = resp.choices[0].message.content or ""
         else:
             try:
                 client = genai.Client(api_key=api_key)
@@ -1324,13 +1321,10 @@ Return ONLY a JSON object with these exact fields:
                 model=LOCAL_LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                stream=True
+                timeout=30.0,
+                stream=False
             )
-            content_parts = []
-            for chunk in resp:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    content_parts.append(chunk.choices[0].delta.content)
-            res_text = "".join(content_parts)
+            res_text = resp.choices[0].message.content or ""
         else:
             api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
             res_text = ""
@@ -1651,14 +1645,10 @@ async def value_card(req: ValuationRequest):
                                     {"role": "user", "content": local_prompt}
                                 ],
                                 response_format={"type": "json_object"},
-                                timeout=90.0,
-                                stream=True
+                                timeout=30.0,
+                                stream=False
                             )
-                            content_parts = []
-                            for chunk in resp:
-                                if chunk.choices and chunk.choices[0].delta.content:
-                                    content_parts.append(chunk.choices[0].delta.content)
-                            res_text = "".join(content_parts)
+                            res_text = resp.choices[0].message.content or ""
                             print(f"[AgentService] Success after {attempt+1} attempts.")
                             return res_text
                         except Exception as e:
