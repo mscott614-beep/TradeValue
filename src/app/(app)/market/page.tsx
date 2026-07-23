@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/page-header";
-import { generateReportAction } from "@/app/actions/generate-report";
 import { generateAuctionsAction } from "@/app/actions/generate-auctions";
 import { generateTrendingCardsAction } from "@/app/actions/generate-trending-cards";
 import type { AuctionListing } from "@/ai/flows/generate-live-auctions";
@@ -18,9 +17,9 @@ import {
   Scale, 
   ExternalLink, 
   RefreshCw,
-  Printer,
   Sparkles,
 } from "lucide-react";
+import { useUser } from "@/firebase";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +39,6 @@ import {
 } from "@/components/ui/tabs";
 import { AuctionList } from "@/components/market/auction-list";
 import { ArbitrageDashboard } from "@/components/market/arbitrage-dashboard";
-import { MarketReportDocument } from "@/components/market/MarketReportDocument";
 import { cn } from "@/lib/utils";
 
 // Map AI-generated listing to the Auction shape expected by AuctionList
@@ -80,11 +78,11 @@ export default function MarketHubPage() {
   const [isLoadingAuctions, setIsLoadingAuctions] = useState(false);
   const [isLoadingTrending, setIsLoadingTrending] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [report, setReport] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [topic, setTopic] = useState("");
   const [auctionTopic, setAuctionTopic] = useState("");
-  // Shadow Engine V2 is always enabled
-  const isV2Enabled = true;
+  const { user } = useUser();
+  const userEmail = user?.email || "";
   const [isFocusMode, setIsFocusMode] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("market-focus-mode") === "true";
@@ -160,101 +158,24 @@ export default function MarketHubPage() {
     loadAuctions(auctionTopic.trim() || undefined);
   };
 
-  const handlePrintReport = () => {
-    window.print();
-  };
-
-  const handleExportToGoogleDocs = async () => {
-    if (!report) return;
-    const plain = report
-      .replace(/#{1,6}\s+/g, "")
-      .replace(/\*\*(.+?)\*\*/g, "$1")
-      .replace(/\*(.+?)\*/g, "$1")
-      .replace(/`(.+?)`/g, "$1")
-      .replace(/^[-*]\s+/gm, "• ");
-    try {
-      await navigator.clipboard.writeText(plain);
-      toast.success("Report copied! Open Google Docs to paste.", { duration: 6000 });
-      window.open("https://docs.new", "_blank");
-    } catch {
-      toast.error("Could not copy to clipboard.");
-    }
-  };
-
-  // V1 fallback — called silently when V2 fails
-  const handleGenerateReportV1 = async () => {
-    setIsGenerating(true);
-    try {
-      const response = await generateReportAction(topic.trim() || undefined);
-      if (response.success && response.result) {
-        setReport(response.result);
-      } else {
-        toast.error(response.error || "Report generation failed.");
-      }
-    } catch (error: any) {
-      toast.error(error.message || "An unexpected error occurred.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   const handleGenerateReport = async () => {
     setIsGenerating(true);
-    setReport(null);
-
-    if (isV2Enabled) {
-      setReport("");
-      try {
-        const response = await fetch("https://us-east4-puckvaluebak-38609945-5e85c.cloudfunctions.net/marketReportV2", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            topic: topic.trim() || undefined,
-            trendingData: trending.map(t => ({
-              player: t.player,
-              title: t.title,
-              value: t.value,
-              change: t.change,
-              trend: t.trend
-            }))
-          }),
-        });
-
-        if (!response.ok) throw new Error(`V2 Engine error: ${response.statusText}`);
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        
-        if (reader) {
-          let accumulated = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            accumulated += chunk;
-            setReport(accumulated);
-          }
-        }
-      } catch {
-        // Silent fallback to V1 on any V2 error
-        await handleGenerateReportV1();
-        return;
-      } finally {
-        setIsGenerating(false);
-      }
-      return;
-    }
-
     try {
-      const response = await generateReportAction(topic.trim() || undefined);
-      if (response.success && response.result) {
-        setReport(response.result);
-        toast.success("Investor-grade report generated!");
-      } else {
-        const errMsg = response.error || "";
-        toast.error(`Report generation failed: ${errMsg}`);
-      }
+      const response = await fetch("https://us-east4-puckvaluebak-38609945-5e85c.cloudfunctions.net/marketReportV2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          topic: topic.trim() || undefined,
+          userEmail: userEmail || undefined
+        }),
+      });
+
+      if (!response.ok) throw new Error(`V2 Engine error: ${response.statusText}`);
+
+      setIsSuccess(true);
+      toast.success("Report synthesis started!");
     } catch (error: any) {
+      console.error("Report generation failed:", error);
       toast.error(error.message || "An unexpected error occurred.");
     } finally {
       setIsGenerating(false);
@@ -460,29 +381,31 @@ export default function MarketHubPage() {
                   </h3>
                   <p className="text-sm text-slate-400 italic" suppressHydrationWarning>Synthesized: {new Date().toLocaleDateString()}</p>
                 </div>
-                {report && (
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handlePrintReport} className="h-8 gap-2 border-slate-800">
-                      <Printer className="w-3.5 h-3.5" /> Export PDF
-                    </Button>
-                  </div>
-                )}
               </div>
 
-              {report ? (
-                <div className="print:shadow-none bg-transparent">
-                  <MarketReportDocument 
-                    content={report} 
-                    isFocusMode={isFocusMode}
-                    onToggleFocus={toggleFocusMode}
-                  />
-                </div>
+              {isSuccess ? (
+                <Card className="flex flex-col items-center justify-center text-center p-12 border border-slate-800/80 bg-slate-900/40 backdrop-blur-sm rounded-xl">
+                  <div className="bg-emerald-500/10 p-5 rounded-full mb-6 ring-1 ring-emerald-500/20">
+                    <Sparkles className="w-10 h-10 text-emerald-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-3 text-slate-100">Synthesis Request Received</h3>
+                  <p className="text-sm text-slate-400 mb-8 max-w-md leading-relaxed">
+                    Your Market Intelligence Report is being synthesized and will be emailed to you shortly.
+                  </p>
+                  <Button 
+                    onClick={() => setIsSuccess(false)} 
+                    variant="outline" 
+                    className="border-slate-800 hover:bg-slate-800"
+                  >
+                    Request Another Report
+                  </Button>
+                </Card>
               ) : (
                 <Card className="flex flex-col items-center justify-center text-center p-12 border border-slate-800/80 bg-slate-900/40 backdrop-blur-sm rounded-xl">
                   <div className="bg-primary/10 p-5 rounded-full mb-6 ring-1 ring-primary/20">
                     <WandSparkles className="w-10 h-10 text-primary" />
                   </div>
-                  <h3 className="text-2xl font-bold mb-3 text-slate-100">No Report Active</h3>
+                  <h3 className="text-2xl font-bold mb-3 text-slate-100">Request Custom Report</h3>
                   <p className="text-sm text-slate-400 mb-8 max-w-md leading-relaxed">
                     Leverage our AI engine to synthesize a professional market report based on current auction trends, multiplier variances, and historical data.
                   </p>
@@ -500,6 +423,11 @@ export default function MarketHubPage() {
                       {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate Report"}
                     </Button>
                   </div>
+                  {userEmail && (
+                    <p className="text-xs text-slate-500 mt-4">
+                      The report will be emailed to: <span className="font-semibold text-slate-400">{userEmail}</span>
+                    </p>
+                  )}
                 </Card>
               )}
             </div>
