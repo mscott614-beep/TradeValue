@@ -30,7 +30,7 @@ export const marketReportV2 = onRequest({
   const { topic, email, userEmail } = req.body ?? {};
 
   // Forwards this exact payload via a POST request to the n8n production webhook URL
-  fetch("https://violation-ranks-lists-planner.trycloudflare.com/webhook/tradevalue-async-report", {
+  fetch("https://delegation-anticipated-dust-nam.trycloudflare.com/webhook/tradevalue-async-report", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
