@@ -179,6 +179,8 @@ export function scoreArbitrageOpportunity(input: ArbitrageScoreInput): {
   score += Math.min(25, spreadUsd / 50);
 
   const qualifies =
+    rawMedianUsd > 0 &&
+    rawMedianUsd >= 1.0 &&
     slab >= 75 &&
     spreadUsd >= 40 &&
     multRatio >= 1.2 &&
@@ -193,13 +195,13 @@ export function scoreArbitrageOpportunity(input: ArbitrageScoreInput): {
   );
 
   return {
-    qualifies,
-    arbitrageScore: Math.round(Math.min(100, score)),
-    multiplierObserved: parseFloat(observedMult.toFixed(2)),
-    spreadUsd: parseFloat(spreadUsd.toFixed(2)),
-    spreadPct: parseFloat(spreadPct.toFixed(1)),
-    confidence,
-    gradingNote: gradingNoteFor(input.gradingPassRate, expected),
+    qualifies: rawMedianUsd > 0 ? qualifies : false,
+    arbitrageScore: rawMedianUsd > 0 ? Math.round(Math.min(100, score)) : 0,
+    multiplierObserved: rawMedianUsd > 0 ? parseFloat(observedMult.toFixed(2)) : 0,
+    spreadUsd: rawMedianUsd > 0 ? parseFloat(spreadUsd.toFixed(2)) : 0,
+    spreadPct: rawMedianUsd > 0 ? parseFloat(spreadPct.toFixed(1)) : 0,
+    confidence: rawMedianUsd > 0 ? confidence : "low",
+    gradingNote: rawMedianUsd > 0 ? gradingNoteFor(input.gradingPassRate, expected) : "No raw sales data available to calculate arbitrage spread.",
   };
 }
 
@@ -208,7 +210,7 @@ export function watchlistFromReportRows(
 ): CardWatchDescriptor[] {
   const out: CardWatchDescriptor[] = [];
   for (const row of rows || []) {
-    const label = String(row.card || "").trim();
+    let label = String(row.card || "").replace(/\(\s*\)/g, "").trim();
     if (!label || label.length < 4) continue;
     const expected = parseMultiplierRow(label);
     if (typeof row.multiplier_x === "number") {
@@ -222,7 +224,7 @@ export function watchlistFromReportRows(
       });
     } else {
       out.push({
-        player: label.split(" ")[0] || label,
+        player: label.replace(/\s*\([^)]*\)/g, "").trim() || label,
         year: "",
         brand: "",
         title: label,
