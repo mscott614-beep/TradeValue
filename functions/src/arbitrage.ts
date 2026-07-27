@@ -239,3 +239,15 @@ export function watchlistFromReportRows(
   }
   return out.slice(0, 12);
 }
+
+export function isSignalActive(
+  signal: Partial<ArbitrageSignal> & Record<string, any>,
+  nowIso: string = new Date().toISOString()
+): boolean {
+  if (!signal) return false;
+  if (signal.qualifies === false) return false;
+  if (signal.status === "expired") return false;
+  if (signal.expiresAt && signal.expiresAt <= nowIso) return false;
+  return true;
+}
+

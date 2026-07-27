@@ -953,10 +953,11 @@ const _scheduledArbitrageScan = onSchedule(
       EBAY_CLIENT_SECRET.value(),
       EBAY_ENV.value() || "production"
     );
-    const result = await runArbitrageScan(admin.firestore(), ebay);
+    const result = await runArbitrageScan(admin.firestore(), ebay, { forceFresh: true });
     console.log("[ArbitrageScan] Scheduled run complete:", result);
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const nowIso = new Date().toISOString();
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York",
       year: "numeric",
@@ -964,26 +965,29 @@ const _scheduledArbitrageScan = onSchedule(
       day: "2-digit",
     }).format(new Date());
 
-    // Fetch top qualifying signals detected in the system recently
+    // Fetch top active, unexpired qualifying signals
     const db = admin.firestore();
     const signalsSnap = await db.collection("arbitrage_signals")
       .where("qualifies", "==", true)
       .orderBy("detectedAt", "desc")
-      .limit(15)
+      .limit(30)
       .get();
 
     const deals: any[] = [];
     signalsSnap.docs.forEach((doc) => {
       const data = doc.data();
-      deals.push({
-        player: data.player,
-        year: data.year,
-        brand: data.brand,
-        rawPrice: data.rawMedianUsd,
-        psa10Price: data.slabMedianUsd,
-        spread: data.spreadUsd,
-      });
+      if (data.status === "active" && (!data.expiresAt || data.expiresAt > nowIso)) {
+        deals.push({
+          player: data.player,
+          year: data.year,
+          brand: data.brand,
+          rawPrice: data.rawMedianUsd,
+          psa10Price: data.slabMedianUsd,
+          spread: data.spreadUsd,
+        });
+      }
     });
+
 
     let dealsHtml = "<p style='font-size: 14px; color: #64748b; font-style: italic;'>No significant raw-vs-graded arbitrage spreads detected in today's scan.</p>";
     if (deals.length > 0) {

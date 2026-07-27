@@ -99,7 +99,8 @@ function findBestUnderpricedListing(
 
 export async function runArbitrageScan(
   db: admin.firestore.Firestore,
-  ebay: EbayService
+  ebay: EbayService,
+  options?: { forceFresh?: boolean }
 ): Promise<{ scanned: number; signals: number; skippedCooldown: number }> {
   const reportWatch = await loadReportWatchlist(db);
   const watchlist = mergeWatchlist(reportWatch);
@@ -116,7 +117,7 @@ export async function runArbitrageScan(
       const cardKey = buildCardKey(card);
       const docId = cardKey.replace(/[^a-z0-9_|.-]/gi, "_").slice(0, 128);
       const existingSnap = await db.collection(COLLECTION).doc(docId).get();
-      if (shouldSkipEbayScan(existingSnap)) {
+      if (!options?.forceFresh && shouldSkipEbayScan(existingSnap)) {
         skippedCooldown += 1;
         continue;
       }
@@ -203,6 +204,21 @@ export async function runArbitrageScan(
     }
   }
 
+  // Cleanup: mark any legacy signals that passed expiresAt as expired
+  try {
+    const expiredSnap = await db.collection(COLLECTION)
+      .where("qualifies", "==", true)
+      .get();
+    expiredSnap.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.expiresAt && data.expiresAt <= detectedAt) {
+        batch.update(doc.ref, { qualifies: false, status: "expired" });
+      }
+    });
+  } catch (err) {
+    console.warn("[ArbitrageScan] Non-critical error marking expired signals:", err);
+  }
+
   await batch.commit();
   console.log(
     `[ArbitrageScan] Done. watchlist=${watchlist.length} active_signals=${signalCount} ` +
@@ -210,3 +226,4 @@ export async function runArbitrageScan(
   );
   return { scanned: watchlist.length, signals: signalCount, skippedCooldown };
 }
+
