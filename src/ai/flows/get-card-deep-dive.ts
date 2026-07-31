@@ -99,10 +99,10 @@ export const getCardDeepDive = ai.defineFlow(
             }
 
             return {
-                marketFloor: result.marketFloor,
-                recentVelocity: result.recentVelocity,
-                investmentGrade: result.investmentGrade,
-                analysis: result.analysis,
+                marketFloor: typeof result?.marketFloor === 'number' ? result.marketFloor : marketFloor,
+                recentVelocity: result?.recentVelocity || velocitySummary,
+                investmentGrade: (['Strong Buy', 'Buy', 'Neutral', 'Hold', 'Sell', 'Strong Sell'].includes(result?.investmentGrade) ? result.investmentGrade : 'Hold') as any,
+                analysis: result?.analysis || `### Market Analysis\n\n- **Market Floor:** $${marketFloor.toFixed(2)}\n- **Velocity:** ${velocitySummary}`,
                 isGrounded: true
             };
 
