@@ -125,18 +125,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
       throw error;
     }
 
-    const isRetryable = errorMsg.includes('503') || 
-                        errorMsg.includes('Service Unavailable') || 
-                        errorMsg.includes('validation') ||
-                        errorMsg.includes('schema') ||
-                        errorMsg.includes('blocked') ||
-                        errorMsg.includes('safety') ||
-                        errorMsg.includes('timed out') ||
-                        errorMsg.includes('fetch failed') ||
-                        errorMsg.includes('ECONNREFUSED') ||
-                        errorMsg.includes('connect');
-
-    if (isRetryable && PRIMARY_MODEL !== FALLBACK_MODEL) {
+    if (PRIMARY_MODEL !== FALLBACK_MODEL) {
       console.warn(`[Genkit] Primary model failed (${errorMsg}). Retrying with fallback: ${FALLBACK_MODEL}`);
       
       const fallbackOptions: any = {
@@ -151,7 +140,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
       return await runWithTimeout(fallbackOptions, timeoutMs);
     }
 
-    // If it's not a retryable error, rethrow
+    // If it's not retryable or no fallback available, rethrow
     throw error;
   }
 }
