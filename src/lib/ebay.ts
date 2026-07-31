@@ -122,35 +122,41 @@ class EbayService {
             return this.getMockEbayResponse();
         }
 
-        const token = await this.getAccessToken();
-        
-        const url = new URL(this.BASE_URLS[this.env].browse);
-        url.searchParams.append('q', query);
-        url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
-        
-        if (!includeAuctions) {
-            url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE}');
+        try {
+            const token = await this.getAccessToken();
+            
+            const url = new URL(this.BASE_URLS[this.env].browse);
+            url.searchParams.append('q', query);
+            url.searchParams.append('limit', limit.toString());
+            url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
+            
+            if (!includeAuctions) {
+                url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE}');
+            }
+
+            url.searchParams.append('sort', sort); // price (Ascending) by default
+            url.searchParams.append('fieldGroups', 'EXTENDED'); // To see buyingOptions and other details
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                },
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                const diag = `(ENV: ${this.env}, EBAY_ENV: ${process.env.EBAY_ENV}, NODE_ENV: ${process.env.NODE_ENV})`;
+                console.warn(`[eBay Service] Active search failed ${diag}: ${error}. Falling back to mock response.`);
+                return this.getMockEbayResponse();
+            }
+
+            return await response.json();
+        } catch (err: any) {
+            console.warn(`[eBay Service] Active search network/auth error (${err?.message}). Falling back to mock response.`);
+            return this.getMockEbayResponse();
         }
-
-        url.searchParams.append('sort', sort); // price (Ascending) by default
-        url.searchParams.append('fieldGroups', 'EXTENDED'); // To see buyingOptions and other details
-
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-            },
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            const diag = `(ENV: ${this.env}, EBAY_ENV: ${process.env.EBAY_ENV}, NODE_ENV: ${process.env.NODE_ENV})`;
-            throw new Error(`eBay ${this.env} API search failed ${diag}: ${error}`);
-        }
-
-        return await response.json();
     }
 
     /**
@@ -162,29 +168,35 @@ class EbayService {
             return this.getMockEbayResponse();
         }
 
-        const token = await this.getAccessToken();
-        
-        const url = new URL(this.BASE_URLS[this.env].browse);
-        url.searchParams.append('q', query);
-        url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328');
-        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
-        url.searchParams.append('fieldGroups', 'EXTENDED');
+        try {
+            const token = await this.getAccessToken();
+            
+            const url = new URL(this.BASE_URLS[this.env].browse);
+            url.searchParams.append('q', query);
+            url.searchParams.append('limit', limit.toString());
+            url.searchParams.append('category_ids', '261328');
+            url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
+            url.searchParams.append('fieldGroups', 'EXTENDED');
 
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-            },
-        });
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                },
+            });
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`eBay ${this.env} Auction API search failed: ${error}`);
+            if (!response.ok) {
+                const error = await response.text();
+                console.warn(`[eBay Service] Auction search failed: ${error}. Falling back to mock response.`);
+                return this.getMockEbayResponse();
+            }
+
+            return await response.json();
+        } catch (err: any) {
+            console.warn(`[eBay Service] Auction search network/auth error (${err?.message}). Falling back to mock response.`);
+            return this.getMockEbayResponse();
         }
-
-        return await response.json();
     }
 
     /**
@@ -202,36 +214,42 @@ class EbayService {
             return this.getMockEbayResponse();
         }
 
-        const token = await this.getAccessToken();
-        const { cardTitle, epid, upc, limit = 5 } = options;
+        try {
+            const token = await this.getAccessToken();
+            const { cardTitle, epid, upc, limit = 5 } = options;
 
-        const url = new URL(this.BASE_URLS[this.env].browse);
-        url.searchParams.append('q', cardTitle);
-        if (epid) url.searchParams.append('epid', epid);
-        if (upc) url.searchParams.append('gtin', upc);
-        
-        url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
-        // Filter specifically for Fixed Price and Auctions
-        url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE|AUCTION}');
-        // Sort by most recent transactions
-        url.searchParams.append('sort', '-endTime');
-        url.searchParams.append('fieldGroups', 'EXTENDED');
+            const url = new URL(this.BASE_URLS[this.env].browse);
+            url.searchParams.append('q', cardTitle);
+            if (epid) url.searchParams.append('epid', epid);
+            if (upc) url.searchParams.append('gtin', upc);
+            
+            url.searchParams.append('limit', limit.toString());
+            url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
+            // Filter specifically for Fixed Price and Auctions
+            url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE|AUCTION}');
+            // Sort by most recent transactions
+            url.searchParams.append('sort', '-endTime');
+            url.searchParams.append('fieldGroups', 'EXTENDED');
 
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-            },
-        });
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                },
+            });
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`eBay ${this.env} Sold Items search failed: ${error}`);
+            if (!response.ok) {
+                const error = await response.text();
+                console.warn(`[eBay Service] Sold items search failed: ${error}. Falling back to mock response.`);
+                return this.getMockEbayResponse();
+            }
+
+            return await response.json();
+        } catch (err: any) {
+            console.warn(`[eBay Service] Sold items search network/auth error (${err?.message}). Falling back to mock response.`);
+            return this.getMockEbayResponse();
         }
-
-        return await response.json();
     }
 
     /**

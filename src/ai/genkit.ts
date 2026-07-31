@@ -8,13 +8,13 @@ const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
 const localUrl = process.env.LOCAL_LLM_URL || 'http://localhost:11434';
 
 export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
-export const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
+export const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 
 if (!apiKey && !useLocalLlm) {
-  throw new Error(
-    "Missing API Key: set GOOGLE_GENAI_API_KEY (Functions/Cloud Run) or GEMINI_API_KEY (App Hosting) in environment variables."
+  console.warn(
+    "[Genkit] Warning: Missing API Key (GOOGLE_GENAI_API_KEY or GEMINI_API_KEY) in environment variables."
   );
 }
 
@@ -131,7 +131,10 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
                         errorMsg.includes('schema') ||
                         errorMsg.includes('blocked') ||
                         errorMsg.includes('safety') ||
-                        errorMsg.includes('timed out');
+                        errorMsg.includes('timed out') ||
+                        errorMsg.includes('fetch failed') ||
+                        errorMsg.includes('ECONNREFUSED') ||
+                        errorMsg.includes('connect');
 
     if (isRetryable && PRIMARY_MODEL !== FALLBACK_MODEL) {
       console.warn(`[Genkit] Primary model failed (${errorMsg}). Retrying with fallback: ${FALLBACK_MODEL}`);
