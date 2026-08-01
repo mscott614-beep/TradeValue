@@ -38,8 +38,8 @@ async function loadGenkit() {
 const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
 
-const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
-const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
+const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
+const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");

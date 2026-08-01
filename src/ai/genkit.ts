@@ -7,7 +7,7 @@ const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
 const localUrl = process.env.LOCAL_LLM_URL || 'http://localhost:11434';
 
-export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
+export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
 export const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
