@@ -35,8 +35,9 @@ async function loadGenkit() {
   return { genkit, z, googleAI: vertexAI, ollama: ollamaAI };
 }
 
-const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
+const useLocalLlm = process.env.USE_LOCAL_LLM !== 'false';
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
+const localUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
 
 const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
 const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
@@ -162,11 +163,11 @@ export const geminiProcessingQueue = onTaskDispatched(
       const { genkit, googleAI, ollama } = await loadGenkit();
 
       const plugins: any[] = [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })];
-      if (process.env.USE_LOCAL_LLM === 'true' && ollama) {
+      if (useLocalLlm && ollama) {
         plugins.push(
           ollama({
-            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:12b' }],
-            serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
+            models: [{ name: localModel }],
+            serverAddress: localUrl,
             requestHeaders: {
               'ngrok-skip-browser-warning': 'true',
               'Bypass-Tunnel-Reminder': 'true',
