@@ -62,16 +62,17 @@ export const getCardDeepDive = ai.defineFlow(
 
             // 2. Fallback Baseline & Metrics Calculation
             const calc = calculateTradeValue(activeItems);
-            const marketFloor = calc.value > 0 ? calc.value : (card.currentMarketValue || (activeItems[0] ? parseFloat(activeItems[0].price.value) : 0));
-            
+            const computedFloor = calc.value > 0 ? calc.value : (activeItems[0] ? parseFloat(activeItems[0].price.value) : 0);
+            const groundedFloor = computedFloor > 0 ? computedFloor : (card.currentMarketValue || 0);
+
             const salesLast30 = soldItems.length;
             const avgSoldPrice = soldItems.length > 0 
                 ? soldItems.reduce((acc, i) => acc + parseFloat(i.price.value), 0) / soldItems.length 
-                : marketFloor;
+                : groundedFloor;
 
             const velocitySummary = salesLast30 > 0 || activeItems.length > 0
                 ? `${salesLast30} confirmed sales found. ${activeItems.length} active listings currently competing for floor.`
-                : `Low volume card. Analysis anchored by portfolio valuation baseline of $${marketFloor.toFixed(2)}.`;
+                : `Low volume card. Analysis anchored by portfolio valuation baseline of $${groundedFloor.toFixed(2)}.`;
 
             // 4. Shadow Engine Persona Analysis
             const prompt = `
@@ -79,7 +80,7 @@ export const getCardDeepDive = ai.defineFlow(
                 Perform an AI Deep Dive for this specific card: ${card.year} ${card.brand} ${card.player} ${card.parallel || ''}.
 
                 GROUNDED MARKET DATA:
-                - Market Floor: $${marketFloor.toFixed(2)}
+                - Market Floor: $${groundedFloor.toFixed(2)}
                 - Recent Sales (Volume): ${velocitySummary}
                 - Average Sold Price: $${avgSoldPrice.toFixed(2)}
                 - User's Internal Value: $${card.currentMarketValue || 'Unknown'}
@@ -107,11 +108,15 @@ export const getCardDeepDive = ai.defineFlow(
                 throw new Error("Failed to generate structured output");
             }
 
+            const finalFloor = (typeof result?.marketFloor === 'number' && result.marketFloor > 0)
+                ? result.marketFloor
+                : (groundedFloor > 0 ? groundedFloor : (card.currentMarketValue || 0));
+
             return {
-                marketFloor: typeof result?.marketFloor === 'number' ? result.marketFloor : marketFloor,
+                marketFloor: finalFloor,
                 recentVelocity: result?.recentVelocity || velocitySummary,
                 investmentGrade: (['Strong Buy', 'Buy', 'Neutral', 'Hold', 'Sell', 'Strong Sell'].includes(result?.investmentGrade) ? result.investmentGrade : 'Hold') as any,
-                analysis: result?.analysis || `### Market Analysis\n\n- **Market Floor:** $${marketFloor.toFixed(2)}\n- **Velocity:** ${velocitySummary}`,
+                analysis: result?.analysis || `### Market Analysis\n\n- **Market Floor:** $${finalFloor.toFixed(2)}\n- **Velocity:** ${velocitySummary}`,
                 isGrounded: true
             };
 
