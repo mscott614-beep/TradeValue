@@ -99,13 +99,13 @@ class EbayService {
                 {
                     itemId: "mock1",
                     title: "Mock Trading Card 1",
-                    price: { value: "150.00", currency: "USD" },
+                    price: { value: "24.99", currency: "USD" },
                     itemWebUrl: "https://ebay.com/mock"
                 },
                 {
                     itemId: "mock2",
                     title: "Mock Trading Card 2",
-                    price: { value: "165.00", currency: "USD" },
+                    price: { value: "28.50", currency: "USD" },
                     itemWebUrl: "https://ebay.com/mock"
                 }
             ],

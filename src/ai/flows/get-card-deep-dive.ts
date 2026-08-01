@@ -60,6 +60,21 @@ export const getCardDeepDive = ai.defineFlow(
                 }
             }
 
+            // Fallback 2: Direct title search if structured queries yielded low volume
+            if (activeItems.length + soldItems.length < 2) {
+                const rawSearchQuery = (card.title || `${card.year || ''} ${card.brand || ''} ${card.player || ''} ${card.cardNumber ? '#' + card.cardNumber : ''}`).trim();
+                if (rawSearchQuery) {
+                    const [rawActive, rawSold] = await Promise.all([
+                        ebayService.searchActiveItems(rawSearchQuery, 10),
+                        ebayService.searchSoldItems({ cardTitle: rawSearchQuery, limit: 20 })
+                    ]);
+                    if ((rawActive.itemSummaries?.length || 0) + (rawSold.itemSummaries?.length || 0) > activeItems.length + soldItems.length) {
+                        activeItems = rawActive.itemSummaries || activeItems;
+                        soldItems = rawSold.itemSummaries || soldItems;
+                    }
+                }
+            }
+
             // 2. Fallback Baseline & Metrics Calculation
             const calc = calculateTradeValue(activeItems);
             const computedFloor = calc.value > 0 ? calc.value : (activeItems[0] ? parseFloat(activeItems[0].price.value) : 0);
