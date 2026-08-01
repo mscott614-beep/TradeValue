@@ -4,7 +4,7 @@ import { ollama } from 'genkitx-ollama';
 import { z } from 'zod';
 
 const useLocalLlm = process.env.USE_LOCAL_LLM !== 'false';
-const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
 const localUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
 
 export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
