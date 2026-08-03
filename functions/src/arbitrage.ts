@@ -10,6 +10,11 @@
 
 export type ArbitrageConfidence = "low" | "medium" | "high";
 
+/** eBay Sports Trading Cards */
+export const EBAY_CATEGORY_SPORTS = "261328";
+/** eBay CCG Individual Cards (Pokemon / TCG) */
+export const EBAY_CATEGORY_TCG = "183454";
+
 export type CardWatchDescriptor = {
   player: string;
   year: string;
@@ -20,6 +25,10 @@ export type CardWatchDescriptor = {
   title?: string;
   expectedMultiplier?: number;
   gradingPassRate?: "low" | "moderate" | "high";
+  /** Override Browse category_ids (default sports 261328). */
+  categoryId?: string;
+  /** Optional Browse price:[min..max] filter. */
+  priceFilter?: { min?: number; max?: number };
 };
 
 export type ArbitrageSignal = {
@@ -53,7 +62,11 @@ export type ArbitrageSignal = {
   status: "active" | "expired";
 };
 
+/** Shared max for DEFAULT + market_reports merge (env overrides in scanner). */
+export const DEFAULT_MAX_WATCHLIST = 40;
+
 export const DEFAULT_WATCHLIST: CardWatchDescriptor[] = [
+  // NBA
   {
     player: "Victor Wembanyama",
     year: "2023-24",
@@ -62,32 +75,8 @@ export const DEFAULT_WATCHLIST: CardWatchDescriptor[] = [
     cardNumber: "275",
     expectedMultiplier: 8,
     gradingPassRate: "high",
-  },
-  {
-    player: "Connor McDavid",
-    year: "2015-16",
-    brand: "Upper Deck",
-    set: "Young Guns",
-    cardNumber: "201",
-    expectedMultiplier: 10,
-    gradingPassRate: "moderate",
-  },
-  {
-    player: "Wayne Gretzky",
-    year: "1988-89",
-    brand: "O-Pee-Chee",
-    cardNumber: "120",
-    expectedMultiplier: 12,
-    gradingPassRate: "high",
-  },
-  {
-    player: "Charizard",
-    year: "1999",
-    brand: "Pokemon",
-    set: "Base Set",
-    cardNumber: "4",
-    expectedMultiplier: 15,
-    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 5000 },
   },
   {
     player: "Caitlin Clark",
@@ -97,6 +86,339 @@ export const DEFAULT_WATCHLIST: CardWatchDescriptor[] = [
     cardNumber: "1",
     expectedMultiplier: 6,
     gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 3000 },
+  },
+  {
+    player: "Luka Doncic",
+    year: "2018-19",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "280",
+    expectedMultiplier: 7,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 5000 },
+  },
+  {
+    player: "Anthony Edwards",
+    year: "2020-21",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "258",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 2500 },
+  },
+  {
+    player: "Paolo Banchero",
+    year: "2022-23",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "249",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 2000 },
+  },
+  {
+    player: "Chet Holmgren",
+    year: "2022-23",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "236",
+    expectedMultiplier: 6,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 2000 },
+  },
+  {
+    player: "Jayson Tatum",
+    year: "2017-18",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "16",
+    expectedMultiplier: 7,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 4000 },
+  },
+  {
+    player: "Stephen Curry",
+    year: "2009-10",
+    brand: "Panini",
+    set: "Prestige",
+    cardNumber: "206",
+    expectedMultiplier: 10,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 20, max: 8000 },
+  },
+  // NHL
+  {
+    player: "Connor McDavid",
+    year: "2015-16",
+    brand: "Upper Deck",
+    set: "Young Guns",
+    cardNumber: "201",
+    expectedMultiplier: 10,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 20, max: 8000 },
+  },
+  {
+    player: "Wayne Gretzky",
+    year: "1988-89",
+    brand: "O-Pee-Chee",
+    cardNumber: "120",
+    expectedMultiplier: 12,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 5000 },
+  },
+  {
+    player: "Auston Matthews",
+    year: "2016-17",
+    brand: "Upper Deck",
+    set: "Young Guns",
+    cardNumber: "201",
+    expectedMultiplier: 8,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 15, max: 5000 },
+  },
+  {
+    player: "Connor Bedard",
+    year: "2023-24",
+    brand: "Upper Deck",
+    set: "Young Guns",
+    cardNumber: "201",
+    expectedMultiplier: 8,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 5000 },
+  },
+  {
+    player: "Sidney Crosby",
+    year: "2005-06",
+    brand: "Upper Deck",
+    set: "Young Guns",
+    cardNumber: "201",
+    expectedMultiplier: 10,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 25, max: 10000 },
+  },
+  // NFL
+  {
+    player: "Caleb Williams",
+    year: "2024",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "301",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 3000 },
+  },
+  {
+    player: "Jayden Daniels",
+    year: "2024",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "389",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 3000 },
+  },
+  {
+    player: "Patrick Mahomes",
+    year: "2017",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "269",
+    expectedMultiplier: 8,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 20, max: 10000 },
+  },
+  {
+    player: "Justin Jefferson",
+    year: "2020",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "398",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 4000 },
+  },
+  {
+    player: "Joe Burrow",
+    year: "2020",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "307",
+    expectedMultiplier: 7,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 5000 },
+  },
+  {
+    player: "C.J. Stroud",
+    year: "2023",
+    brand: "Panini",
+    set: "Prizm",
+    cardNumber: "339",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 3000 },
+  },
+  // MLB
+  {
+    player: "Shohei Ohtani",
+    year: "2018",
+    brand: "Topps",
+    set: "Update",
+    cardNumber: "US1",
+    expectedMultiplier: 9,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 20, max: 10000 },
+  },
+  {
+    player: "Elly De La Cruz",
+    year: "2024",
+    brand: "Topps",
+    set: "Chrome",
+    cardNumber: "1",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 2500 },
+  },
+  {
+    player: "Paul Skenes",
+    year: "2024",
+    brand: "Topps",
+    set: "Chrome",
+    cardNumber: "89",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 2500 },
+  },
+  {
+    player: "Ronald Acuna Jr",
+    year: "2018",
+    brand: "Topps",
+    set: "Update",
+    cardNumber: "US250",
+    expectedMultiplier: 8,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 15, max: 5000 },
+  },
+  {
+    player: "Juan Soto",
+    year: "2018",
+    brand: "Topps",
+    set: "Update",
+    cardNumber: "US300",
+    expectedMultiplier: 7,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 4000 },
+  },
+  // Pokemon / TCG
+  {
+    player: "Charizard",
+    year: "1999",
+    brand: "Pokemon",
+    set: "Base Set",
+    cardNumber: "4",
+    expectedMultiplier: 15,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_TCG,
+    priceFilter: { min: 50, max: 50000 },
+  },
+  {
+    player: "Pikachu",
+    year: "1999",
+    brand: "Pokemon",
+    set: "Base Set",
+    cardNumber: "58",
+    expectedMultiplier: 10,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_TCG,
+    priceFilter: { min: 10, max: 5000 },
+  },
+  {
+    player: "Umbreon",
+    year: "2023",
+    brand: "Pokemon",
+    set: "Obsidian Flames",
+    cardNumber: "215",
+    expectedMultiplier: 8,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_TCG,
+    priceFilter: { min: 20, max: 10000 },
+  },
+  {
+    player: "Mew",
+    year: "2021",
+    brand: "Pokemon",
+    set: "Celebrations",
+    cardNumber: "25",
+    expectedMultiplier: 8,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_TCG,
+    priceFilter: { min: 15, max: 5000 },
+  },
+  {
+    player: "Lugia",
+    year: "2000",
+    brand: "Pokemon",
+    set: "Neo Genesis",
+    cardNumber: "9",
+    expectedMultiplier: 12,
+    gradingPassRate: "moderate",
+    categoryId: EBAY_CATEGORY_TCG,
+    priceFilter: { min: 30, max: 15000 },
+  },
+  // Extra high-liquidity sports
+  {
+    player: "Travis Hunter",
+    year: "2025",
+    brand: "Panini",
+    set: "Prizm",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 3000 },
+  },
+  {
+    player: "Cooper Flagg",
+    year: "2025-26",
+    brand: "Panini",
+    set: "Prizm",
+    expectedMultiplier: 7,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 10, max: 5000 },
+  },
+  {
+    player: "Jackson Holliday",
+    year: "2024",
+    brand: "Topps",
+    set: "Chrome",
+    expectedMultiplier: 6,
+    gradingPassRate: "high",
+    categoryId: EBAY_CATEGORY_SPORTS,
+    priceFilter: { min: 5, max: 2500 },
   },
 ];
 
@@ -210,7 +532,8 @@ export function scoreArbitrageOpportunity(input: ArbitrageScoreInput): {
 }
 
 export function watchlistFromReportRows(
-  rows: Array<{ card?: string; multiplier_x?: number | string }>
+  rows: Array<{ card?: string; multiplier_x?: number | string }>,
+  maxRows: number = DEFAULT_MAX_WATCHLIST
 ): CardWatchDescriptor[] {
   const out: CardWatchDescriptor[] = [];
   for (const row of rows || []) {
@@ -237,7 +560,7 @@ export function watchlistFromReportRows(
       });
     }
   }
-  return out.slice(0, 12);
+  return out.slice(0, maxRows);
 }
 
 export function isSignalActive(
@@ -250,4 +573,3 @@ export function isSignalActive(
   if (signal.expiresAt && signal.expiresAt <= nowIso) return false;
   return true;
 }
-

@@ -6,6 +6,7 @@ import { EbayService } from "./ebay";
 import { buildEbayQuery, calculateTradeValue, isNoiseListing } from "./ebay-pricing";
 import {
   buildCardKey,
+  DEFAULT_MAX_WATCHLIST,
   DEFAULT_WATCHLIST,
   scoreArbitrageOpportunity,
   watchlistFromReportRows,
@@ -15,7 +16,13 @@ import {
 const COLLECTION = "arbitrage_signals";
 const SIGNAL_TTL_HOURS = parseInt(process.env.ARBITRAGE_SIGNAL_TTL_HOURS || "48", 10);
 const SCAN_COOLDOWN_HOURS = parseInt(process.env.ARBITRAGE_SCAN_COOLDOWN_HOURS || "12", 10);
-const MAX_WATCHLIST = parseInt(process.env.ARBITRAGE_MAX_WATCHLIST || "12", 10);
+const MAX_WATCHLIST = parseInt(
+  process.env.ARBITRAGE_MAX_WATCHLIST || String(DEFAULT_MAX_WATCHLIST),
+  10
+);
+const PAGE_LIMIT = parseInt(process.env.ARBITRAGE_EBAY_PAGE_LIMIT || "100", 10);
+const MAX_ITEMS_PER_QUERY = parseInt(process.env.ARBITRAGE_EBAY_MAX_ITEMS || "300", 10);
+const FIRESTORE_BATCH_LIMIT = 400;
 
 function cardTitle(d: CardWatchDescriptor): string {
   return (
@@ -38,7 +45,7 @@ async function loadReportWatchlist(db: admin.firestore.Firestore): Promise<CardW
     const data = snap.docs[0].data();
     const matrix = data?.slab_raw_multiplier_matrix;
     const rows = matrix?.multiplier_table || [];
-    return watchlistFromReportRows(rows);
+    return watchlistFromReportRows(rows, MAX_WATCHLIST);
   } catch (e) {
     console.warn("[ArbitrageScan] Could not load market_reports watchlist:", e);
     return [];
@@ -101,7 +108,12 @@ export async function runArbitrageScan(
   db: admin.firestore.Firestore,
   ebay: EbayService,
   options?: { forceFresh?: boolean }
-): Promise<{ scanned: number; signals: number; skippedCooldown: number }> {
+): Promise<{
+  scanned: number;
+  signals: number;
+  skippedCooldown: number;
+  listingsEvaluated: number;
+}> {
   const reportWatch = await loadReportWatchlist(db);
   const watchlist = mergeWatchlist(reportWatch);
   const now = new Date();
@@ -110,7 +122,22 @@ export async function runArbitrageScan(
 
   let signalCount = 0;
   let skippedCooldown = 0;
-  const batch = db.batch();
+  let listingsEvaluated = 0;
+  let batch = db.batch();
+  let batchOps = 0;
+
+  const commitBatchIfNeeded = async (force = false) => {
+    if (batchOps === 0) return;
+    if (!force && batchOps < FIRESTORE_BATCH_LIMIT) return;
+    try {
+      await batch.commit();
+    } catch (err) {
+      console.error("[ArbitrageScan] Firestore batch commit failed:", err);
+      throw err;
+    }
+    batch = db.batch();
+    batchOps = 0;
+  };
 
   for (const card of watchlist) {
     try {
@@ -136,13 +163,24 @@ export async function runArbitrageScan(
       const { query: rawQuery } = buildEbayQuery(rawCard);
       const { query: slabQuery } = buildEbayQuery(slabCard);
 
+      const searchOpts = {
+        limit: PAGE_LIMIT,
+        maxItems: MAX_ITEMS_PER_QUERY,
+        sort: "price",
+        includeAuctions: true,
+        categoryIds: card.categoryId,
+        priceFilter: card.priceFilter,
+      };
+
       const [rawRes, slabRes] = await Promise.all([
-        ebay.searchActiveItems(rawQuery, 30, "price", true),
-        ebay.searchActiveItems(slabQuery, 30, "price", true),
+        ebay.searchActiveItemsPaginated(rawQuery, searchOpts),
+        ebay.searchActiveItemsPaginated(slabQuery, searchOpts),
       ]);
 
       const rawItems = rawRes.itemSummaries || [];
       const slabItems = slabRes.itemSummaries || [];
+      listingsEvaluated += rawItems.length + slabItems.length;
+
       const rawCalc = calculateTradeValue(rawItems);
       const slabCalc = calculateTradeValue(slabItems);
 
@@ -191,12 +229,20 @@ export async function runArbitrageScan(
       };
 
       batch.set(db.collection(COLLECTION).doc(docId), payload, { merge: true });
+      batchOps += 1;
+      await commitBatchIfNeeded(false);
 
       if (scored.qualifies) {
         signalCount += 1;
         console.log(
           `[ArbitrageScan] SIGNAL ${card.player}: raw $${rawMedian} slab $${slabMedian} ` +
-            `${scored.multiplierObserved}x vs ${expectedMult}x expected`
+            `${scored.multiplierObserved}x vs ${expectedMult}x expected ` +
+            `(listings raw=${rawItems.length} slab=${slabItems.length})`
+        );
+      } else {
+        console.log(
+          `[ArbitrageScan] Scanned ${card.player}: listings=${rawItems.length + slabItems.length} ` +
+            `raw=$${rawMedian} slab=$${slabMedian} qualifies=false`
         );
       }
     } catch (err) {
@@ -213,17 +259,27 @@ export async function runArbitrageScan(
       const data = doc.data();
       if (data.expiresAt && data.expiresAt <= detectedAt) {
         batch.update(doc.ref, { qualifies: false, status: "expired" });
+        batchOps += 1;
       }
     });
   } catch (err) {
     console.warn("[ArbitrageScan] Non-critical error marking expired signals:", err);
   }
 
-  await batch.commit();
+  try {
+    await commitBatchIfNeeded(true);
+  } catch (err) {
+    console.error("[ArbitrageScan] Final batch commit failed:", err);
+  }
+
   console.log(
     `[ArbitrageScan] Done. watchlist=${watchlist.length} active_signals=${signalCount} ` +
-      `skipped_cooldown=${skippedCooldown}`
+      `skipped_cooldown=${skippedCooldown} listings_evaluated=${listingsEvaluated}`
   );
-  return { scanned: watchlist.length, signals: signalCount, skippedCooldown };
+  return {
+    scanned: watchlist.length,
+    signals: signalCount,
+    skippedCooldown,
+    listingsEvaluated,
+  };
 }
-
