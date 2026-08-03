@@ -36,10 +36,13 @@ async function loadGenkit() {
 }
 
 const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
-const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
+const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
 
 const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
-const FALLBACK_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
+const FALLBACK_MODEL = useLocalLlm
+  ? `ollama/${localFallbackModel}`
+  : 'googleai/gemini-2.5-flash';
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");
@@ -163,9 +166,13 @@ export const geminiProcessingQueue = onTaskDispatched(
 
       const plugins: any[] = [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })];
       if (process.env.USE_LOCAL_LLM === 'true' && ollama) {
+        const primaryName = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+        const fallbackName = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
+        const models = [{ name: primaryName }];
+        if (fallbackName !== primaryName) models.push({ name: fallbackName });
         plugins.push(
           ollama({
-            models: [{ name: process.env.LOCAL_LLM_MODEL || 'gemma4:12b' }],
+            models,
             serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
             requestHeaders: {
               'ngrok-skip-browser-warning': 'true',

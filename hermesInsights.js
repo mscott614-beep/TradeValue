@@ -59,15 +59,16 @@ async function sendHermesNotification(subject, htmlContent) {
 
 async function generateInsightsWithFallback(prompt) {
     const localLlmUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
-    const localLlmModel = process.env.LOCAL_LLM_MODEL || 'gemma4:12b';
+    const localLlmModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+    const localLlmFallback = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
 
-    console.log(`[Hermes] Synthesizing portfolio data using LOCAL OLLAMA (${localLlmModel})...`);
-    try {
+    async function generateWithModel(model) {
+        console.log(`[Hermes] Synthesizing portfolio data using LOCAL OLLAMA (${model})...`);
         const response = await axios({
             method: 'post',
             url: `${localLlmUrl}/api/generate`,
             data: {
-                model: localLlmModel,
+                model,
                 prompt: prompt,
                 stream: true
             },
@@ -101,9 +102,21 @@ async function generateInsightsWithFallback(prompt) {
             response.data.on('end', () => resolve(fullText));
             response.data.on('error', reject);
         });
+    }
 
+    try {
+        return await generateWithModel(localLlmModel);
     } catch (error) {
-        console.error(`[Hermes] Local Ollama failed: ${error.message}`);
+        console.error(`[Hermes] Primary Ollama (${localLlmModel}) failed: ${error.message}`);
+        if (localLlmFallback && localLlmFallback !== localLlmModel) {
+            console.warn(`[Hermes] Falling back to ${localLlmFallback}...`);
+            try {
+                return await generateWithModel(localLlmFallback);
+            } catch (fallbackError) {
+                console.error(`[Hermes] Fallback Ollama failed: ${fallbackError.message}`);
+                throw fallbackError;
+            }
+        }
         throw error;
     }
 }
