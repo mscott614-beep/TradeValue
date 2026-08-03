@@ -44,7 +44,7 @@ import datetime
 
 class AgentClass:
 
-  def __init__(self, model_name='gemma4:12b'):
+  def __init__(self, model_name='gemma4:26b'):
     self.app = None
     self.model_name = model_name
 
@@ -211,7 +211,8 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
         if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
             local_llm_url = local_llm_url.rstrip("/") + "/v1"
-        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+        local_llm_fallback = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:12b")
 
         if use_local_llm:
             try:
@@ -219,17 +220,34 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
                 openai_client = OpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
                 print(f"[MarketAnalyst] Using Local Model for report (streaming): {local_llm_model}")
                 
-                resp = openai_client.chat.completions.create(
-                    model=local_llm_model,
-                    messages=[
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=4096,
-                    timeout=60.0,
-                    stream=False
-                )
-                res_text = resp.choices[0].message.content or ""
+                try:
+                    resp = openai_client.chat.completions.create(
+                        model=local_llm_model,
+                        messages=[
+                            {"role": "system", "content": system_instruction},
+                            {"role": "user", "content": prompt}
+                        ],
+                        max_tokens=4096,
+                        timeout=60.0,
+                        stream=False
+                    )
+                    res_text = resp.choices[0].message.content or ""
+                except Exception as primary_ex:
+                    if local_llm_fallback and local_llm_fallback != local_llm_model:
+                        print(f"[MarketAnalyst] Primary {local_llm_model} failed ({primary_ex}); falling back to {local_llm_fallback}")
+                        resp = openai_client.chat.completions.create(
+                            model=local_llm_fallback,
+                            messages=[
+                                {"role": "system", "content": system_instruction},
+                                {"role": "user", "content": prompt}
+                            ],
+                            max_tokens=4096,
+                            timeout=60.0,
+                            stream=False
+                        )
+                        res_text = resp.choices[0].message.content or ""
+                    else:
+                        raise
             except Exception as local_ex:
                 print(f"[MarketAnalyst] Local LLM failed: {str(local_ex)}")
                 raise local_ex
@@ -474,7 +492,8 @@ async def run_cli():
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
         if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
             local_llm_url = local_llm_url.rstrip("/") + "/v1"
-        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+        local_llm_fallback = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:12b")
 
         for attempt in range(max_retries):
             try:
@@ -485,13 +504,28 @@ async def run_cli():
                         raise Exception("openai package not installed but USE_LOCAL_LLM is true")
                     
                     openai_client = AsyncOpenAI(base_url=local_llm_url, api_key="ollama", default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
-                    resp = await openai_client.chat.completions.create(
-                        model=local_llm_model,
-                        messages=[{"role": "user", "content": query}],
-                        response_format={"type": "json_object"},
-                        timeout=30.0,
-                        stream=False
-                    )
+                    model_to_use = local_llm_model
+                    try:
+                        resp = await openai_client.chat.completions.create(
+                            model=model_to_use,
+                            messages=[{"role": "user", "content": query}],
+                            response_format={"type": "json_object"},
+                            timeout=30.0,
+                            stream=False
+                        )
+                    except Exception as primary_ex:
+                        if local_llm_fallback and local_llm_fallback != local_llm_model:
+                            print(f"[Python] Primary {local_llm_model} failed ({primary_ex}); falling back to {local_llm_fallback}")
+                            model_to_use = local_llm_fallback
+                            resp = await openai_client.chat.completions.create(
+                                model=model_to_use,
+                                messages=[{"role": "user", "content": query}],
+                                response_format={"type": "json_object"},
+                                timeout=30.0,
+                                stream=False
+                            )
+                        else:
+                            raise
                     return resp.choices[0].message.content or ""
                 else:
                     api_key = os.environ.get("GOOGLE_GENAI_API_KEY")

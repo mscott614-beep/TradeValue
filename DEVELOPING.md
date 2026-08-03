@@ -61,7 +61,7 @@ Do **not** hand-edit `functions/src/hockey-card-year.ts`, `pricing-extract.ts`, 
 - **Function:** `scheduledArbitrageScan` — default **8:30 PM ET once daily** (`us-east4`).
 - **Firestore:** `arbitrage_signals` (auth read; Functions write only).
 - **UI:** Market Hub → **Arbitrage** tab, or `/market/arbitrage`.
-- **Env (optional):** `ARBITRAGE_SIGNAL_TTL_HOURS` (48), `ARBITRAGE_SCAN_COOLDOWN_HOURS` (12), `ARBITRAGE_MAX_WATCHLIST` (12), `ARBITRAGE_SCAN_CRON` for custom cron.
+- **Env (optional):** `ARBITRAGE_SIGNAL_TTL_HOURS` (48), `ARBITRAGE_SCAN_COOLDOWN_HOURS` (12), `ARBITRAGE_MAX_WATCHLIST` (40), `ARBITRAGE_EBAY_PAGE_LIMIT` (100), `ARBITRAGE_EBAY_MAX_ITEMS` (300), `ARBITRAGE_SCAN_CRON` for custom cron.
 
 ### Scheduler cost controls
 

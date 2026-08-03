@@ -340,7 +340,20 @@ export function buildEbayQuery(card: CardDescriptor): { type: 'Base' | 'Parallel
 
     if (!hasTrueParallel) {
         // Base Card Query: Mandatory Negative Keywords to exclude high-value parallels
-        const negativeKeywords = '-parallel -refractor -silver -prizm -auto -jersey -patch -reprint -digital -lot -lots -upick -pick -choose -you -rainbow -atomic -pulsar -velocity -blue -red -gold -green -orange -purple -pink -black';
+        const negativeKeywordList = [
+            '-parallel', '-refractor', '-silver', '-prizm', '-auto', '-jersey', '-patch',
+            '-reprint', '-digital', '-lot', '-lots', '-upick', '-pick', '-choose', '-you',
+            '-rainbow', '-atomic', '-pulsar', '-velocity', '-blue', '-red', '-gold',
+            '-green', '-orange', '-purple', '-pink', '-black',
+        ];
+        // Do not negate terms that are part of the positive query (e.g. set=Prizm vs -prizm).
+        const positiveBlob = `${year} ${brand} ${set} ${player} ${cardNumber} ${parallel} ${gradeString}`.toLowerCase();
+        const negativeKeywords = negativeKeywordList
+            .filter((neg) => {
+                const term = neg.replace(/^-/, '').toLowerCase();
+                return !positiveBlob.split(/[^a-z0-9]+/).includes(term);
+            })
+            .join(' ');
         // For ungraded cards: block ALL graders (psa, bgs, sgc, cgc, bccg, gma, hga, etc.)
         // For graded cards: include the grader+grade instead
         const gradingExclusions = !isGraded ? NON_GRADED_EXCLUSIONS : '';

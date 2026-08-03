@@ -5,10 +5,13 @@ import { z } from 'zod';
 
 const useLocalLlm = process.env.USE_LOCAL_LLM !== 'false';
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
+const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
 const localUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
 
 export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
-export const FALLBACK_MODEL = 'googleai/gemini-2.5-flash';
+export const FALLBACK_MODEL = useLocalLlm
+  ? `ollama/${localFallbackModel}`
+  : 'googleai/gemini-2.5-flash';
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 
@@ -20,9 +23,13 @@ if (!apiKey && !useLocalLlm) {
 
 const plugins: any[] = [googleAI({ apiKey: apiKey || 'dummy-key' })];
 if (useLocalLlm) {
+  const ollamaModels = [{ name: localModel }];
+  if (localFallbackModel !== localModel) {
+    ollamaModels.push({ name: localFallbackModel });
+  }
   plugins.push(
     ollama({
-      models: [{ name: localModel }],
+      models: ollamaModels,
       serverAddress: localUrl,
       requestHeaders: {
         'ngrok-skip-browser-warning': 'true',

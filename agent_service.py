@@ -24,11 +24,51 @@ LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngro
 if not LOCAL_LLM_URL.endswith("/v1") and not LOCAL_LLM_URL.endswith("/api"):
     LOCAL_LLM_URL = LOCAL_LLM_URL.rstrip("/") + "/v1"
 LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+LOCAL_LLM_FALLBACK_MODEL = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:12b")
 try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
 _last_scrape_time = 0.0
+
+def local_llm_chat(messages, *, response_format=None, timeout=30.0, max_tokens=None):
+    """Call primary local model, then fall back to 12B on failure."""
+    if not OpenAI:
+        raise RuntimeError("openai package not installed")
+    client = OpenAI(
+        base_url=LOCAL_LLM_URL,
+        api_key="ollama",
+        max_retries=0,
+        default_headers={
+            "ngrok-skip-browser-warning": "true",
+            "bypass-tunnel-reminder": "true",
+        },
+    )
+    kwargs = {
+        "model": LOCAL_LLM_MODEL,
+        "messages": messages,
+        "timeout": timeout,
+        "stream": False,
+    }
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    try:
+        resp = client.chat.completions.create(**kwargs)
+        return resp.choices[0].message.content or ""
+    except Exception as primary_ex:
+        if not LOCAL_LLM_FALLBACK_MODEL or LOCAL_LLM_FALLBACK_MODEL == LOCAL_LLM_MODEL:
+            raise
+        print(
+            f"[AgentService] Primary {LOCAL_LLM_MODEL} failed ({primary_ex}); "
+            f"falling back to {LOCAL_LLM_FALLBACK_MODEL}",
+            flush=True,
+        )
+        kwargs["model"] = LOCAL_LLM_FALLBACK_MODEL
+        resp = client.chat.completions.create(**kwargs)
+        return resp.choices[0].message.content or ""
+
 
 def firecrawl_scrape(url: str) -> str:
     """
@@ -963,15 +1003,11 @@ JSON schema:
 
     try:
         if USE_LOCAL_LLM and OpenAI:
-            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", max_retries=0, default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
-            resp = openai_client.chat.completions.create(
-                model=LOCAL_LLM_MODEL,
-                messages=[{"role": "user", "content": prompt}],
+            res_text = local_llm_chat(
+                [{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 timeout=30.0,
-                stream=False
             )
-            res_text = resp.choices[0].message.content or ""
         else:
             try:
                 client = genai.Client(api_key=api_key)
@@ -1316,15 +1352,11 @@ Return ONLY a JSON object with these exact fields:
 }}"""
         
         if USE_LOCAL_LLM and OpenAI:
-            openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", max_retries=0, default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
-            resp = openai_client.chat.completions.create(
-                model=LOCAL_LLM_MODEL,
-                messages=[{"role": "user", "content": prompt}],
+            res_text = local_llm_chat(
+                [{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 timeout=30.0,
-                stream=False
             )
-            res_text = resp.choices[0].message.content or ""
         else:
             api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
             res_text = ""
@@ -1636,19 +1668,15 @@ async def value_card(req: ValuationRequest):
                             f"Format instructions: Do not output markdown code blocks (like ```json) or explanation. Return ONLY the raw JSON string."
                         )
                         
-                        openai_client = OpenAI(base_url=LOCAL_LLM_URL, api_key="ollama", max_retries=0, default_headers={"ngrok-skip-browser-warning": "true", "bypass-tunnel-reminder": "true"})
                         try:
-                            resp = openai_client.chat.completions.create(
-                                model=LOCAL_LLM_MODEL,
-                                messages=[
+                            res_text = local_llm_chat(
+                                [
                                     {"role": "system", "content": "You are a valuation assistant that outputs raw JSON."},
                                     {"role": "user", "content": local_prompt}
                                 ],
                                 response_format={"type": "json_object"},
                                 timeout=30.0,
-                                stream=False
                             )
-                            res_text = resp.choices[0].message.content or ""
                             print(f"[AgentService] Success after {attempt+1} attempts.")
                             return res_text
                         except Exception as e:
