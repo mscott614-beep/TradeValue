@@ -72,14 +72,18 @@ function buildEmailHtml({ today, duration, result, deals, errorMessage }) {
                 </tr>
             </thead>
             <tbody>
-                ${deals.map((d) => `
+                ${deals.map((d) => {
+                    const yb = [d.year, d.brand].filter(Boolean).join(' ');
+                    const desc = d.title ? d.title.replace(/\(\s*\)/g, '').trim() : (yb ? `${d.player || 'Unknown'} (${yb})` : (d.player || 'Unknown'));
+                    return `
                 <tr style="border-bottom: 1px solid #f1f5f9;">
-                    <td style="padding: 10px 8px; font-size: 13px; color: #0f172a;">${d.player || 'Unknown'} (${d.year} ${d.brand || ''})</td>
+                    <td style="padding: 10px 8px; font-size: 13px; color: #0f172a;">${desc}</td>
                     <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #334155;">${formatUsd(d.rawPrice)}</td>
                     <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #334155;">${formatUsd(d.psa10Price)}</td>
                     <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #16a34a; font-weight: bold;">+${formatUsd(d.spread)}</td>
                 </tr>
-                `).join('')}
+                `;
+                }).join('')}
             </tbody>
         </table>
         `;
@@ -174,6 +178,7 @@ async function runArbitrageLocally() {
                 const data = doc.data();
                 if (data.status === "active" && (!data.expiresAt || data.expiresAt > nowIso)) {
                     deals.push({
+                        title: data.title,
                         player: data.player,
                         year: data.year,
                         brand: data.brand,

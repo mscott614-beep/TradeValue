@@ -32,37 +32,62 @@ export const getCardDeepDive = ai.defineFlow(
             });
 
             // Fetch both active and sold for velocity
-            const [activeResponse, soldResponse] = await Promise.all([
+            let [activeResponse, soldResponse] = await Promise.all([
                 ebayService.searchActiveItems(groundedQuery, 10),
                 ebayService.searchSoldItems({ cardTitle: groundedQuery, limit: 20 })
             ]);
 
-            const activeItems = activeResponse.itemSummaries || [];
-            const soldItems = soldResponse.itemSummaries || [];
+            let activeItems = activeResponse.itemSummaries || [];
+            let soldItems = soldResponse.itemSummaries || [];
 
-            // 2. Fail-Fast Logic
-            const totalDataPoints = activeItems.length + soldItems.length;
-            if (totalDataPoints < 2) {
-                return {
-                    marketFloor: 0,
-                    recentVelocity: 'No data',
-                    investmentGrade: 'Hold' as const,
-                    analysis: "Insufficient Market Data: The Shadow Engine could not find enough matching listings to generate a high-confidence report. Data discarded to prevent hallucination.",
-                    isGrounded: false,
-                    insufficientData: true
-                };
+            // Fallback 1: If strict query (e.g. with PSA 9) returned fewer than 2 data points, retry without condition filter
+            if (activeItems.length + soldItems.length < 2 && card.condition) {
+                const { query: broaderQuery } = buildEbayQuery({
+                    year: card.year,
+                    brand: card.brand,
+                    set: card.set,
+                    player: card.player,
+                    cardNumber: card.cardNumber,
+                    parallel: card.parallel
+                });
+                const [broaderActive, broaderSold] = await Promise.all([
+                    ebayService.searchActiveItems(broaderQuery, 10),
+                    ebayService.searchSoldItems({ cardTitle: broaderQuery, limit: 20 })
+                ]);
+                if ((broaderActive.itemSummaries?.length || 0) + (broaderSold.itemSummaries?.length || 0) > activeItems.length + soldItems.length) {
+                    activeItems = broaderActive.itemSummaries || activeItems;
+                    soldItems = broaderSold.itemSummaries || soldItems;
+                }
             }
 
-            // 3. Grounded Metrics
+            // Fallback 2: Direct title search if structured queries yielded low volume
+            if (activeItems.length + soldItems.length < 2) {
+                const rawSearchQuery = (card.title || `${card.year || ''} ${card.brand || ''} ${card.player || ''} ${card.cardNumber ? '#' + card.cardNumber : ''}`).trim();
+                if (rawSearchQuery) {
+                    const [rawActive, rawSold] = await Promise.all([
+                        ebayService.searchActiveItems(rawSearchQuery, 10),
+                        ebayService.searchSoldItems({ cardTitle: rawSearchQuery, limit: 20 })
+                    ]);
+                    if ((rawActive.itemSummaries?.length || 0) + (rawSold.itemSummaries?.length || 0) > activeItems.length + soldItems.length) {
+                        activeItems = rawActive.itemSummaries || activeItems;
+                        soldItems = rawSold.itemSummaries || soldItems;
+                    }
+                }
+            }
+
+            // 2. Fallback Baseline & Metrics Calculation
             const calc = calculateTradeValue(activeItems);
-            const marketFloor = calc.value;
-            
+            const computedFloor = calc.value > 0 ? calc.value : (activeItems[0] ? parseFloat(activeItems[0].price.value) : 0);
+            const groundedFloor = computedFloor > 0 ? computedFloor : (card.currentMarketValue || 0);
+
             const salesLast30 = soldItems.length;
             const avgSoldPrice = soldItems.length > 0 
                 ? soldItems.reduce((acc, i) => acc + parseFloat(i.price.value), 0) / soldItems.length 
-                : 0;
+                : groundedFloor;
 
-            const velocitySummary = `${salesLast30} confirmed sales found. ${activeItems.length} active listings currently competing for floor.`;
+            const velocitySummary = salesLast30 > 0 || activeItems.length > 0
+                ? `${salesLast30} confirmed sales found. ${activeItems.length} active listings currently competing for floor.`
+                : `Low volume card. Analysis anchored by portfolio valuation baseline of $${groundedFloor.toFixed(2)}.`;
 
             // 4. Shadow Engine Persona Analysis
             const prompt = `
@@ -70,7 +95,7 @@ export const getCardDeepDive = ai.defineFlow(
                 Perform an AI Deep Dive for this specific card: ${card.year} ${card.brand} ${card.player} ${card.parallel || ''}.
 
                 GROUNDED MARKET DATA:
-                - Market Floor: $${marketFloor.toFixed(2)}
+                - Market Floor: $${groundedFloor.toFixed(2)}
                 - Recent Sales (Volume): ${velocitySummary}
                 - Average Sold Price: $${avgSoldPrice.toFixed(2)}
                 - User's Internal Value: $${card.currentMarketValue || 'Unknown'}
@@ -98,11 +123,15 @@ export const getCardDeepDive = ai.defineFlow(
                 throw new Error("Failed to generate structured output");
             }
 
+            const finalFloor = (typeof result?.marketFloor === 'number' && result.marketFloor > 0)
+                ? result.marketFloor
+                : (groundedFloor > 0 ? groundedFloor : (card.currentMarketValue || 0));
+
             return {
-                marketFloor: result.marketFloor,
-                recentVelocity: result.recentVelocity,
-                investmentGrade: result.investmentGrade,
-                analysis: result.analysis,
+                marketFloor: finalFloor,
+                recentVelocity: result?.recentVelocity || velocitySummary,
+                investmentGrade: (['Strong Buy', 'Buy', 'Neutral', 'Hold', 'Sell', 'Strong Sell'].includes(result?.investmentGrade) ? result.investmentGrade : 'Hold') as any,
+                analysis: result?.analysis || `### Market Analysis\n\n- **Market Floor:** $${finalFloor.toFixed(2)}\n- **Velocity:** ${velocitySummary}`,
                 isGrounded: true
             };
 

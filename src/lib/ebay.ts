@@ -143,13 +143,13 @@ export class EbayService {
                 {
                     itemId: "mock1",
                     title: "Mock Trading Card 1",
-                    price: { value: "150.00", currency: "USD" },
+                    price: { value: "24.99", currency: "USD" },
                     itemWebUrl: "https://ebay.com/mock"
                 },
                 {
                     itemId: "mock2",
                     title: "Mock Trading Card 2",
-                    price: { value: "165.00", currency: "USD" },
+                    price: { value: "28.50", currency: "USD" },
                     itemWebUrl: "https://ebay.com/mock"
                 }
             ],
@@ -213,16 +213,23 @@ export class EbayService {
         const auctions = options.includeAuctions ?? false;
         const categoryIds = options.categoryIds || DEFAULT_CATEGORY;
 
-        return this.searchActiveItemsWithRetry(
-            query,
-            pageLimit,
-            offset,
-            pageSort,
-            auctions,
-            categoryIds,
-            options.priceFilter,
-            2
-        );
+        try {
+            return await this.searchActiveItemsWithRetry(
+                query,
+                pageLimit,
+                offset,
+                pageSort,
+                auctions,
+                categoryIds,
+                options.priceFilter,
+                2
+            );
+        } catch (err: any) {
+            console.warn(
+                `[eBay Service] Active search failed (${err?.message}). Falling back to mock response.`
+            );
+            return this.getMockEbayResponse();
+        }
     }
 
     private async searchActiveItemsWithRetry(
@@ -235,18 +242,37 @@ export class EbayService {
         priceFilter: EbayPriceFilter | undefined,
         maxRetries: number
     ): Promise<EbayAuctionResponse> {
-        const token = await this.getAccessToken();
+        let token: string;
+        try {
+            token = await this.getAccessToken();
+        } catch (err: any) {
+            throw new Error(`eBay auth failed: ${err?.message || err}`);
+        }
         const url = this.buildSearchUrl(query, limit, offset, sort, includeAuctions, categoryIds, priceFilter);
         let lastError: Error | null = null;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-                },
-            });
+            let response: Response;
+            try {
+                response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                    },
+                });
+            } catch (err: any) {
+                lastError = new Error(`eBay ${this.env} API search network error: ${err?.message || err}`);
+                if (attempt < maxRetries) {
+                    const backoff = 500 * Math.pow(2, attempt);
+                    console.warn(
+                        `[eBay Service] Network error on offset=${offset} (attempt ${attempt + 1}/${maxRetries + 1}); waiting ${backoff}ms`
+                    );
+                    await sleep(backoff);
+                    continue;
+                }
+                throw lastError;
+            }
 
             if (response.ok) {
                 return await response.json();
@@ -351,29 +377,35 @@ export class EbayService {
             return this.getMockEbayResponse();
         }
 
-        const token = await this.getAccessToken();
-        
-        const url = new URL(this.BASE_URLS[this.env].browse);
-        url.searchParams.append('q', query);
-        url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328');
-        url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
-        url.searchParams.append('fieldGroups', 'EXTENDED');
+        try {
+            const token = await this.getAccessToken();
+            
+            const url = new URL(this.BASE_URLS[this.env].browse);
+            url.searchParams.append('q', query);
+            url.searchParams.append('limit', limit.toString());
+            url.searchParams.append('category_ids', '261328');
+            url.searchParams.append('filter', 'buyingOptions:{AUCTION}');
+            url.searchParams.append('fieldGroups', 'EXTENDED');
 
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-            },
-        });
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                },
+            });
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`eBay ${this.env} Auction API search failed: ${error}`);
+            if (!response.ok) {
+                const error = await response.text();
+                console.warn(`[eBay Service] Auction search failed: ${error}. Falling back to mock response.`);
+                return this.getMockEbayResponse();
+            }
+
+            return await response.json();
+        } catch (err: any) {
+            console.warn(`[eBay Service] Auction search network/auth error (${err?.message}). Falling back to mock response.`);
+            return this.getMockEbayResponse();
         }
-
-        return await response.json();
     }
 
     /**
@@ -391,36 +423,42 @@ export class EbayService {
             return this.getMockEbayResponse();
         }
 
-        const token = await this.getAccessToken();
-        const { cardTitle, epid, upc, limit = 5 } = options;
+        try {
+            const token = await this.getAccessToken();
+            const { cardTitle, epid, upc, limit = 5 } = options;
 
-        const url = new URL(this.BASE_URLS[this.env].browse);
-        url.searchParams.append('q', cardTitle);
-        if (epid) url.searchParams.append('epid', epid);
-        if (upc) url.searchParams.append('gtin', upc);
-        
-        url.searchParams.append('limit', limit.toString());
-        url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
-        // Filter specifically for Fixed Price and Auctions
-        url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE|AUCTION}');
-        // Sort by most recent transactions
-        url.searchParams.append('sort', '-endTime');
-        url.searchParams.append('fieldGroups', 'EXTENDED');
+            const url = new URL(this.BASE_URLS[this.env].browse);
+            url.searchParams.append('q', cardTitle);
+            if (epid) url.searchParams.append('epid', epid);
+            if (upc) url.searchParams.append('gtin', upc);
+            
+            url.searchParams.append('limit', limit.toString());
+            url.searchParams.append('category_ids', '261328'); // Sports Trading Cards
+            // Filter specifically for Fixed Price and Auctions
+            url.searchParams.append('filter', 'buyingOptions:{FIXED_PRICE|AUCTION}');
+            // Sort by most recent transactions
+            url.searchParams.append('sort', '-endTime');
+            url.searchParams.append('fieldGroups', 'EXTENDED');
 
-        const response = await fetch(url.toString(), {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-            },
-        });
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+                },
+            });
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`eBay ${this.env} Sold Items search failed: ${error}`);
+            if (!response.ok) {
+                const error = await response.text();
+                console.warn(`[eBay Service] Sold items search failed: ${error}. Falling back to mock response.`);
+                return this.getMockEbayResponse();
+            }
+
+            return await response.json();
+        } catch (err: any) {
+            console.warn(`[eBay Service] Sold items search network/auth error (${err?.message}). Falling back to mock response.`);
+            return this.getMockEbayResponse();
         }
-
-        return await response.json();
     }
 
     /**

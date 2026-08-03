@@ -22,7 +22,7 @@ export async function getCardDeepDiveAction(card: Portfolio) {
             cardNumber: card.cardNumber,
             parallel: card.parallel,
             condition: card.condition,
-            currentMarketValue: card.currentMarketValue,
+            currentMarketValue: (card as any).currentMarketValue ?? (card as any).marketValue ?? card.marketPrices?.median ?? 0,
             estimatedGrade: card.estimatedGrade,
             grader: card.grader,
         };

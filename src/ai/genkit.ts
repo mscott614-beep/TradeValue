@@ -3,12 +3,12 @@ import { googleAI } from '@genkit-ai/google-genai';
 import { ollama } from 'genkitx-ollama';
 import { z } from 'zod';
 
-const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
+const useLocalLlm = process.env.USE_LOCAL_LLM !== 'false';
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
 const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
-const localUrl = process.env.LOCAL_LLM_URL || 'http://localhost:11434';
+const localUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
 
-export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
+export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
 export const FALLBACK_MODEL = useLocalLlm
   ? `ollama/${localFallbackModel}`
   : 'googleai/gemini-2.5-flash';
@@ -16,8 +16,8 @@ export const FALLBACK_MODEL = useLocalLlm
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 
 if (!apiKey && !useLocalLlm) {
-  throw new Error(
-    "Missing API Key: set GOOGLE_GENAI_API_KEY (Functions/Cloud Run) or GEMINI_API_KEY (App Hosting) in environment variables."
+  console.warn(
+    "[Genkit] Warning: Missing API Key (GOOGLE_GENAI_API_KEY or GEMINI_API_KEY) in environment variables."
   );
 }
 
@@ -132,15 +132,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
       throw error;
     }
 
-    const isRetryable = errorMsg.includes('503') || 
-                        errorMsg.includes('Service Unavailable') || 
-                        errorMsg.includes('validation') ||
-                        errorMsg.includes('schema') ||
-                        errorMsg.includes('blocked') ||
-                        errorMsg.includes('safety') ||
-                        errorMsg.includes('timed out');
-
-    if (isRetryable && PRIMARY_MODEL !== FALLBACK_MODEL) {
+    if (PRIMARY_MODEL !== FALLBACK_MODEL) {
       console.warn(`[Genkit] Primary model failed (${errorMsg}). Retrying with fallback: ${FALLBACK_MODEL}`);
       
       const fallbackOptions: any = {
@@ -155,7 +147,7 @@ export async function generateWithFallback<O extends z.ZodTypeAny = z.ZodTypeAny
       return await runWithTimeout(fallbackOptions, timeoutMs);
     }
 
-    // If it's not a retryable error, rethrow
+    // If it's not retryable or no fallback available, rethrow
     throw error;
   }
 }

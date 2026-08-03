@@ -35,11 +35,12 @@ async function loadGenkit() {
   return { genkit, z, googleAI: vertexAI, ollama: ollamaAI };
 }
 
-const useLocalLlm = process.env.USE_LOCAL_LLM === 'true';
+const useLocalLlm = process.env.USE_LOCAL_LLM !== 'false';
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
 const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
+const localUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
 
-const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-3.5-flash';
+const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
 const FALLBACK_MODEL = useLocalLlm
   ? `ollama/${localFallbackModel}`
   : 'googleai/gemini-2.5-flash';
@@ -165,15 +166,13 @@ export const geminiProcessingQueue = onTaskDispatched(
       const { genkit, googleAI, ollama } = await loadGenkit();
 
       const plugins: any[] = [googleAI({ apiKey: GOOGLE_GENAI_API_KEY.value() })];
-      if (process.env.USE_LOCAL_LLM === 'true' && ollama) {
-        const primaryName = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
-        const fallbackName = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
-        const models = [{ name: primaryName }];
-        if (fallbackName !== primaryName) models.push({ name: fallbackName });
+      if (useLocalLlm && ollama) {
+        const models = [{ name: localModel }];
+        if (localFallbackModel !== localModel) models.push({ name: localFallbackModel });
         plugins.push(
           ollama({
             models,
-            serverAddress: process.env.LOCAL_LLM_URL || 'http://localhost:11434',
+            serverAddress: localUrl,
             requestHeaders: {
               'ngrok-skip-browser-warning': 'true',
               'Bypass-Tunnel-Reminder': 'true',
@@ -985,6 +984,7 @@ const _scheduledArbitrageScan = onSchedule(
       const data = doc.data();
       if (data.status === "active" && (!data.expiresAt || data.expiresAt > nowIso)) {
         deals.push({
+          title: data.title,
           player: data.player,
           year: data.year,
           brand: data.brand,
@@ -1009,14 +1009,18 @@ const _scheduledArbitrageScan = onSchedule(
             </tr>
           </thead>
           <tbody>
-            ${deals.map((d: any) => `
+            ${deals.map((d: any) => {
+              const yb = [d.year, d.brand].filter(Boolean).join(' ');
+              const desc = d.title ? d.title.replace(/\(\s*\)/g, '').trim() : (yb ? `${d.player || 'Unknown'} (${yb})` : (d.player || 'Unknown'));
+              return `
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 10px 8px; font-size: 13px; color: #0f172a;">${d.player || 'Unknown'} (${d.year} ${d.brand || ''})</td>
+                <td style="padding: 10px 8px; font-size: 13px; color: #0f172a;">${desc}</td>
                 <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #334155;">$${d.rawPrice}</td>
                 <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #334155;">$${d.psa10Price}</td>
                 <td style="padding: 10px 8px; text-align: right; font-size: 13px; color: #16a34a; font-weight: bold;">+$${d.spread}</td>
               </tr>
-            `).join('')}
+            `;
+            }).join('')}
           </tbody>
         </table>
       `;
