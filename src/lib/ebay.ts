@@ -13,6 +13,10 @@ export interface EbayAuctionResponse {
             value: string;
             currency: string;
         };
+        currentBidPrice?: {
+            value: string;
+            currency: string;
+        };
         bidCount?: number;
         itemWebUrl: string;
         image?: {

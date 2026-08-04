@@ -77,12 +77,12 @@ export const getCardDeepDive = ai.defineFlow(
 
             // 2. Fallback Baseline & Metrics Calculation
             const calc = calculateTradeValue(activeItems);
-            const computedFloor = calc.value > 0 ? calc.value : (activeItems[0] ? parseFloat(activeItems[0].price.value) : 0);
+            const computedFloor = calc.value > 0 ? calc.value : (activeItems[0] ? parseFloat(activeItems[0].price?.value || activeItems[0].currentBidPrice?.value || '0') : 0);
             const groundedFloor = computedFloor > 0 ? computedFloor : (card.currentMarketValue || 0);
 
             const salesLast30 = soldItems.length;
             const avgSoldPrice = soldItems.length > 0 
-                ? soldItems.reduce((acc, i) => acc + parseFloat(i.price.value), 0) / soldItems.length 
+                ? soldItems.reduce((acc, i) => acc + parseFloat(i.price?.value || i.currentBidPrice?.value || '0'), 0) / soldItems.length 
                 : groundedFloor;
 
             const velocitySummary = salesLast30 > 0 || activeItems.length > 0
