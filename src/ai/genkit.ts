@@ -3,15 +3,13 @@ import { googleAI } from '@genkit-ai/google-genai';
 import { ollama } from 'genkitx-ollama';
 import { z } from 'zod';
 
-const useLocalLlm = process.env.USE_LOCAL_LLM !== 'false';
+const useLocalLlm = true;
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
-const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
+const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:26b';
 const localUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
 
-export const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
-export const FALLBACK_MODEL = useLocalLlm
-  ? `ollama/${localFallbackModel}`
-  : 'googleai/gemini-2.5-flash';
+export const PRIMARY_MODEL = `ollama/${localModel}`;
+export const FALLBACK_MODEL = `ollama/${localFallbackModel}`;
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 

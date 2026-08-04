@@ -19,12 +19,12 @@ import time
 from datetime import datetime, timezone, timedelta
 
 # --- Local LLM Config ---
-USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM") == "true"
+USE_LOCAL_LLM = True
 LOCAL_LLM_URL = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
 if not LOCAL_LLM_URL.endswith("/v1") and not LOCAL_LLM_URL.endswith("/api"):
     LOCAL_LLM_URL = LOCAL_LLM_URL.rstrip("/") + "/v1"
 LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
-LOCAL_LLM_FALLBACK_MODEL = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:12b")
+LOCAL_LLM_FALLBACK_MODEL = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:26b")
 try:
     from openai import OpenAI
 except ImportError:
@@ -1002,37 +1002,13 @@ JSON schema:
 }}"""
 
     try:
-        if USE_LOCAL_LLM and OpenAI:
-            res_text = local_llm_chat(
-                [{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                timeout=30.0,
-            )
-        else:
-            try:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=os.getenv("ANALYSIS_MODEL", "gemini-3.5-flash"),
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                    ),
-                )
-                res_text = response.text or ""
-            except Exception as primary_err:
-                print(f"[AgentService] analyze_card primary generation failed: {str(primary_err)}. Falling back to Vertex AI...", flush=True)
-                vertex_client = get_vertex_client()
-                if vertex_client:
-                    response = vertex_client.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                        ),
-                    )
-                    res_text = response.text or ""
-                else:
-                    raise primary_err
+        if not OpenAI:
+            raise Exception("openai package not installed but USE_LOCAL_LLM is true")
+        res_text = local_llm_chat(
+            [{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            timeout=30.0,
+        )
         parsed = robust_json_parse(res_text) if res_text else None
         if not parsed:
             raise HTTPException(status_code=502, detail="Analysis model returned unparseable JSON")
@@ -1351,42 +1327,13 @@ Return ONLY a JSON object with these exact fields:
   "currentMarketValue": 123.45
 }}"""
         
-        if USE_LOCAL_LLM and OpenAI:
-            res_text = local_llm_chat(
-                [{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                timeout=30.0,
-            )
-        else:
-            api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
-            res_text = ""
-            if api_key:
-                try:
-                    print("[ExtractEbay] Attempting Google Gen AI with gemini-3.5-flash...", flush=True)
-                    client = genai.Client(api_key=api_key)
-                    res = client.models.generate_content(
-                        model='gemini-3.5-flash',
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_mime_type='application/json'
-                        )
-                    )
-                    res_text = res.text or ""
-                except Exception as ex:
-                    print(f"[ExtractEbay] Google Gen AI failed: {str(ex)}. Trying Vertex AI fallback...", flush=True)
-            
-            if not res_text:
-                vertex_client = get_vertex_client()
-                if vertex_client:
-                    print("[ExtractEbay] Using Vertex AI with gemini-2.5-flash...", flush=True)
-                    res = vertex_client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_mime_type='application/json'
-                        )
-                    )
-                    res_text = res.text or ""
+        if not OpenAI:
+            raise Exception("openai package not installed but USE_LOCAL_LLM is true")
+        res_text = local_llm_chat(
+            [{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            timeout=30.0,
+        )
                 else:
                     raise Exception("Neither Google Gen AI nor Vertex AI client is available/successful for extraction.")
         
@@ -1598,38 +1545,8 @@ async def value_card(req: ValuationRequest):
                     print(f"[AgentService] Context cache unavailable: {cache_err}")
 
         async def attempt_run(q):
-            api_key = os.environ.get("GOOGLE_GENAI_API_KEY")
-            client = genai.Client(api_key=api_key)
-
-            if cached_content_name:
-                sys_inst = build_card_valuation_instruction(
-                    player, cleaned_num, card_desc, series_id=series_id
-                )
-                # Cannot set system_instruction when using cached_content, but tools are supported/required at runtime
-                q = f"{sys_inst}\n\nUSER REQUEST: {q}"
-                gen_config = types.GenerateContentConfig(
-                    cached_content=cached_content_name,
-                    tools=[firecrawl_scrape],
-                )
-            else:
-                sys_inst = (
-                    f"You are a Senior Trading Card Valuation Analyst. Target: {player}, Card: #{cleaned_num}. "
-                    "CRITICAL INSTRUCTION: You MUST use the provided `firecrawl_scrape` tool to find live and sold listings by searching for URLs. "
-                    "DO NOT USE GOOGLE SEARCH GROUNDING. "
-                    "VALUATION PROTOCOL: "
-                    "1. STRICTLY EXCLUDE reprints, copies, or custom cards. "
-                    "2. Find at least 5 active listings and 5 sold listings if possible using the tool. If no real active or sold listings are found, return an empty array [] for that field. Do NOT generate placeholder/fake listings or URLs under any circumstances. "
-                    "3. If no exact title matches are found, allow minor variations (e.g., 'Series 1' vs 'S1') as long as the Year, Brand, Player, and Card Number match. "
-                    "4. Calculate the median price after removing outliers. "
-                    "5. RETURN FORMAT: You MUST return ONLY a JSON block with this structure: "
-                    "{\"currentMarketValue\": 123.45, \"active_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\"}], \"sold_listings\": [{\"title\": \"...\", \"price\": 123, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}]}. "
-                    "CRITICAL FORMAT RULE: If no active_listings or sold_listings are found in the search results, you MUST return an empty array [] for that field. Under no circumstances should you generate dummy, placeholder, or fake listings or URLs (such as \"https://www.ebay.com/itm/123456789011\" or using \"...\" strings as values)."
-                )
-                gen_config = types.GenerateContentConfig(
-                    system_instruction=sys_inst,
-                    # tools=[types.Tool(google_search=types.GoogleSearch())],
-                    tools=[firecrawl_scrape],
-                )
+            if not OpenAI:
+                raise Exception("openai package not installed but USE_LOCAL_LLM is true")
 
             # Implementation of exponential backoff for 429 errors
             max_retries = 3
@@ -1637,134 +1554,94 @@ async def value_card(req: ValuationRequest):
                 try:
                     print(f"[AgentService] AI Sync Attempt {attempt+1}/{max_retries} for query: {q}")
                     
-                    if USE_LOCAL_LLM and OpenAI:
-                        print(f"[AgentService] Local LLM mode. Fetching active listings from eBay Browse API...")
-                        parsed_active = search_ebay_active_items(card_desc, 15)
-                        
-                        print(f"[AgentService] Local LLM mode. Fetching ended/sold listings from eBay Browse API...")
-                        parsed_sold = search_ebay_sold_items(card_desc, 15)
-                        
-                        print(f"[AgentService] Parsed {len(parsed_active)} active and {len(parsed_sold)} sold candidates.")
-                        
-                        local_prompt = (
-                            f"You are a Senior Trading Card Valuation Analyst.\n"
-                            f"Target Card: {player}, Card Number: #{cleaned_num}.\n\n"
-                            f"Below are candidate listings scraped from eBay for this card.\n"
-                            f"Verify them and filter out any items that are reprints, copies, custom cards, different parallel versions, or do not match the target card.\n\n"
-                            f"Candidate Active Listings:\n"
-                            f"{json.dumps(parsed_active[:15], indent=2)}\n\n"
-                            f"Candidate Sold Listings:\n"
-                            f"{json.dumps(parsed_sold[:15], indent=2)}\n\n"
-                            f"VALUATION PROTOCOL:\n"
-                            f"1. Filter candidate listings to ensure they are exact matches for the target card.\n"
-                            f"2. Keep up to 10 matching active listings and up to 10 matching sold listings.\n"
-                            f"3. Calculate the median price of the matching sold listings (or active listings if no sold are found).\n"
-                            f"4. RETURN FORMAT: You MUST return ONLY a JSON block with this structure:\n"
-                            f"{{\n"
-                            f"  \"currentMarketValue\": 123.45,\n"
-                            f"  \"active_listings\": [{{\"title\": \"...\", \"price\": 123.45, \"url\": \"...\", \"image_url\": \"...\"}}],\n"
-                            f"  \"sold_listings\": [{{\"title\": \"...\", \"price\": 123.45, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}}]\n"
-                            f"}}\n"
-                            f"Format instructions: Do not output markdown code blocks (like ```json) or explanation. Return ONLY the raw JSON string."
-                        )
-                        
-                        try:
-                            res_text = local_llm_chat(
-                                [
-                                    {"role": "system", "content": "You are a valuation assistant that outputs raw JSON."},
-                                    {"role": "user", "content": local_prompt}
-                                ],
-                                response_format={"type": "json_object"},
-                                timeout=30.0,
-                            )
-                            print(f"[AgentService] Success after {attempt+1} attempts.")
-                            return res_text
-                        except Exception as e:
-                            print(f"[AgentService] Local LLM call timed out or failed ({e}). Falling back to pure Python local valuation.")
-                            filtered_active = []
-                            player_words = set(player.lower().split())
-                            for item in parsed_active:
-                                title_lower = item['title'].lower()
-                                if not any(w in title_lower for w in player_words):
-                                    continue
-                                if cleaned_num and cleaned_num.lower() not in title_lower:
-                                    continue
-                                filtered_active.append(item)
-                                
-                            filtered_sold = []
-                            for item in parsed_sold:
-                                title_lower = item['title'].lower()
-                                if not any(w in title_lower for w in player_words):
-                                    continue
-                                if cleaned_num and cleaned_num.lower() not in title_lower:
-                                    continue
-                                filtered_sold.append(item)
-                                
-                            sold_prices = [item['price'] for item in filtered_sold if item.get('price')]
-                            if sold_prices:
-                                sold_prices.sort()
-                                n = len(sold_prices)
-                                if n % 2 == 1:
-                                    current_value = sold_prices[n // 2]
-                                else:
-                                    current_value = (sold_prices[n // 2 - 1] + sold_prices[n // 2]) / 2.0
-                            else:
-                                active_prices = [item['price'] for item in filtered_active if item.get('price')]
-                                if active_prices:
-                                    active_prices.sort()
-                                    n = len(active_prices)
-                                    if n % 2 == 1:
-                                        current_value = active_prices[n // 2]
-                                    else:
-                                        current_value = (active_prices[n // 2 - 1] + active_prices[n // 2]) / 2.0
-                                else:
-                                    current_value = 0.00
-                                    
-                            res_payload = {
-                                "currentMarketValue": current_value,
-                                "active_listings": filtered_active[:10],
-                                "sold_listings": filtered_sold[:10]
-                            }
-                            return json.dumps(res_payload)
-                    else:
-                        try:
-                            response = client.models.generate_content(
-                                model='gemini-3.5-flash',
-                                contents=q,
-                                config=gen_config,
-                            )
-                        except Exception as val_ex:
-                            print(f"[AgentService] Google Gen AI ValueCard failed: {str(val_ex)}. Trying Vertex AI fallback...", flush=True)
-                            vertex_client = get_vertex_client()
-                            if vertex_client:
-                                print("[AgentService] ValueCard calling Vertex AI with gemini-2.5-flash...", flush=True)
-                                vertex_config = types.GenerateContentConfig(
-                                    system_instruction=gen_config.system_instruction if not cached_content_name else None,
-                                    tools=gen_config.tools,
-                                    temperature=gen_config.temperature
-                                )
-                                response = vertex_client.models.generate_content(
-                                    model='gemini-2.5-flash',
-                                    contents=q,
-                                    config=vertex_config,
-                                )
-                            else:
-                                raise val_ex
-                        log_cache_usage(response, series_id)
-                    # Gemini 3.5 Flash + google_search returns multi-part responses.
-                    # The JSON answer is often in a later part, after grounding chunks.
-                    # We must concatenate ALL text parts to find the actual valuation JSON.
-                    res_text = ""
-                    if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-                        for part in response.candidates[0].content.parts:
-                            if hasattr(part, 'text') and part.text:
-                                res_text += part.text + "\n"
-                    if not res_text:
-                        res_text = response.text or ""
+                    print(f"[AgentService] Local LLM mode. Fetching active listings from eBay Browse API...")
+                    parsed_active = search_ebay_active_items(card_desc, 15)
                     
-                    if res_text:
+                    print(f"[AgentService] Local LLM mode. Fetching ended/sold listings from eBay Browse API...")
+                    parsed_sold = search_ebay_sold_items(card_desc, 15)
+                    
+                    print(f"[AgentService] Parsed {len(parsed_active)} active and {len(parsed_sold)} sold candidates.")
+                    
+                    local_prompt = (
+                        f"You are a Senior Trading Card Valuation Analyst.\n"
+                        f"Target Card: {player}, Card Number: #{cleaned_num}.\n\n"
+                        f"Below are candidate listings scraped from eBay for this card.\n"
+                        f"Verify them and filter out any items that are reprints, copies, custom cards, different parallel versions, or do not match the target card.\n\n"
+                        f"Candidate Active Listings:\n"
+                        f"{json.dumps(parsed_active[:15], indent=2)}\n\n"
+                        f"Candidate Sold Listings:\n"
+                        f"{json.dumps(parsed_sold[:15], indent=2)}\n\n"
+                        f"VALUATION PROTOCOL:\n"
+                        f"1. Filter candidate listings to ensure they are exact matches for the target card.\n"
+                        f"2. Keep up to 10 matching active listings and up to 10 matching sold listings.\n"
+                        f"3. Calculate the median price of the matching sold listings (or active listings if no sold are found).\n"
+                        f"4. RETURN FORMAT: You MUST return ONLY a JSON block with this structure:\n"
+                        f"{{\n"
+                        f"  \"currentMarketValue\": 123.45,\n"
+                        f"  \"active_listings\": [{{\"title\": \"...\", \"price\": 123.45, \"url\": \"...\", \"image_url\": \"...\"}}],\n"
+                        f"  \"sold_listings\": [{{\"title\": \"...\", \"price\": 123.45, \"url\": \"...\", \"image_url\": \"...\", \"end_date\": \"YYYY-MM-DD\"}}]\n"
+                        f"}}\n"
+                        f"Format instructions: Do not output markdown code blocks (like ```json) or explanation. Return ONLY the raw JSON string."
+                    )
+                    
+                    try:
+                        res_text = local_llm_chat(
+                            [
+                                {"role": "system", "content": "You are a valuation assistant that outputs raw JSON."},
+                                {"role": "user", "content": local_prompt}
+                            ],
+                            response_format={"type": "json_object"},
+                            timeout=30.0,
+                        )
                         print(f"[AgentService] Success after {attempt+1} attempts.")
                         return res_text
+                    except Exception as e:
+                        print(f"[AgentService] Local LLM call timed out or failed ({e}). Falling back to pure Python local valuation.")
+                        filtered_active = []
+                        player_words = set(player.lower().split())
+                        for item in parsed_active:
+                            title_lower = item['title'].lower()
+                            if not any(w in title_lower for w in player_words):
+                                continue
+                            if cleaned_num and cleaned_num.lower() not in title_lower:
+                                continue
+                            filtered_active.append(item)
+                            
+                        filtered_sold = []
+                        for item in parsed_sold:
+                            title_lower = item['title'].lower()
+                            if not any(w in title_lower for w in player_words):
+                                continue
+                            if cleaned_num and cleaned_num.lower() not in title_lower:
+                                continue
+                            filtered_sold.append(item)
+                            
+                        sold_prices = [item['price'] for item in filtered_sold if item.get('price')]
+                        if sold_prices:
+                            sold_prices.sort()
+                            n = len(sold_prices)
+                            if n % 2 == 1:
+                                current_value = sold_prices[n // 2]
+                            else:
+                                current_value = (sold_prices[n // 2 - 1] + sold_prices[n // 2]) / 2.0
+                        else:
+                            active_prices = [item['price'] for item in filtered_active if item.get('price')]
+                            if active_prices:
+                                active_prices.sort()
+                                n = len(active_prices)
+                                if n % 2 == 1:
+                                    current_value = active_prices[n // 2]
+                                else:
+                                    current_value = (active_prices[n // 2 - 1] + active_prices[n // 2]) / 2.0
+                            else:
+                                current_value = 0.00
+                                
+                        res_payload = {
+                            "currentMarketValue": current_value,
+                            "active_listings": filtered_active[:10],
+                            "sold_listings": filtered_sold[:10]
+                        }
+                        return json.dumps(res_payload)
                 except Exception as re:
                     error_msg = str(re)
                     if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:

@@ -35,15 +35,13 @@ async function loadGenkit() {
   return { genkit, z, googleAI: vertexAI, ollama: ollamaAI };
 }
 
-const useLocalLlm = process.env.USE_LOCAL_LLM !== 'false';
+const useLocalLlm = true;
 const localModel = process.env.LOCAL_LLM_MODEL || 'gemma4:26b';
-const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:12b';
+const localFallbackModel = process.env.LOCAL_LLM_FALLBACK_MODEL || 'gemma4:26b';
 const localUrl = process.env.LOCAL_LLM_URL || 'https://primary-villain-parking.ngrok-free.dev';
 
-const PRIMARY_MODEL = useLocalLlm ? `ollama/${localModel}` : 'googleai/gemini-2.5-flash';
-const FALLBACK_MODEL = useLocalLlm
-  ? `ollama/${localFallbackModel}`
-  : 'googleai/gemini-2.5-flash';
+const PRIMARY_MODEL = `ollama/${localModel}`;
+const FALLBACK_MODEL = `ollama/${localFallbackModel}`;
 
 const GOOGLE_GENAI_API_KEY = defineSecret("GOOGLE_GENAI_API_KEY");
 const EBAY_CLIENT_ID = defineSecret("EBAY_CLIENT_ID");

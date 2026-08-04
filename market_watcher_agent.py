@@ -207,12 +207,12 @@ Ensure multiplier_x values are computed from stated raw_median_usd and psa10_med
 
         print(f"[MarketAnalyst] Starting institutional report for {current_month}...")
         
-        use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
+        use_local_llm = True
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
         if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
             local_llm_url = local_llm_url.rstrip("/") + "/v1"
         local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
-        local_llm_fallback = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:12b")
+        local_llm_fallback = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:26b")
 
         if use_local_llm:
             try:
@@ -488,12 +488,12 @@ async def run_cli():
     async def attempt_run(model_name):
         max_retries = 3
         
-        use_local_llm = os.getenv("USE_LOCAL_LLM") == "true"
+        use_local_llm = True
         local_llm_url = os.getenv("LOCAL_LLM_URL", "https://primary-villain-parking.ngrok-free.dev/v1")
         if not local_llm_url.endswith("/v1") and not local_llm_url.endswith("/api"):
             local_llm_url = local_llm_url.rstrip("/") + "/v1"
         local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
-        local_llm_fallback = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:12b")
+        local_llm_fallback = os.getenv("LOCAL_LLM_FALLBACK_MODEL", "gemma4:26b")
 
         for attempt in range(max_retries):
             try:
@@ -566,20 +566,12 @@ async def run_cli():
     )
 
     try:
-        # Tier 1: Use stable primary model (gemini-3.5-flash)
-        full_response = await attempt_run('gemini-3.5-flash')
+        local_llm_model = os.getenv("LOCAL_LLM_MODEL", "gemma4:26b")
+        full_response = await attempt_run(local_llm_model)
     except Exception as e:
-        if not enable_pro_fallback:
-            print(f"[Python] gemini-3.5-flash failed and pro fallback disabled: {str(e)}")
-            print(json.dumps({"error": f"Valuation failed: {str(e)}", "final_price": 0.0}))
-            return
-        # Tier 2 (opt-in only): expensive reasoning model — set ENABLE_PRO_VALUATION_FALLBACK=true
-        print(f"[Python] gemini-3.5-flash issue: {str(e)}. Attempting Tier 2 calibration (opt-in)...")
-        try:
-            full_response = await attempt_run('gemini-3.1-pro-preview')
-        except Exception as e2:
-            print(json.dumps({"error": f"Fallback failed: {str(e2)}", "final_price": 0.0}))
-            return
+        print(f"[Python] Local LLM valuation failed: {str(e)}")
+        print(json.dumps({"error": f"Valuation failed: {str(e)}", "final_price": 0.0}))
+        return
 
     # Clean up and parse response
     match = re.search(r'(\{[\s\S]*\})', full_response)
