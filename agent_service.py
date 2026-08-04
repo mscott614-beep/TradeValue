@@ -1334,8 +1334,7 @@ Return ONLY a JSON object with these exact fields:
             response_format={"type": "json_object"},
             timeout=30.0,
         )
-                else:
-                    raise Exception("Neither Google Gen AI nor Vertex AI client is available/successful for extraction.")
+
         
         res_json = robust_json_parse(res_text)
         if res_json:
